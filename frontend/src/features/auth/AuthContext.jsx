@@ -35,8 +35,15 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
-  const register = async (name, email, password) => {
-    const res = await authApi.register({ name, email, password });
+  const registerCustomer = async (name, email, password, phone) => {
+    const res = await authApi.registerCustomer({ name, email, password, phone });
+    localStorage.setItem("token", res.data.token);
+    setUser(res.data.user);
+    return res.data;
+  };
+
+  const registerRestaurant = async (data) => {
+    const res = await authApi.registerRestaurant(data);
     localStorage.setItem("token", res.data.token);
     setUser(res.data.user);
     return res.data;
@@ -52,8 +59,12 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const refreshUser = useCallback(async () => {
+    await fetchUser();
+  }, [fetchUser]);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, registerCustomer, registerRestaurant, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

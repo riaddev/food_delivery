@@ -1,1 +1,41 @@
 @import "tailwindcss";
+
+@theme {
+  --animate-fade-in-up: fade-in-up 0.7s ease forwards;
+  --animate-slide-left: slide-left 0.7s ease forwards;
+  --animate-slide-right: slide-right 0.7s ease forwards;
+  --animate-scale-in: scale-in 0.5s ease forwards;
+  --animate-heart-pop: heart-pop 0.35s ease;
+  --animate-float-burger: float-burger 4s ease-in-out infinite;
+  --animate-float-cta: float-cta 4s ease-in-out infinite;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-left {
+  from { opacity: 0; transform: translateX(-40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+@keyframes float-burger {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes float-cta {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-18px) rotate(8deg); }
+}

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -10,19 +11,56 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request): JsonResponse
+    public function registerCustomer(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
+            'phone' => 'nullable|string|max:20',
         ]);
+
+        $validated['role'] = 'customer';
+        $validated['password'] = Hash::make($validated['password']);
+
+        $user = User::create($validated);
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        return response()->json([
+            'user' => $user,
+            'token' => $token,
+        ], 201);
+    }
+
+    public function registerRestaurant(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8',
+            'restaurant_name' => 'required|string|max:255',
+            'phone' => 'required|string|max:20',
+            'cuisine_type' => 'required|string|max:255',
+        ]);
+
+        $validated['password'] = Hash::make($validated['password']);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'password' => $validated['password'],
+            'role' => 'restaurant',
         ]);
+
+        Restaurant::create([
+            'user_id' => $user->id,
+            'restaurant_name' => $validated['restaurant_name'],
+            'phone' => $validated['phone'],
+            'cuisine_type' => $validated['cuisine_type'],
+        ]);
+
+        $user->load('restaurant');
 
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -48,6 +86,10 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;
+
+        if ($user->isRestaurant()) {
+            $user->load('restaurant');
+        }
 
         return response()->json([
             'user' => $user,

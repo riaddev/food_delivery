@@ -3,92 +3,73 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 
 const RegisterPage = () => {
-  const { register } = useAuth();
+  const { registerCustomer } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", password_confirmation: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", password_confirmation: "" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-
-    if (form.password !== form.password_confirmation) {
-      setError("Passwords do not match.");
-      return;
-    }
-
+    if (form.password !== form.password_confirmation) { setError("Passwords do not match."); return; }
     setSubmitting(true);
     try {
-      await register(form.name, form.email, form.password);
-      navigate("/");
+      await registerCustomer(form.name, form.email, form.password, form.phone);
+      navigate("/customer/account");
     } catch (err) {
       const errors = err.response?.data?.errors;
-      if (errors) {
-        const first = Object.values(errors)[0]?.[0];
-        setError(first || "Registration failed.");
-      } else {
-        setError(err.response?.data?.message || "Registration failed.");
-      }
+      setError(errors ? Object.values(errors)[0]?.[0] : err.response?.data?.message || "Registration failed.");
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="sb-root" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f6f2ec" }}>
-      <div style={{ width: "100%", maxWidth: 420, margin: "0 20px" }}>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <Link to="/" style={{ fontSize: 28, fontWeight: 800, color: "#ff6b35", textDecoration: "none" }}>
-            Swift<span style={{ color: "#111827" }}>Bite</span>
+    <div className="min-h-screen flex items-center justify-center bg-[#f6f2ec]">
+      <div className="w-full max-w-[420px] mx-5">
+        <div className="text-center mb-8">
+          <Link to="/" className="text-[28px] font-extrabold text-[#ff6b35] no-underline">
+            Swift<span className="text-gray-900">Bite</span>
           </Link>
-          <p style={{ color: "#6b6b6f", marginTop: 8, fontSize: 14 }}>Create your account and start ordering.</p>
+          <p className="text-gray-500 mt-2 text-sm">Create your account and start ordering.</p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ background: "#fff", borderRadius: 20, padding: 32, boxShadow: "0 8px 30px rgba(0,0,0,0.06)" }}>
-          {error && (
-            <div style={{ background: "#fef2f2", color: "#dc2626", fontSize: 13, padding: "10px 14px", borderRadius: 10, marginBottom: 16 }}>
-              {error}
+        <form onSubmit={handleSubmit} className="bg-white rounded-[20px] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+          {error && <div className="bg-red-50 text-red-600 text-sm px-3.5 py-2.5 rounded-[10px] mb-4">{error}</div>}
+
+          {["name", "email", "phone"].map((field) => (
+            <div key={field} className="mb-[18px]">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5 capitalize">{field === "phone" ? "Phone Number" : field === "name" ? "Full Name" : field}</label>
+              <input type={field === "email" ? "email" : field === "phone" ? "tel" : "text"} required={field !== "phone"} value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-[10px] text-sm outline-none focus:ring-2 focus:ring-orange-400 box-border"
+                placeholder={field === "name" ? "John Doe" : field === "email" ? "you@example.com" : "+1 234 567 8900"} />
             </div>
-          )}
+          ))}
 
-          <div style={{ marginBottom: 18 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Full Name</label>
-            <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-              style={{ width: "100%", padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
-              placeholder="John Doe" />
-          </div>
-
-          <div style={{ marginBottom: 18 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Email</label>
-            <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-              style={{ width: "100%", padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
-              placeholder="you@example.com" />
-          </div>
-
-          <div style={{ marginBottom: 18 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Password</label>
-            <input type="password" required minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-              style={{ width: "100%", padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
-              placeholder="At least 8 characters" />
-          </div>
-
-          <div style={{ marginBottom: 24 }}>
-            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Confirm Password</label>
-            <input type="password" required value={form.password_confirmation} onChange={(e) => setForm({ ...form, password_confirmation: e.target.value })}
-              style={{ width: "100%", padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: 10, fontSize: 14, outline: "none", boxSizing: "border-box" }}
-              placeholder="Repeat your password" />
-          </div>
+          {["password", "password_confirmation"].map((field) => (
+            <div key={field} className={field === "password" ? "mb-[18px]" : "mb-6"}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{field === "password" ? "Password" : "Confirm Password"}</label>
+              <input type="password" required={field === "password"} minLength={field === "password" ? 8 : undefined} value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-[10px] text-sm outline-none focus:ring-2 focus:ring-orange-400 box-border"
+                placeholder={field === "password" ? "At least 8 characters" : "Repeat your password"} />
+            </div>
+          ))}
 
           <button type="submit" disabled={submitting}
-            style={{ width: "100%", padding: "12px 0", background: submitting ? "#ccc" : "#ff6b35", color: "#fff", border: "none", borderRadius: 999, fontSize: 15, fontWeight: 700, cursor: submitting ? "not-allowed" : "pointer", transition: "background 0.2s" }}>
+            className="w-full py-3 rounded-full text-base font-bold text-white transition cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-300 bg-[#ff6b35] hover:bg-[#e6551a]">
             {submitting ? "Creating account..." : "Create Account"}
           </button>
 
-          <p style={{ textAlign: "center", marginTop: 18, fontSize: 13.5, color: "#6b6b6f" }}>
+          <p className="text-center mt-[18px] text-sm text-gray-500">
             Already have an account?{" "}
-            <Link to="/login" style={{ color: "#ff6b35", fontWeight: 600, textDecoration: "none" }}>Sign in</Link>
+            <Link to="/login" className="text-[#ff6b35] font-semibold no-underline">Sign in</Link>
           </p>
+
+          <div className="border-t border-gray-200 mt-5 pt-5 text-center">
+            <p className="text-sm text-gray-500 mb-2">Own a restaurant?</p>
+            <Link to="/register/restaurant" className="text-[#ff6b35] font-semibold text-sm no-underline">Register your restaurant</Link>
+          </div>
         </form>
       </div>
     </div>
