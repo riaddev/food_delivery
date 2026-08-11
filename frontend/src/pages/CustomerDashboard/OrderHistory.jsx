@@ -75,6 +75,11 @@ const OrderHistory = () => {
                   {order.delivery_address && (
                     <p className="text-xs text-gray-400 mt-2 m-0">Deliver to: {order.delivery_address}</p>
                   )}
+                  {order.order_type === "dine_in" && (
+                    <p className="text-xs font-semibold text-emerald-600 mt-2 m-0">
+                      Dine-In{order.table_number ? ` · Table ${order.table_number}` : ""}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

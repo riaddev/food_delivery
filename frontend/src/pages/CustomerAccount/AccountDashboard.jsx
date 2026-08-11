@@ -71,7 +71,7 @@ export default function AccountDashboard() {
   const stats = [
     { title: "Total Orders", count: data?.total_orders ?? 0, sub: "all time", icon: ShoppingCart, tint: "bg-red-50 text-[#E03546]" },
     { title: "Active Orders", count: data?.active_orders ?? 0, sub: "in progress", icon: HeartPulse, tint: "bg-amber-50 text-amber-600" },
-    { title: "Favourite Items", count: data?.favorites_count ?? 0, sub: "saved dishes", icon: Heart, tint: "bg-rose-50 text-rose-600" },
+    { title: "Favourite Items", count: data?.wishlist_count ?? 0, sub: "saved dishes", icon: Heart, tint: "bg-rose-50 text-rose-600" },
     { title: "Saved Addresses", count: data?.addresses_count ?? 0, sub: "on file", icon: MapPin, tint: "bg-emerald-50 text-emerald-600" },
   ];
 

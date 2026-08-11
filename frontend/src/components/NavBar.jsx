@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ShoppingCart } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { useCart } from "../context/CartContext";
 import CartDrawer from "./CartDrawer";
@@ -48,19 +49,19 @@ const Header = () => {
                 Restaurants
               </Link>
               {user.role === "customer" && (
-                <>
-                  <Link to="/customer/account" className="bg-transparent border border-gray-300 text-gray-900 px-4.5 py-[9px] rounded-full font-semibold text-sm hover:border-[#ff6b35] hover:text-[#ff6b35] hover:-translate-y-0.5 transition whitespace-nowrap">
-                    My Account
-                  </Link>
-                  <button onClick={() => setCartOpen(true)} className="relative text-xl bg-transparent border border-gray-300 w-[42px] h-[42px] rounded-full flex items-center justify-center hover:border-[#ff6b35] hover:text-[#ff6b35] hover:-translate-y-0.5 transition">
-                    🛒
-                    {itemCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-[#ff6b35] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {itemCount}
-                      </span>
-                    )}
-                  </button>
-                </>
+                <Link to="/customer/account" className="bg-transparent border border-gray-300 text-gray-900 px-4.5 py-[9px] rounded-full font-semibold text-sm hover:border-[#ff6b35] hover:text-[#ff6b35] hover:-translate-y-0.5 transition whitespace-nowrap">
+                  My Account
+                </Link>
+              )}
+              {(!user || user.role === "customer") && (
+                <button onClick={() => setCartOpen(true)} aria-label="Open cart" className="relative bg-transparent border border-gray-300 w-[42px] h-[42px] rounded-full flex items-center justify-center hover:border-[#ff6b35] hover:text-[#ff6b35] hover:-translate-y-0.5 transition">
+                  <ShoppingCart size={18} strokeWidth={2.2} />
+                  {itemCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-[#ff6b35] text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {itemCount}
+                    </span>
+                  )}
+                </button>
               )}
               {user.role === "restaurant" && (
                 <Link to="/restaurant/dashboard" className="bg-transparent border border-gray-300 text-gray-900 px-4.5 py-[9px] rounded-full font-semibold text-sm hover:border-[#ff6b35] hover:text-[#ff6b35] hover:-translate-y-0.5 transition whitespace-nowrap">

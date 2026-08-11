@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2, UtensilsCrossed, Image as ImageIcon } from "lucid
 import api, { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
-const emptyItem = { name: "", description: "", price: "", category: "", is_available: true };
+const emptyItem = { name: "", description: "", price: "", category: "", category_id: "", is_available: true };
 
 export default function MenuManagement() {
   const [items, setItems] = useState([]);
@@ -13,8 +13,11 @@ export default function MenuManagement() {
   const [form, setForm] = useState(emptyItem);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageUrl, setImageUrl] = useState("");
+  const [removeImage, setRemoveImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState([]);
 
   const fetchItems = async () => {
     try {
@@ -29,6 +32,9 @@ export default function MenuManagement() {
     restaurantApi.getMenuItems()
       .then((res) => { setItems(res.data.menu_items); setLoading(false); })
       .catch(() => setLoading(false));
+    api.get("/categories")
+      .then((res) => setCategories(res.data.categories || []))
+      .catch(() => {});
   }, []);
 
   const handleChange = (e) => {
@@ -36,20 +42,44 @@ export default function MenuManagement() {
     setForm({ ...form, [e.target.name]: value });
   };
 
+  const handleCategoryChange = (e) => {
+    const id = e.target.value ? Number(e.target.value) : null;
+    const name = categories.find((c) => c.id === id)?.name || "";
+    setForm({ ...form, category_id: id, category: name });
+  };
+
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
+    setImageUrl("");
+    setRemoveImage(false);
+  };
+
+  const handleImageUrlChange = (e) => {
+    setImageUrl(e.target.value);
+    setImageFile(null);
+    setImagePreview(null);
+    setRemoveImage(false);
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setImageUrl("");
+    setRemoveImage(true);
   };
 
   const openCreate = () => {
-    setForm(emptyItem); setEditingId(null); setImageFile(null); setImagePreview(null); setShowForm(true); setError("");
+    setForm(emptyItem); setEditingId(null); setImageFile(null); setImagePreview(null); setImageUrl(""); setRemoveImage(false); setShowForm(true); setError("");
   };
 
   const openEdit = (item) => {
-    setForm({ ...item, price: item.price.toString() }); setEditingId(item.id);
-    setImageFile(null); setImagePreview(item.image_url || null); setShowForm(true); setError("");
+    setForm({ ...item, price: item.price.toString(), category_id: item.category_id ?? "" }); setEditingId(item.id);
+    setImageFile(null); setImagePreview(item.image_url || null);
+    setImageUrl(item.image && String(item.image).startsWith("http") ? item.image : "");
+    setRemoveImage(false); setShowForm(true); setError("");
   };
 
   const buildFormData = () => {
@@ -57,8 +87,11 @@ export default function MenuManagement() {
     fd.append("name", form.name); fd.append("price", form.price);
     if (form.description) fd.append("description", form.description);
     if (form.category) fd.append("category", form.category);
+    if (form.category_id) fd.append("category_id", form.category_id);
     fd.append("is_available", form.is_available ? "1" : "0");
     if (imageFile) fd.append("image", imageFile);
+    if (!imageFile && imageUrl.trim()) fd.append("image_url", imageUrl.trim());
+    if (removeImage) fd.append("remove_image", "1");
     return fd;
   };
 
@@ -79,7 +112,7 @@ export default function MenuManagement() {
         const fd = buildFormData();
         await restaurantApi.createMenuItem(fd);
       }
-      setShowForm(false); setEditingId(null); setImageFile(null); setImagePreview(null);
+      setShowForm(false); setEditingId(null); setImageFile(null); setImagePreview(null); setImageUrl(""); setRemoveImage(false);
       fetchItems();
     } catch (err) {
       const errors = err.response?.data?.errors;
@@ -125,7 +158,21 @@ export default function MenuManagement() {
               </div>
               <div>
                 <label className={labelCls}>Category</label>
-                <input type="text" name="category" value={form.category} onChange={handleChange} className={inputCls} placeholder="Burgers, Drinks, etc." />
+                {categories.length > 0 ? (
+                  <select
+                    name="category_id"
+                    value={form.category_id ?? ""}
+                    onChange={handleCategoryChange}
+                    className={`${inputCls} bg-transparent cursor-pointer`}
+                  >
+                    <option value="">— None —</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input type="text" name="category" value={form.category} onChange={handleChange} className={inputCls} placeholder="Burgers, Drinks, etc." />
+                )}
               </div>
               <div>
                 <label className={labelCls}>Availability</label>
@@ -144,12 +191,35 @@ export default function MenuManagement() {
               <div className="sm:col-span-2">
                 <label className={labelCls}>Image</label>
                 <div className="flex items-center gap-4 mt-2.5">
-                  {imagePreview && <img src={imagePreview} alt="Preview" className="w-20 h-20 rounded-2xl object-cover" />}
+                  {(imagePreview || imageUrl) && <img src={imagePreview || imageUrl} alt="Preview" className="w-20 h-20 rounded-2xl object-cover" />}
                   <label className="inline-flex items-center gap-2 border-2 border-dashed border-zinc-300 hover:border-red-400 text-zinc-500 hover:text-red-500 text-sm font-semibold px-5 py-3 rounded-2xl cursor-pointer transition-colors">
-                    <ImageIcon size={15} /> {imagePreview ? "Replace image" : "Upload image"}
+                    <ImageIcon size={15} /> {imagePreview || imageUrl ? "Replace image" : "Upload image"}
                     <input type="file" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" onChange={handleImageChange} className="hidden" />
                   </label>
                 </div>
+
+                <div className="flex items-center gap-3 mt-3">
+                  <span className="h-px flex-1 bg-zinc-100" />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-300">or use a URL</span>
+                  <span className="h-px flex-1 bg-zinc-100" />
+                </div>
+
+                <div className="flex items-center gap-3 mt-1">
+                  <input
+                    type="url"
+                    name="image_url"
+                    value={imageUrl}
+                    onChange={handleImageUrlChange}
+                    placeholder="Paste image URL from Google..."
+                    className="flex-1 min-w-0 bg-transparent border-b border-zinc-200 focus:border-red-500 outline-none py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors"
+                  />
+                  {(imagePreview || imageUrl) && (
+                    <button type="button" onClick={handleRemoveImage} className="text-xs font-semibold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">
+                      Remove
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-zinc-400 mt-1.5">Uploading a photo overrides the URL.</p>
               </div>
             </div>
 

@@ -8,6 +8,7 @@
   --animate-heart-pop: heart-pop 0.35s ease;
   --animate-float-burger: float-burger 4s ease-in-out infinite;
   --animate-float-cta: float-cta 4s ease-in-out infinite;
+  --animate-marquee: marquee 45s linear infinite;
 }
 
 @keyframes fade-in-up {
@@ -38,4 +39,8 @@
 @keyframes float-cta {
   0%, 100% { transform: translateY(0) rotate(0deg); }
   50% { transform: translateY(-18px) rotate(8deg); }
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }

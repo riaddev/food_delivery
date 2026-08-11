@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\CustomerAddress;
 use App\Models\Favorite;
 use App\Models\MenuItem;
 use App\Models\Order;
+use App\Models\Restaurant;
+use App\Models\Review;
 use App\Models\WishlistItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -85,12 +88,18 @@ class CustomerController extends Controller
             'items.*.menu_item_id' => 'required|exists:menu_items,id',
             'items.*.quantity' => 'required|integer|min:1',
             'delivery_address' => 'nullable|string|max:255',
+            'delivery_instructions' => 'nullable|string|max:255',
+            'payment_method' => 'nullable|string|in:cash,bkash,card',
+            'order_type' => 'nullable|string|in:delivery,dine_in',
+            'table_number' => 'nullable|string|max:50',
         ]);
+
+        $restaurant = Restaurant::findOrFail($validated['restaurant_id']);
 
         $menuItemIds = collect($validated['items'])->pluck('menu_item_id');
         $menuItems = MenuItem::whereIn('id', $menuItemIds)->get()->keyBy('id');
 
-        $total = 0;
+        $subtotal = 0;
         $orderItems = [];
 
         foreach ($validated['items'] as $item) {
@@ -102,8 +111,7 @@ class CustomerController extends Controller
                 ], 422);
             }
 
-            $lineTotal = $menuItem->price * $item['quantity'];
-            $total += $lineTotal;
+            $subtotal += $menuItem->price * $item['quantity'];
 
             $orderItems[] = [
                 'menu_item_id' => $menuItem->id,
@@ -113,15 +121,30 @@ class CustomerController extends Controller
             ];
         }
 
+        $orderType = $validated['order_type'] ?? 'delivery';
+        $deliveryFee = $orderType === 'dine_in' ? 0 : (float) $restaurant->delivery_fee;
+        $paymentMethod = $validated['payment_method'] ?? 'cash';
+
         $order = Order::create([
             'user_id' => $request->user()->id,
             'restaurant_id' => $validated['restaurant_id'],
             'status' => 'pending',
-            'total' => $total,
-            'delivery_address' => $validated['delivery_address'] ?? $request->user()->address,
+            'order_type' => $orderType,
+            'total' => $subtotal + $deliveryFee,
+            'delivery_fee' => $deliveryFee,
+            'payment_method' => $paymentMethod,
+            'payment_status' => $paymentMethod === 'cash' ? 'pending' : 'paid',
+            'delivery_address' => $orderType === 'dine_in' ? null : ($validated['delivery_address'] ?? $request->user()->address),
+            'delivery_instructions' => $validated['delivery_instructions'] ?? null,
+            'table_number' => $validated['table_number'] ?? null,
         ]);
 
         $order->items()->createMany($orderItems);
+
+        ActivityLog::create([
+            'type' => 'order_placed',
+            'description' => "Order #{$order->id} was placed at \"{$restaurant->restaurant_name}\".",
+        ]);
 
         $order->load('restaurant', 'items');
 
@@ -161,12 +184,21 @@ class CustomerController extends Controller
             return response()->json(['message' => 'None of the items from the previous order are available.'], 422);
         }
 
+        $restaurant = Restaurant::findOrFail($previousOrder->restaurant_id);
+        $orderType = $previousOrder->order_type ?? 'delivery';
+        $deliveryFee = $orderType === 'dine_in' ? 0 : (float) $restaurant->delivery_fee;
+
         $order = Order::create([
             'user_id' => $request->user()->id,
             'restaurant_id' => $previousOrder->restaurant_id,
             'status' => 'pending',
-            'total' => $total,
+            'order_type' => $orderType,
+            'total' => $total + $deliveryFee,
+            'delivery_fee' => $deliveryFee,
+            'payment_method' => $previousOrder->payment_method ?? 'cash',
+            'payment_status' => $previousOrder->payment_method === 'cash' ? 'pending' : 'paid',
             'delivery_address' => $previousOrder->delivery_address,
+            'table_number' => $previousOrder->table_number,
         ]);
 
         $order->items()->createMany($orderItems);
@@ -320,8 +352,71 @@ class CustomerController extends Controller
             'total_orders' => $orders->count(),
             'active_orders' => $orders->whereIn('status', ['pending', 'confirmed', 'preparing', 'out_for_delivery'])->count(),
             'favorites_count' => $user->favorites()->count(),
+            'wishlist_count' => $user->wishlistItems()->count(),
             'addresses_count' => $user->addresses()->count(),
             'recent_orders' => $orders->take(5),
         ]);
+    }
+
+    public function cancelOrder(Request $request, $id): JsonResponse
+    {
+        $order = $request->user()->orders()->with('restaurant')->findOrFail($id);
+
+        if (!in_array($order->status, ['pending', 'confirmed'])) {
+            return response()->json([
+                'message' => 'This order can no longer be cancelled.',
+            ], 422);
+        }
+
+        $order->update(['status' => 'cancelled']);
+
+        ActivityLog::create([
+            'type' => 'order_cancelled',
+            'description' => "Order #{$order->id} was cancelled by the customer.",
+        ]);
+
+        return response()->json([
+            'order' => $order->fresh()->load('restaurant', 'items'),
+            'message' => 'Order cancelled successfully.',
+        ]);
+    }
+
+    public function storeReview(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'restaurant_id' => 'required|exists:restaurants,id',
+            'rating' => 'required|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        $delivered = $request->user()->orders()
+            ->where('restaurant_id', $validated['restaurant_id'])
+            ->where('status', 'delivered')
+            ->exists();
+
+        if (!$delivered) {
+            return response()->json([
+                'message' => 'You can only review a restaurant after an order has been delivered.',
+            ], 422);
+        }
+
+        $review = Review::updateOrCreate(
+            [
+                'user_id' => $request->user()->id,
+                'restaurant_id' => $validated['restaurant_id'],
+            ],
+            [
+                'rating' => $validated['rating'],
+                'comment' => $validated['comment'] ?? null,
+            ]
+        );
+
+        $avg = Review::where('restaurant_id', $validated['restaurant_id'])->avg('rating');
+
+        return response()->json([
+            'review' => $review->load('user:id,name,avatar'),
+            'avg_rating' => $avg ? round((float) $avg, 1) : null,
+            'message' => 'Thank you for your review!',
+        ], 201);
     }
 }

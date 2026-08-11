@@ -1,24 +1,81 @@
 import { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, Star, Clock, MapPin, Truck, Heart, UtensilsCrossed } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft, Search, SearchX, LayoutGrid, ChevronDown, WifiOff,
+  Bike, ShoppingBag, Utensils,
+} from "lucide-react";
 import api from "../../features/api/apiSlice";
-import { formatPrice, restaurantImage } from "../../utils/foodImages";
+import { useCart } from "../../context/CartContext";
+import FoodCard from "../../components/FoodCard";
 
-const FILTERS = [
-  { id: "all", label: "All" },
-  { id: "fastest", label: "Fastest Delivery" },
-  { id: "rating", label: "Rating 4.0+" },
-  { id: "free", label: "Free Delivery" },
-  { id: "offers", label: "Offers" },
+const SORT_OPTIONS = [
+  { id: "recommended", label: "Recommended" },
+  { id: "rating", label: "Rating" },
+  { id: "eta", label: "Delivery Time" },
+  { id: "fee", label: "Delivery Fee" },
+];
+
+const MODES = [
+  { id: "delivery", label: "Delivery", icon: Bike },
+  { id: "pickup", label: "Pickup", icon: ShoppingBag },
+  { id: "dine_in", label: "Dine-in", icon: Utensils },
+];
+
+const FILTERS_BY_MODE = {
+  delivery: [
+    { id: "all", label: "All" },
+    { id: "fastest", label: "Fastest Delivery" },
+    { id: "rating", label: "Rating 4.0+" },
+    { id: "offers", label: "Offers" },
+  ],
+  pickup: [
+    { id: "all", label: "All" },
+    { id: "ready", label: "Ready in 15 mins" },
+    { id: "rating", label: "Rating 4.0+" },
+  ],
+  dine_in: [
+    { id: "all", label: "All" },
+    { id: "top", label: "Top Rated" },
+    { id: "tables", label: "Available Tables" },
+  ],
+};
+
+const CATEGORIES = [
+  { id: "all", label: "All", keyword: null, heading: "All Dishes" },
+  { id: "biryani", label: "Biryani", keyword: "biryani", heading: "Biryani Dishes", image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=200&auto=format&fit=crop" },
+  { id: "pizza", label: "Pizza", keyword: "pizza", heading: "Pizza Dishes", image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=200&auto=format&fit=crop" },
+  { id: "burgers", label: "Burgers", keyword: "burger", heading: "Burger Dishes", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=200&auto=format&fit=crop" },
+  { id: "kabab", label: "Kabab", keyword: "kabab", heading: "Kabab Dishes", image: "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?q=80&w=200&auto=format&fit=crop" },
+  { id: "fastfood", label: "Fast Food", keyword: "fast food", heading: "Fast Food Dishes", image: "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=200&auto=format&fit=crop" },
+  { id: "desserts", label: "Desserts", keyword: "dessert", heading: "Dessert Dishes", image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=200&auto=format&fit=crop" },
 ];
 
 const MOCK_RESTAURANTS = [
-  { id: 901, restaurant_name: "Ember Burger Co.", cuisine_type: "Burgers • American", city: "Dhaka" },
-  { id: 902, restaurant_name: "Pizzeria Roma", cuisine_type: "Pizza • Italian", city: "Dhaka" },
-  { id: 903, restaurant_name: "Haji Biryani House", cuisine_type: "Bangladeshi", city: "Dhaka" },
-  { id: 904, restaurant_name: "Green Leaf Kitchen", cuisine_type: "Salads • Healthy", city: "Dhaka" },
-  { id: 905, restaurant_name: "Sweet Corner Bakery", cuisine_type: "Desserts • Bakery", city: "Dhaka" },
-  { id: 906, restaurant_name: "Wok & Roll Express", cuisine_type: "Chinese • Fast Food", city: "Dhaka" },
+  { id: 901, restaurant_name: "Ember Burger Co.", cuisine_type: "Burgers • American", city: "Dhaka", accepts_dine_in: true, menu_items: [
+    { id: 9101, name: "Classic Cheeseburger", price: 450, category: "Burgers", image_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=400&auto=format&fit=crop" },
+    { id: 9102, name: "Double Smokehouse Burger", price: 620, category: "Burgers", image_url: "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=400&auto=format&fit=crop" },
+    { id: 9103, name: "Loaded Cheese Fries", price: 190, category: "Burgers", image_url: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?q=80&w=400&auto=format&fit=crop" },
+  ] },
+  { id: 902, restaurant_name: "Pizzeria Roma", cuisine_type: "Pizza • Italian", city: "Dhaka", accepts_dine_in: true, menu_items: [
+    { id: 9201, name: "Pepperoni Pizza", price: 550, category: "Pizza", image_url: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=400&auto=format&fit=crop" },
+    { id: 9202, name: "Margherita Pizza", price: 450, category: "Pizza", image_url: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?q=80&w=400&auto=format&fit=crop" },
+  ] },
+  { id: 903, restaurant_name: "Haji Biryani House", cuisine_type: "Bangladeshi", city: "Dhaka", accepts_dine_in: false, menu_items: [
+    { id: 9301, name: "Mutton Kacchi", price: 350, category: "Biryani", image_url: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=400&auto=format&fit=crop" },
+    { id: 9302, name: "Morog Polao", price: 280, category: "Biryani", image_url: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?q=80&w=400&auto=format&fit=crop" },
+  ] },
+  { id: 904, restaurant_name: "Star Kabab", cuisine_type: "Kabab • Grill", city: "Dhaka", accepts_dine_in: true, menu_items: [
+    { id: 9401, name: "Beef Seekh Kabab", price: 180, category: "Kabab", image_url: "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?q=80&w=400&auto=format&fit=crop" },
+    { id: 9402, name: "Chicken Tikka", price: 200, category: "Kabab", image_url: "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?q=80&w=400&auto=format&fit=crop" },
+  ] },
+  { id: 905, restaurant_name: "Sweet Corner Bakery", cuisine_type: "Desserts • Bakery", city: "Dhaka", accepts_dine_in: true, menu_items: [
+    { id: 9501, name: "Chocolate Brownie", price: 280, category: "Desserts", image_url: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=400&auto=format&fit=crop" },
+    { id: 9502, name: "Vanilla Ice Cream", price: 180, category: "Desserts", image_url: "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?q=80&w=400&auto=format&fit=crop" },
+  ] },
+  { id: 906, restaurant_name: "Wok & Roll Express", cuisine_type: "Chinese • Fast Food", city: "Dhaka", accepts_dine_in: true, menu_items: [
+    { id: 9601, name: "Crispy Fried Chicken", price: 320, category: "Fast Food", image_url: "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=400&auto=format&fit=crop" },
+    { id: 9602, name: "Spicy Chicken Wings", price: 290, category: "Fast Food", image_url: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&auto=format&fit=crop" },
+  ] },
 ];
 
 const hash = (n) => {
@@ -29,22 +86,43 @@ const hash = (n) => {
 const enrich = (r, idx) => {
   const seed = Number.isFinite(r.id) ? Math.abs(r.id) : idx + 1;
   const h = hash(seed * 31);
-  const rating = Math.round((3.8 + (h % 13) / 10) * 10) / 10;
-  const eta = 15 + (h % 21);
+  const rating = r.avg_rating ?? Math.round((3.8 + (h % 13) / 10) * 10) / 10;
+  const reviewCount = r.review_count ?? 0;
+  const eta = 28 + (h % 6);
+  const readyIn = 10 + (h % 11);
   const distance = Math.round((0.5 + (h % 28) / 10) * 10) / 10;
-  const fee = h % 2 === 0 ? 60 : 0;
+  const fee = r.delivery_fee !== undefined && Number(r.delivery_fee) > 0 ? Number(r.delivery_fee) : 60;
   const offers = h % 3 === 0;
-  return { ...r, rating, eta, distance, fee, free: fee === 0, offers };
+  const tableFor = h % 2 === 0 ? "2-4" : "4-6";
+  const tablesAvailable = h % 4 !== 0;
+  return {
+    ...r,
+    rating,
+    reviewCount,
+    eta,
+    readyIn,
+    distance,
+    fee,
+    offers,
+    accepts_dine_in: !!r.accepts_dine_in,
+    tableFor,
+    tablesAvailable,
+  };
 };
 
 export default function Restaurants() {
   const navigate = useNavigate();
+  const { addItem } = useCart();
   const [restaurants, setRestaurants] = useState([]);
   const [failed, setFailed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [mode, setMode] = useState("delivery");
   const [filter, setFilter] = useState("all");
-  const [favs, setFavs] = useState(() => new Set());
+  const [activeCategory, setActiveCategory] = useState("all");
+  const [sortBy, setSortBy] = useState("recommended");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [saved, setSaved] = useState(() => new Set());
 
   useEffect(() => {
     api.get("/restaurants")
@@ -54,43 +132,94 @@ export default function Restaurants() {
         setRestaurants(list);
       })
       .catch(() => setFailed(true))
-      .finally(() => setLoading(false));
+      .finally(() => setIsLoading(false));
   }, []);
 
   const source = failed || restaurants.length === 0 ? MOCK_RESTAURANTS : restaurants;
 
   const restaurantsRich = useMemo(() => source.map((r, i) => enrich(r, i)), [source]);
 
+  const dishes = useMemo(() => (
+    restaurantsRich.flatMap((r) =>
+      (r.menu_items || []).map((item) => ({
+        ...item,
+        restaurant_id: r.id,
+        restaurant_name: r.restaurant_name,
+        cuisine_type: r.cuisine_type,
+        rating: r.rating,
+        reviewCount: r.reviewCount,
+        eta: r.eta,
+        readyIn: r.readyIn,
+        distance: r.distance,
+        fee: r.fee,
+        offers: r.offers,
+        accepts_dine_in: r.accepts_dine_in,
+        tableFor: r.tableFor,
+        tablesAvailable: r.tablesAvailable,
+      }))
+    )
+  ), [restaurantsRich]);
+
   const results = useMemo(() => {
-    let list = restaurantsRich.filter((r) => {
-      const q = search.trim().toLowerCase();
-      const matchName = !q || (r.restaurant_name || "").toLowerCase().includes(q);
-      const matchCuisine = !q || (r.cuisine_type || "").toLowerCase().includes(q);
-      if (!matchName && !matchCuisine) return false;
-      if (filter === "rating" && r.rating < 4.0) return false;
-      if (filter === "free" && !r.free) return false;
-      if (filter === "offers" && !r.offers) return false;
+    const activeCat = CATEGORIES.find((c) => c.id === activeCategory);
+    const q = search.trim().toLowerCase();
+    let list = dishes.filter((d) => {
+      if (q) {
+        const inName = (d.name || "").toLowerCase().includes(q);
+        const inRest = (d.restaurant_name || "").toLowerCase().includes(q);
+        const inCuisine = (d.cuisine_type || "").toLowerCase().includes(q);
+        const inCat = (d.category || "").toLowerCase().includes(q);
+        if (!inName && !inRest && !inCuisine && !inCat) return false;
+      }
+      if (mode === "dine_in" && !d.accepts_dine_in) return false;
+      if (activeCat?.keyword) {
+        const k = activeCat.keyword.toLowerCase();
+        const inCat = (d.category || "").toLowerCase().includes(k);
+        const inName = (d.name || "").toLowerCase().includes(k);
+        const inCuisine = (d.cuisine_type || "").toLowerCase().includes(k);
+        if (!inCat && !inName && !inCuisine) return false;
+      }
+      if (filter === "rating" && d.rating < 4.0) return false;
+      if (filter === "offers" && !d.offers) return false;
+      if (filter === "ready" && d.readyIn > 15) return false;
+      if (filter === "tables" && !d.tablesAvailable) return false;
       return true;
     });
     if (filter === "fastest") list = [...list].sort((a, b) => a.eta - b.eta);
+    if (filter === "top") list = [...list].sort((a, b) => b.rating - a.rating);
+    if (sortBy === "rating") list = [...list].sort((a, b) => b.rating - a.rating);
+    if (sortBy === "eta") list = [...list].sort((a, b) => a.eta - b.eta);
+    if (sortBy === "fee") list = [...list].sort((a, b) => a.fee - b.fee);
     return list;
-  }, [restaurantsRich, search, filter]);
+  }, [dishes, search, filter, mode, activeCategory, sortBy]);
 
-  const toggleFav = (e, id) => {
+  const changeMode = (next) => {
+    setMode(next);
+    setFilter("all");
+  };
+
+  const activeHeading = CATEGORIES.find((c) => c.id === activeCategory).heading;
+  const activeSortLabel = SORT_OPTIONS.find((s) => s.id === sortBy).label;
+
+  const toggleSaved = (e, id) => {
     e.preventDefault();
     e.stopPropagation();
-    setFavs((prev) => {
+    setSaved((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
 
+  const handleAdd = (dish) => {
+    addItem(dish.restaurant_id, dish.restaurant_name, dish);
+  };
+
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
-      {/* Sticky header & search */}
+      {/* Sticky header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-100">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-4">
+        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 pt-4">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -111,12 +240,35 @@ export default function Restaurants() {
             </div>
           </div>
 
+          {/* Order mode toggle */}
+          <div className="grid grid-cols-3 gap-1 bg-zinc-100 rounded-full p-1 mt-4">
+            {MODES.map((m) => {
+              const Icon = m.icon;
+              const isActive = mode === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => changeMode(m.id)}
+                  className={`inline-flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-semibold transition-colors cursor-pointer ${
+                    isActive
+                      ? "bg-zinc-900 text-white shadow-[0_1px_3px_rgba(0,0,0,0.15)]"
+                      : "text-zinc-500 hover:text-zinc-800"
+                  }`}
+                >
+                  <Icon size={15} strokeWidth={2} />
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Mode-specific filter pills */}
           <div className="flex gap-2.5 py-3.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map((f) => (
+            {FILTERS_BY_MODE[mode].map((f) => (
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id)}
-                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                   filter === f.id ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                 }`}
               >
@@ -124,19 +276,59 @@ export default function Restaurants() {
               </button>
             ))}
           </div>
+
+          {/* Category carousel */}
+          <div className="flex gap-4 pb-4 pt-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {CATEGORIES.map((c) => {
+              const isActive = activeCategory === c.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setActiveCategory(c.id)}
+                  className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
+                >
+                  <span className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center transition-all ${
+                    isActive
+                      ? "ring-2 ring-[#E03546] ring-offset-2"
+                      : "ring-1 ring-zinc-200 group-hover:ring-zinc-300"
+                  }`}>
+                    {c.image ? (
+                      <img src={c.image} alt={c.label} loading="lazy" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="w-full h-full bg-zinc-900 flex items-center justify-center text-white">
+                        <LayoutGrid size={20} strokeWidth={2} />
+                      </span>
+                    )}
+                  </span>
+                  <span className={`text-xs transition-colors ${isActive ? "text-zinc-900 font-medium" : "text-zinc-500"}`}>
+                    {c.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pb-12">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
+      <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6">
+        {failed && (
+          <div className="mb-5">
+            <p className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-lg">
+              <WifiOff size={13} /> Backend offline — showing demo data. Start it with <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded">php artisan serve</code>
+            </p>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 pb-12">
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
               <div key={i} className="bg-white rounded-xl border border-zinc-100 overflow-hidden animate-pulse shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-                <div className="aspect-[16/10] bg-zinc-100" />
+                <div className="aspect-[4/3] bg-zinc-200" />
                 <div className="p-4">
-                  <div className="h-5 bg-zinc-100 rounded w-1/2 mb-2.5" />
-                  <div className="h-4 bg-zinc-100 rounded w-2/3 mb-3" />
-                  <div className="h-4 bg-zinc-100 rounded w-3/4" />
+                  <div className="h-4 bg-zinc-200 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-zinc-200 rounded w-1/2 mb-3" />
+                  <div className="h-4 bg-zinc-200 rounded w-1/3 mb-3" />
+                  <div className="h-8 bg-zinc-200 rounded-lg w-2/3" />
                 </div>
               </div>
             ))}
@@ -144,78 +336,62 @@ export default function Restaurants() {
         ) : results.length === 0 ? (
           <div className="py-24 text-center">
             <div className="w-12 h-12 mx-auto rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 mb-4">
-              <UtensilsCrossed size={22} />
+              <SearchX size={22} />
             </div>
-            <p className="text-base font-semibold tracking-tight text-zinc-900 mb-1">No restaurants found in this area</p>
+            <p className="text-base font-semibold tracking-tight text-zinc-900 mb-1">No dishes found</p>
             <p className="text-sm text-zinc-500">Try adjusting your search or filters.</p>
           </div>
         ) : (
           <>
-            <p className="text-sm text-zinc-500 mb-5">
-              {results.length} {results.length === 1 ? "restaurant" : "restaurants"} near you
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pb-12">
-              {results.map((r) => {
-                const isFav = favs.has(r.id);
-                return (
-                  <Link
-                    key={r.id}
-                    to={`/restaurants/${r.id}`}
-                    className="group bg-white rounded-xl border border-zinc-100 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_30px_-15px_rgba(0,0,0,0.15)] hover:bg-zinc-50 transition-all"
-                  >
-                    <div className="relative aspect-[16/10] overflow-hidden">
-                      <img
-                        src={restaurantImage(r.restaurant_name)}
-                        alt={r.restaurant_name}
-                        className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
-                      />
-                      {r.free && (
-                        <span className="absolute top-3 left-3 bg-green-500/90 text-white text-xs font-medium px-2 py-1 rounded-md">
-                          Free Delivery
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => toggleFav(e, r.id)}
-                        className={`absolute top-3 right-3 w-8 h-8 rounded-full bg-white/95 flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors ${
-                          isFav ? "text-[#E03546]" : "text-zinc-500 hover:text-[#E03546]"
-                        }`}
-                        aria-label="Save restaurant"
-                      >
-                        <Heart size={15} fill={isFav ? "currentColor" : "none"} strokeWidth={2} />
-                      </button>
+            <div className="flex items-center justify-between gap-4 mb-5">
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold tracking-tight text-zinc-900">{activeHeading}</h1>
+                <p className="text-sm text-zinc-500 mt-0.5">
+                  {results.length} {results.length === 1 ? "dish" : "dishes"} near you
+                </p>
+              </div>
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setSortOpen((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-700 hover:text-zinc-900 bg-white border border-zinc-200 rounded-lg px-3 py-2 transition-colors cursor-pointer"
+                >
+                  Sort: {activeSortLabel}
+                  <ChevronDown size={14} className={`transition-transform ${sortOpen ? "rotate-180" : ""}`} />
+                </button>
+                {sortOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
+                    <div className="absolute right-0 top-full mt-2 z-20 w-48 bg-white rounded-xl border border-zinc-100 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.15)] p-1">
+                      {SORT_OPTIONS.map((opt) => (
+                        <button
+                          key={opt.id}
+                          onClick={() => { setSortBy(opt.id); setSortOpen(false); }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
+                            sortBy === opt.id
+                              ? "text-[#E03546] font-semibold bg-[#E03546]/5"
+                              : "text-zinc-600 hover:bg-zinc-50"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
                     </div>
+                  </>
+                )}
+              </div>
+            </div>
 
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="text-base font-bold tracking-tight text-zinc-900 truncate">
-                          {r.restaurant_name}
-                        </h3>
-                        <span className="shrink-0 inline-flex items-center gap-1 bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-md">
-                          <Star size={11} fill="currentColor" strokeWidth={0} /> {r.rating.toFixed(1)}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-zinc-500 mt-1 truncate">
-                        {r.cuisine_type || "Restaurant"}
-                      </p>
-
-                      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-zinc-400">
-                        <span className="inline-flex items-center gap-1">
-                          <Clock size={12} /> {r.eta}-{r.eta + 5} mins
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin size={12} /> {r.distance.toFixed(1)} km
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Truck size={12} /> {r.free ? "Free Delivery" : `${formatPrice(r.fee)} Delivery`}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 pb-12">
+              {results.map((dish) => (
+                <FoodCard
+                  key={dish.id}
+                  dish={dish}
+                  isFav={saved.has(dish.id)}
+                  onToggleFav={toggleSaved}
+                  onAdd={handleAdd}
+                  offline={failed}
+                />
+              ))}
             </div>
           </>
         )}

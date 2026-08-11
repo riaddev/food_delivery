@@ -149,7 +149,14 @@ export default function OwnerDashboard() {
                   <div key={order.id} className="grid grid-cols-2 md:grid-cols-12 gap-x-3 gap-y-2 items-center px-5 py-3.5 hover:bg-zinc-50 transition-colors">
                     <div className="col-span-1 md:col-span-3 min-w-0">
                       <p className="text-sm font-semibold text-zinc-900">#{order.id}</p>
-                      <p className="text-xs text-zinc-500 truncate">{order.customer_name || "Guest"}</p>
+                      <p className="text-xs text-zinc-500 truncate flex items-center gap-1.5">
+                        {order.customer_name || "Guest"}
+                        {order.order_type === "dine_in" && (
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                            Dine-In{order.table_number ? ` · T${order.table_number}` : ""}
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <p className="col-span-1 md:col-span-4 text-xs text-zinc-500 truncate">
                       {order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")}

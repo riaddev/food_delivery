@@ -197,7 +197,7 @@ class RestaurantSeeder extends Seeder
                     'description' => $data['description'],
                     'opening_hours' => $data['opening_hours'],
                     'image' => $data['image'],
-                    'status' => 'active',
+                    'status' => 'approved',
                 ]
             );
 
@@ -210,7 +210,7 @@ class RestaurantSeeder extends Seeder
                 'description' => $data['description'],
                 'opening_hours' => $data['opening_hours'],
                 'image' => $data['image'],
-                'status' => 'active',
+                'status' => 'approved',
             ]);
 
             foreach ($data['items'] as $item) {

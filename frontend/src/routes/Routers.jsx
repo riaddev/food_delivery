@@ -9,6 +9,7 @@ import AdminDashboard from "../pages/AdminDashboard/AdminDashboard";
 import Restaurants from "../pages/Restaurants/Restaurants";
 import RestaurantMenu from "../pages/RestaurantMenu/RestaurantMenu";
 import Checkout from "../pages/Checkout/Checkout";
+import OrderTracking from "../pages/OrderTracking/OrderTracking";
 import AccountLayout from "../pages/CustomerAccount/AccountLayout";
 import AccountDashboard from "../pages/CustomerAccount/AccountDashboard";
 import MyOrders from "../pages/CustomerAccount/MyOrders";
@@ -41,6 +42,7 @@ export default function Routers() {
           </ProtectedRoute>
         }
       />
+      <Route path="/order/tracking/:id" element={<OrderTracking />} />
       <Route
         path="/customer/dashboard"
         element={

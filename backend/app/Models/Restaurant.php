@@ -19,6 +19,8 @@ class Restaurant extends Model
         'opening_hours',
         'image',
         'status',
+        'delivery_fee',
+        'accepts_dine_in',
     ];
 
     public function user(): BelongsTo
@@ -39,5 +41,10 @@ class Restaurant extends Model
     public function favorites(): HasMany
     {
         return $this->hasMany(Favorite::class);
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\Restaurant;
+use App\Models\Review;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -23,6 +24,8 @@ class RestaurantController extends Controller
             'phone' => 'sometimes|string|max:20',
             'description' => 'nullable|string',
             'opening_hours' => 'nullable|string|max:255',
+            'delivery_fee' => 'nullable|numeric|min:0',
+            'accepts_dine_in' => 'boolean',
         ]);
 
         $restaurant->update($validated);
@@ -47,8 +50,10 @@ class RestaurantController extends Controller
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
             'category' => 'nullable|string|max:255',
+            'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'image_url' => 'nullable|string|url|max:2048',
         ]);
 
         $validated['restaurant_id'] = $request->user()->restaurant->id;
@@ -56,6 +61,8 @@ class RestaurantController extends Controller
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('menu-items', 'public');
             $validated['image'] = $path;
+        } elseif (!empty($validated['image_url'])) {
+            $validated['image'] = $validated['image_url'];
         }
 
         $item = MenuItem::create($validated);
@@ -73,16 +80,29 @@ class RestaurantController extends Controller
             'description' => 'nullable|string',
             'price' => 'sometimes|numeric|min:0',
             'category' => 'nullable|string|max:255',
+            'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'image_url' => 'nullable|string|url|max:2048',
+            'remove_image' => 'boolean',
         ]);
 
         if ($request->hasFile('image')) {
-            if ($item->image) {
+            if ($item->image && !str_starts_with($item->image, 'http://') && !str_starts_with($item->image, 'https://')) {
                 Storage::disk('public')->delete($item->image);
             }
             $path = $request->file('image')->store('menu-items', 'public');
             $validated['image'] = $path;
+        } elseif (!empty($validated['image_url'])) {
+            if ($item->image && !str_starts_with($item->image, 'http://') && !str_starts_with($item->image, 'https://')) {
+                Storage::disk('public')->delete($item->image);
+            }
+            $validated['image'] = $validated['image_url'];
+        } elseif (!empty($validated['remove_image'])) {
+            if ($item->image && !str_starts_with($item->image, 'http://') && !str_starts_with($item->image, 'https://')) {
+                Storage::disk('public')->delete($item->image);
+            }
+            $validated['image'] = null;
         }
 
         $item->update($validated);
@@ -95,7 +115,7 @@ class RestaurantController extends Controller
         $item = MenuItem::where('restaurant_id', $request->user()->restaurant->id)
             ->findOrFail($id);
 
-        if ($item->image) {
+        if ($item->image && !str_starts_with($item->image, 'http://') && !str_starts_with($item->image, 'https://')) {
             Storage::disk('public')->delete($item->image);
         }
 
@@ -116,8 +136,15 @@ class RestaurantController extends Controller
                     'customer_name' => $o->user?->name,
                     'customer_phone' => $o->user?->phone,
                     'total' => (float) $o->total,
+                    'subtotal' => (float) $o->total - (float) $o->delivery_fee,
+                    'delivery_fee' => (float) $o->delivery_fee,
+                    'payment_method' => $o->payment_method,
+                    'payment_status' => $o->payment_status,
                     'status' => $o->status,
                     'delivery_address' => $o->delivery_address,
+                    'delivery_instructions' => $o->delivery_instructions,
+                    'order_type' => $o->order_type,
+                    'table_number' => $o->table_number,
                     'items' => $o->items,
                     'created_at' => $o->created_at,
                 ];
@@ -132,7 +159,7 @@ class RestaurantController extends Controller
             ->findOrFail($id);
 
         $validated = $request->validate([
-            'status' => 'required|string|in:confirmed,preparing,out_for_delivery,delivered,cancelled',
+            'status' => 'required|string|in:confirmed,preparing,out_for_delivery,delivered,served,cancelled',
         ]);
 
         $order->update(['status' => $validated['status']]);
@@ -145,8 +172,10 @@ class RestaurantController extends Controller
 
     public function publicList(): JsonResponse
     {
-        $restaurants = Restaurant::with('user')
-            ->where('status', 'active')
+        $restaurants = Restaurant::with('user', 'menuItems')
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->where('status', 'approved')
             ->orderBy('restaurant_name')
             ->get()
             ->map(function ($r) {
@@ -160,6 +189,30 @@ class RestaurantController extends Controller
                     'description' => $r->description,
                     'opening_hours' => $r->opening_hours,
                     'image' => $r->image,
+                    'delivery_fee' => (float) $r->delivery_fee,
+                    'accepts_dine_in' => (bool) $r->accepts_dine_in,
+                    'menu_items' => $r->menuItems
+                        ->where('is_available', true)
+                        ->values()
+                        ->map(fn($m) => [
+                            'id' => $m->id,
+                            'name' => $m->name,
+                            'price' => (float) $m->price,
+                            'image_url' => $m->image_url,
+                            'category' => $m->category,
+                        ]),
+                    'menu_categories' => $r->menuItems
+                        ->where('is_available', true)
+                        ->pluck('category')
+                        ->filter()
+                        ->unique()
+                        ->values(),
+                    'dish_names' => $r->menuItems
+                        ->where('is_available', true)
+                        ->pluck('name')
+                        ->values(),
+                    'avg_rating' => $r->reviews_avg_rating ? round((float) $r->reviews_avg_rating, 1) : null,
+                    'review_count' => $r->reviews_count,
                 ];
             });
 
@@ -169,12 +222,14 @@ class RestaurantController extends Controller
     public function publicShow($id): JsonResponse
     {
         $restaurant = Restaurant::with('user')
-            ->where('status', 'active')
+            ->withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->where('status', 'approved')
             ->findOrFail($id);
 
         $menuItems = $restaurant->menuItems()
             ->where('is_available', true)
-            ->orderBy('category')
+            ->orderBy('category_id')
             ->orderBy('name')
             ->get();
 
@@ -189,8 +244,53 @@ class RestaurantController extends Controller
                 'description' => $restaurant->description,
                 'opening_hours' => $restaurant->opening_hours,
                 'image' => $restaurant->image,
+                'delivery_fee' => (float) $restaurant->delivery_fee,
+                'accepts_dine_in' => (bool) $restaurant->accepts_dine_in,
+                'avg_rating' => $restaurant->reviews_avg_rating ? round((float) $restaurant->reviews_avg_rating, 1) : null,
+                'review_count' => $restaurant->reviews_count,
             ],
             'menu_items' => $menuItems,
         ]);
+    }
+
+    public function publicReviews($id): JsonResponse
+    {
+        $restaurant = Restaurant::withAvg('reviews', 'rating')
+            ->withCount('reviews')
+            ->where('status', 'approved')
+            ->findOrFail($id);
+
+        $reviews = Review::with('user:id,name,avatar')
+            ->where('restaurant_id', $id)
+            ->latest()
+            ->get()
+            ->map(function ($review) {
+                return [
+                    'id' => $review->id,
+                    'rating' => $review->rating,
+                    'comment' => $review->comment,
+                    'created_at' => $review->created_at,
+                    'user' => [
+                        'name' => $review->user?->name ?? 'Customer',
+                        'avatar_url' => $review->user?->avatar_url,
+                    ],
+                ];
+            });
+
+        return response()->json([
+            'avg_rating' => $restaurant->reviews_avg_rating ? round((float) $restaurant->reviews_avg_rating, 1) : null,
+            'review_count' => $restaurant->reviews_count,
+            'reviews' => $reviews,
+        ]);
+    }
+
+    public function publicCategories(): JsonResponse
+    {
+        $categories = \App\Models\Category::withCount('menuItems')
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['categories' => $categories]);
     }
 }

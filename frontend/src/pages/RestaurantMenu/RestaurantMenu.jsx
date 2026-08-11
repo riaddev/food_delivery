@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   Star, Clock, MapPin, Truck, Gift, Percent, ArrowLeft,
-  Plus, Minus, ShoppingCart, ChevronRight,
+  Plus, Minus, ShoppingCart, ChevronRight, Heart, X, UtensilsCrossed,
 } from "lucide-react";
 import api from "../../features/api/apiSlice";
+import { customerApi, publicApi } from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
 
@@ -23,6 +24,7 @@ const MOCK_RESTAURANT = {
   eta: "25-30 mins",
   delivery_fee: 60,
   free_delivery_over: 1000,
+  accepts_dine_in: true,
 };
 
 const MOCK_MENU_ITEMS = [
@@ -58,6 +60,16 @@ export default function RestaurantMenu() {
   const [payload, setPayload] = useState(null);
   const [failed, setFailed] = useState(false);
   const [activeCat, setActiveCat] = useState("");
+  const [wishlist, setWishlist] = useState(() => new Set());
+  const [wishlistBusy, setWishlistBusy] = useState(() => new Set());
+  const [wishlistMsg, setWishlistMsg] = useState("");
+  const [reviews, setReviews] = useState(null);
+  const [reviewsFailed, setReviewsFailed] = useState(false);
+  const [ratingOpen, setRatingOpen] = useState(false);
+  const [ratingValue, setRatingValue] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+  const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingMsg, setRatingMsg] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -67,7 +79,26 @@ export default function RestaurantMenu() {
     return () => { active = false; };
   }, [id]);
 
-  const useMock = failed || !payload || (payload.menu_items || []).length === 0;
+  useEffect(() => {
+    let active = true;
+    publicApi.getRestaurantReviews(id)
+      .then((res) => { if (active) setReviews(res.data); })
+      .catch(() => { if (active) setReviewsFailed(true); });
+    return () => { active = false; };
+  }, [id]);
+
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    let active = true;
+    customerApi.getWishlistItems()
+      .then((res) => {
+        if (active) setWishlist(new Set((res.data.wishlist_items || []).map((wi) => wi.menu_item_id)));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  const useMock = failed || !payload;
 
   const restaurant = {
     ...MOCK_RESTAURANT,
@@ -81,6 +112,47 @@ export default function RestaurantMenu() {
   const menuItems = useMock
     ? MOCK_MENU_ITEMS
     : payload.menu_items.filter((i) => i.is_available !== false);
+
+  const displayRating = useMock
+    ? MOCK_RESTAURANT.rating
+    : (payload.restaurant.avg_rating ?? MOCK_RESTAURANT.rating);
+
+  const reviewCount = useMock
+    ? MOCK_REVIEWS.length
+    : (payload.restaurant.review_count ?? 0);
+
+  const displayReviews = reviews
+    ? reviews.reviews.map((r) => ({
+        name: r.user?.name || "Customer",
+        rating: r.rating,
+        comment: r.comment || "",
+      }))
+    : reviewsFailed
+      ? MOCK_REVIEWS
+      : [];
+
+  const handleSubmitReview = async () => {
+    setRatingBusy(true);
+    setRatingMsg("");
+    try {
+      const res = await customerApi.submitReview({
+        restaurant_id: payload.restaurant.id,
+        rating: ratingValue,
+        comment: ratingComment.trim() || null,
+      });
+      setRatingOpen(false);
+      setRatingComment("");
+      setRatingValue(5);
+      if (res.data.avg_rating) {
+        setPayload((prev) => prev ? { ...prev, restaurant: { ...prev.restaurant, avg_rating: res.data.avg_rating, review_count: (prev.restaurant.review_count || 0) + 1 } } : prev);
+      }
+      setRatingMsg("Thanks for your review!");
+      window.setTimeout(() => setRatingMsg(""), 2800);
+    } catch (err) {
+      setRatingMsg(err.response?.data?.message || "Failed to submit review.");
+    }
+    setRatingBusy(false);
+  };
 
   const categories = useMemo(() => {
     const seen = [];
@@ -99,6 +171,44 @@ export default function RestaurantMenu() {
 
   const handleAdd = (item) => {
     addItem(restaurant.id, restaurant.restaurant_name, item);
+  };
+
+  const toggleWishlist = async (item) => {
+    const isSaved = wishlist.has(item.id);
+    setWishlistMsg("");
+    setWishlistBusy((prev) => new Set(prev).add(item.id));
+
+    const rollback = () => {
+      setWishlist((prev) => {
+        const next = new Set(prev);
+        if (isSaved) next.add(item.id); else next.delete(item.id);
+        return next;
+      });
+    };
+
+    setWishlist((prev) => {
+      const next = new Set(prev);
+      if (isSaved) next.delete(item.id); else next.add(item.id);
+      return next;
+    });
+
+    try {
+      if (isSaved) {
+        await customerApi.removeWishlistItem(item.id);
+      } else {
+        await customerApi.addWishlistItem(item.id);
+      }
+    } catch {
+      rollback();
+      setWishlistMsg("Sign in to save items to your wishlist.");
+      window.setTimeout(() => setWishlistMsg(""), 2800);
+    } finally {
+      setWishlistBusy((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
   };
 
   const scrollToCat = (cat) => {
@@ -139,7 +249,8 @@ export default function RestaurantMenu() {
 
             <div className="flex flex-wrap items-center gap-2.5 lg:ml-auto">
               <span className="inline-flex items-center gap-1.5 bg-zinc-900 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)]">
-                <Star size={15} className="text-amber-400" fill="currentColor" /> {restaurant.rating}
+                <Star size={15} className="text-amber-400" fill="currentColor" /> {displayRating}
+                {reviewCount > 0 && <span className="text-zinc-400 font-medium">({reviewCount})</span>}
               </span>
               <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-700 text-sm font-semibold px-4 py-2 rounded-full">
                 <Clock size={14} className="text-zinc-500" /> {restaurant.eta}
@@ -147,6 +258,11 @@ export default function RestaurantMenu() {
               <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-700 text-sm font-semibold px-4 py-2 rounded-full">
                 <Truck size={14} className="text-zinc-500" /> {formatPrice(restaurant.delivery_fee)} Delivery
               </span>
+              {restaurant.accepts_dine_in && (
+                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-sm font-bold px-4 py-2 rounded-full">
+                  <UtensilsCrossed size={14} /> Dine-In Available
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-sm font-bold px-4 py-2 rounded-full">
                 <Gift size={14} /> Free delivery over {formatPrice(restaurant.free_delivery_over)}
               </span>
@@ -183,6 +299,11 @@ export default function RestaurantMenu() {
         )}
 
         {/* Menu sections */}
+        {wishlistMsg && (
+          <p className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-lg">
+            <Heart size={13} /> {wishlistMsg}
+          </p>
+        )}
         {menuItems.length === 0 ? (
           <div className="bg-white rounded-3xl py-20 px-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
             <p className="text-2xl font-extrabold tracking-tight text-zinc-900 mb-2">Menu coming soon</p>
@@ -225,7 +346,23 @@ export default function RestaurantMenu() {
 
                         <div className="relative shrink-0">
                           <img src={item.image_url || item.img || restaurantImage(restaurant.restaurant_name)} onError={handleImgError} alt={item.name} className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover" />
-                          {qty === 0 ? (
+                          {!useMock && (
+                            <button
+                              onClick={() => toggleWishlist(item)}
+                              disabled={wishlistBusy.has(item.id)}
+                              aria-label={wishlist.has(item.id) ? `Remove ${item.name} from wishlist` : `Save ${item.name} to wishlist`}
+                              className={`absolute top-2 right-2 w-8 h-8 rounded-full bg-white/95 shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center transition-colors disabled:opacity-50 cursor-pointer ${
+                                wishlist.has(item.id) ? "text-[#E03546]" : "text-zinc-500 hover:text-[#E03546]"
+                              }`}
+                            >
+                              {wishlistBusy.has(item.id) ? (
+                                <span className="w-3.5 h-3.5 rounded-full border-2 border-[#E03546] border-t-transparent animate-spin" />
+                              ) : (
+                                <Heart size={16} fill={wishlist.has(item.id) ? "currentColor" : "none"} strokeWidth={2} />
+                              )}
+                            </button>
+                          )}
+                          {!useMock && (qty === 0 ? (
                             <button
                               onClick={() => handleAdd(item)}
                               aria-label={`Add ${item.name} to cart`}
@@ -243,7 +380,7 @@ export default function RestaurantMenu() {
                                 <Plus size={13} strokeWidth={2.5} />
                               </button>
                             </div>
-                          )}
+                          ))}
                         </div>
                       </div>
                     );
@@ -256,35 +393,110 @@ export default function RestaurantMenu() {
 
         {/* Reviews */}
         <section className="mt-4">
-          <div className="flex items-center gap-3 mb-5">
+          <div className="flex items-center gap-3 mb-5 flex-wrap">
             <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">Reviews</h2>
             <span className="inline-flex items-center gap-1 bg-white text-zinc-700 text-sm font-semibold px-3 py-1 rounded-full shadow-sm">
-              <Star size={14} className="text-amber-400" fill="currentColor" /> {restaurant.rating}
+              <Star size={14} className="text-amber-400" fill="currentColor" /> {displayRating}
+              {reviewCount > 0 && <span className="text-zinc-400 font-medium">· {reviewCount}</span>}
             </span>
+            {!useMock && localStorage.getItem("token") && (
+              <button
+                onClick={() => setRatingOpen(true)}
+                className="inline-flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-colors ml-auto cursor-pointer"
+              >
+                <Star size={13} className="text-amber-400" fill="currentColor" />
+                Rate this restaurant
+              </button>
+            )}
           </div>
 
-          <div className="flex gap-5 overflow-x-auto pb-4 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x snap-mandatory">
-            {MOCK_REVIEWS.map((review, i) => (
-              <div key={review.name} className="bg-white rounded-3xl p-6 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] w-[300px] sm:w-[340px] shrink-0 snap-start flex flex-col">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
-                    {initials(review.name)}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-zinc-900 text-sm truncate">{review.name}</p>
-                    <div className="flex gap-0.5 mt-0.5">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star key={star} size={12} className={star <= review.rating ? "text-amber-400" : "text-zinc-200"} fill="currentColor" />
-                      ))}
+          {ratingMsg && (
+            <p className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg">
+              <Star size={13} /> {ratingMsg}
+            </p>
+          )}
+
+          {displayReviews.length === 0 ? (
+            <div className="bg-white rounded-3xl py-12 px-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
+              <p className="text-zinc-500 text-sm">No reviews yet. Be the first to rate this restaurant!</p>
+            </div>
+          ) : (
+            <div className="flex gap-5 overflow-x-auto pb-4 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x snap-mandatory">
+              {displayReviews.map((review, i) => (
+                <div key={review.name + i} className="bg-white rounded-3xl p-6 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] w-[300px] sm:w-[340px] shrink-0 snap-start flex flex-col">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+                      {initials(review.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-zinc-900 text-sm truncate">{review.name}</p>
+                      <div className="flex gap-0.5 mt-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star key={star} size={12} className={star <= review.rating ? "text-amber-400" : "text-zinc-200"} fill="currentColor" />
+                        ))}
+                      </div>
                     </div>
                   </div>
+                  {review.comment && <p className="text-sm text-zinc-500 leading-relaxed">"{review.comment}"</p>}
                 </div>
-                <p className="text-sm text-zinc-500 leading-relaxed">"{review.comment}"</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
       </div>
+
+      {/* Review modal */}
+      {ratingOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setRatingOpen(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md p-7 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-1">
+              <h3 className="text-xl font-extrabold tracking-tight text-zinc-900">Rate {restaurant.restaurant_name}</h3>
+              <button onClick={() => setRatingOpen(false)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 transition-colors" aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="text-sm text-zinc-400 mb-5">Only available after a delivered order.</p>
+
+            <div className="flex items-center justify-center gap-1.5 mb-5">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setRatingValue(star)}
+                  className="p-1 transition-transform hover:scale-110 cursor-pointer"
+                  aria-label={`${star} star${star > 1 ? "s" : ""}`}
+                >
+                  <Star
+                    size={34}
+                    className={star <= ratingValue ? "text-amber-400" : "text-zinc-200"}
+                    fill={star <= ratingValue ? "currentColor" : "none"}
+                    strokeWidth={1.8}
+                  />
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={ratingComment}
+              onChange={(e) => setRatingComment(e.target.value)}
+              placeholder="Share your feedback (optional)..."
+              rows={3}
+              className="w-full border border-zinc-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#E03546]/40 placeholder:text-zinc-400 resize-none"
+            />
+
+            {ratingMsg && (
+              <p className="mt-3 text-xs font-medium text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-lg">{ratingMsg}</p>
+            )}
+
+            <button
+              onClick={handleSubmitReview}
+              disabled={ratingBusy}
+              className="w-full mt-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl transition-colors"
+            >
+              {ratingBusy ? "Submitting..." : "Submit Review"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Floating cart bar */}
       {itemCount > 0 && (

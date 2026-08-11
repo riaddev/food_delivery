@@ -12,6 +12,8 @@ Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/restaurants', [RestaurantController::class, 'publicList']);
 Route::get('/restaurants/{id}', [RestaurantController::class, 'publicShow']);
+Route::get('/restaurants/{id}/reviews', [RestaurantController::class, 'publicReviews']);
+Route::get('/categories', [RestaurantController::class, 'publicCategories']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -37,7 +39,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/orders', [CustomerController::class, 'orders']);
         Route::get('/orders/{id}', [CustomerController::class, 'orderShow']);
         Route::post('/orders', [CustomerController::class, 'placeOrder']);
+        Route::post('/orders/{id}/cancel', [CustomerController::class, 'cancelOrder']);
         Route::post('/orders/{id}/reorder', [CustomerController::class, 'reorder']);
+        Route::post('/reviews', [CustomerController::class, 'storeReview']);
         Route::get('/favorites', [CustomerController::class, 'favorites']);
         Route::post('/favorites', [CustomerController::class, 'addFavorite']);
         Route::delete('/favorites/{restaurantId}', [CustomerController::class, 'removeFavorite']);
@@ -71,11 +75,21 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('role:admin')->prefix('/admin')->group(function () {
         Route::get('/overview', [App\Http\Controllers\AdminController::class, 'overview']);
+        Route::get('/stats', [App\Http\Controllers\AdminController::class, 'stats']);
+        Route::get('/activity-log', [App\Http\Controllers\AdminController::class, 'activityLog']);
         Route::get('/users', [App\Http\Controllers\AdminController::class, 'users']);
         Route::put('/users/{id}/role', [App\Http\Controllers\AdminController::class, 'updateUserRole']);
         Route::get('/restaurants', [App\Http\Controllers\AdminController::class, 'restaurants']);
+        Route::get('/restaurants/pending', [App\Http\Controllers\AdminController::class, 'pendingRestaurants']);
+        Route::post('/restaurants/{id}/approve', [App\Http\Controllers\AdminController::class, 'approve']);
+        Route::post('/restaurants/{id}/reject', [App\Http\Controllers\AdminController::class, 'reject']);
         Route::put('/restaurants/{id}/status', [App\Http\Controllers\AdminController::class, 'updateRestaurantStatus']);
         Route::get('/orders', [App\Http\Controllers\AdminController::class, 'orders']);
         Route::put('/orders/{id}/status', [App\Http\Controllers\AdminController::class, 'updateOrderStatus']);
+        Route::get('/categories', [App\Http\Controllers\AdminController::class, 'categories']);
+        Route::post('/categories', [App\Http\Controllers\AdminController::class, 'storeCategory']);
+        Route::put('/categories/reorder', [App\Http\Controllers\AdminController::class, 'reorderCategories']);
+        Route::put('/categories/{id}', [App\Http\Controllers\AdminController::class, 'updateCategory']);
+        Route::delete('/categories/{id}', [App\Http\Controllers\AdminController::class, 'deleteCategory']);
     });
 });

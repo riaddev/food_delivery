@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ClipboardList, MapPin, RefreshCw } from "lucide-react";
+import { ClipboardList, MapPin, RefreshCw, UtensilsCrossed } from "lucide-react";
 import { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
@@ -8,12 +8,19 @@ const STATUS_FLOW = [
   { value: "confirmed", label: "Confirmed", color: "bg-blue-50 text-blue-600" },
   { value: "preparing", label: "Preparing", color: "bg-purple-50 text-purple-600" },
   { value: "out_for_delivery", label: "Out for Delivery", color: "bg-indigo-50 text-indigo-600" },
+  { value: "served", label: "Served", color: "bg-emerald-50 text-emerald-600" },
   { value: "delivered", label: "Delivered", color: "bg-emerald-50 text-emerald-600" },
   { value: "cancelled", label: "Cancelled", color: "bg-red-50 text-red-500" },
 ];
 
 const statusColor = (status) => STATUS_FLOW.find((s) => s.value === status)?.color || "bg-zinc-50 text-zinc-500";
 const statusLabel = (status) => STATUS_FLOW.find((s) => s.value === status)?.label || status;
+
+const paymentMethodLabel = (method) => {
+  if (method === "bkash") return "bKash";
+  if (method === "card") return "Card";
+  return "Cash on Delivery";
+};
 
 const formatDate = (date) => new Date(date).toLocaleString("en-US", {
   month: "short",
@@ -22,7 +29,10 @@ const formatDate = (date) => new Date(date).toLocaleString("en-US", {
   minute: "2-digit",
 });
 
-const AppliedOrders = ["confirmed", "preparing", "out_for_delivery"];
+const AppliedOrders = (order) =>
+  order.order_type === "dine_in"
+    ? ["confirmed", "preparing", "served"]
+    : ["confirmed", "preparing", "out_for_delivery"];
 
 export default function OrdersManagement() {
   const [orders, setOrders] = useState([]);
@@ -57,7 +67,7 @@ export default function OrdersManagement() {
     ? orders
     : orders.filter((o) => o.status === filter);
 
-  const filters = ["all", "pending", "confirmed", "preparing", "out_for_delivery", "delivered", "cancelled"];
+  const filters = ["all", "pending", "confirmed", "preparing", "out_for_delivery", "served", "delivered", "cancelled"];
 
   if (loading) {
     return (
@@ -120,10 +130,20 @@ export default function OrdersManagement() {
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(order.status)}`}>
                       {statusLabel(order.status)}
                     </span>
+                    {order.order_type === "dine_in" && (
+                      <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                        <UtensilsCrossed size={12} /> Dine-In{order.table_number ? ` · Table ${order.table_number}` : ""}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-zinc-500">
                     {order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ""} · {formatDate(order.created_at)}
                   </p>
+                  {order.payment_method && (
+                    <p className="text-xs text-zinc-400 mt-1.5">
+                      {paymentMethodLabel(order.payment_method)} · {order.payment_status === "paid" ? "Paid" : order.order_type === "dine_in" ? "Pay at table" : "Pay on delivery"} · {order.order_type === "dine_in" ? "No delivery fee" : `Delivery ${order.delivery_fee > 0 ? formatPrice(order.delivery_fee) : "Free"}`}
+                    </p>
+                  )}
                 </div>
                 <p className="font-extrabold text-zinc-900 text-lg">{formatPrice(order.total)}</p>
               </div>
@@ -142,9 +162,9 @@ export default function OrdersManagement() {
                 )}
               </div>
 
-              {order.status !== "delivered" && order.status !== "cancelled" && (
+              {order.status !== "delivered" && order.status !== "served" && order.status !== "cancelled" && (
                 <div className="flex flex-wrap gap-2.5">
-                  {AppliedOrders.map((s) => (
+                  {AppliedOrders(order).map((s) => (
                     <button
                       key={s}
                       onClick={() => handleStatus(order, s)}
@@ -152,7 +172,7 @@ export default function OrdersManagement() {
                       className={`text-sm font-semibold px-4 py-2 rounded-full border transition disabled:opacity-50 disabled:cursor-not-allowed ${
                         s === order.status
                           ? "bg-red-500 text-white border-red-500"
-                          : s === "out_for_delivery"
+                          : s === "out_for_delivery" || s === "served"
                             ? "bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800"
                             : "border-zinc-300 text-zinc-700 hover:border-red-500 hover:text-red-500"
                       }`}

@@ -15,6 +15,7 @@ class MenuItem extends Model
         'price',
         'image',
         'category',
+        'category_id',
         'is_available',
     ];
 
@@ -33,10 +34,19 @@ class MenuItem extends Model
         return $this->belongsTo(Restaurant::class);
     }
 
+    public function menuCategory(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+
     public function getImageUrlAttribute(): ?string
     {
         if (!$this->image) {
             return null;
+        }
+
+        if (str_starts_with($this->image, 'http://') || str_starts_with($this->image, 'https://')) {
+            return $this->image;
         }
 
         return Storage::disk('public')->url($this->image);

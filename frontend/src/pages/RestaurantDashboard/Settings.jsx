@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Bell, Zap, PackageOpen, Clock, Truck, Save } from "lucide-react";
+import { Bell, Zap, PackageOpen, Clock, Truck, UtensilsCrossed, Save } from "lucide-react";
+import { restaurantApi } from "../../features/api/apiSlice";
+import { useAuth } from "../../features/auth/AuthContext";
 
 const TOGGLES = [
   { key: "notifications", label: "Order notifications", desc: "Push alerts whenever a new order comes in.", icon: Bell, initial: true },
@@ -8,14 +10,32 @@ const TOGGLES = [
 ];
 
 export function SettingsPage() {
+  const { user } = useAuth();
   const [toggles, setToggles] = useState(() =>
     TOGGLES.reduce((acc, t) => { acc[t.key] = t.initial; return acc; }, {})
   );
+  const [dineIn, setDineIn] = useState(() => user?.restaurant?.accepts_dine_in === true);
   const [radius, setRadius] = useState(5);
   const [hours, setHours] = useState("10AM - 11PM");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const flip = (key) => setToggles((t) => ({ ...t, [key]: !t[key] }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await restaurantApi.updateProfile({ accepts_dine_in: dineIn });
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2800);
+    } catch {
+      setError("Couldn't save dine-in settings. Please try again.");
+    }
+    setSaving(false);
+  };
 
   return (
     <div className="max-w-2xl">
@@ -73,8 +93,24 @@ export function SettingsPage() {
                 <input type="range" min="1" max="20" value={radius} onChange={(e) => setRadius(e.target.value)} className="w-full accent-red-500" />
               </div>
             </div>
+            <div className="flex items-center gap-4">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+                <UtensilsCrossed size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-zinc-900 text-sm">Accepting dine-in orders</p>
+                <p className="text-xs text-zinc-400">Customers can order for dining at your restaurant and the option shows on your public page.</p>
+              </div>
+              <button onClick={() => setDineIn((v) => !v)} className={`w-12 h-7 rounded-full relative transition-colors shrink-0 ${dineIn ? "bg-emerald-500" : "bg-zinc-200"}`} aria-label="Accepting dine-in orders">
+                <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all ${dineIn ? "left-[22px]" : "left-0.5"}`} />
+              </button>
+            </div>
           </div>
         </div>
+
+        {error && (
+          <div className="bg-rose-50 text-rose-600 text-sm px-4 py-3 rounded-2xl">{error}</div>
+        )}
 
         {saved && (
           <div className="bg-emerald-50 text-emerald-700 text-sm px-4 py-3 rounded-2xl">Settings saved.</div>
@@ -82,12 +118,13 @@ export function SettingsPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setSaved(true)}
-            className="inline-flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-bold px-7 py-3 rounded-full transition-all hover:-translate-y-0.5 shadow-[0_8px_20px_rgba(0,0,0,0.15)]"
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-60 text-white text-sm font-bold px-7 py-3 rounded-full transition-all hover:-translate-y-0.5 shadow-[0_8px_20px_rgba(0,0,0,0.15)]"
           >
-            <Save size={15} /> Save Settings
+            <Save size={15} /> {saving ? "Saving..." : "Save Settings"}
           </button>
-          <span className="text-xs text-zinc-400">Demonstration only — persistence comes later.</span>
+          <span className="text-xs text-zinc-400">Dine-in preference is saved to your store.</span>
         </div>
       </div>
     </div>

@@ -32,6 +32,11 @@ export const authApi = {
   user: () => api.get("/user"),
 };
 
+export const publicApi = {
+  getCategories: () => api.get("/categories"),
+  getRestaurantReviews: (id) => api.get(`/restaurants/${id}/reviews`),
+};
+
 export const customerApi = {
   updateProfile: (data) => api.post("/customer/profile", data),
   changePassword: (data) => api.put("/customer/change-password", data),
@@ -39,7 +44,9 @@ export const customerApi = {
   getOrders: () => api.get("/customer/orders"),
   getOrder: (id) => api.get(`/customer/orders/${id}`),
   placeOrder: (data) => api.post("/customer/orders", data),
+  cancelOrder: (id) => api.post(`/customer/orders/${id}/cancel`),
   reorder: (id) => api.post(`/customer/orders/${id}/reorder`),
+  submitReview: (data) => api.post("/customer/reviews", data),
   getFavorites: () => api.get("/customer/favorites"),
   addFavorite: (restaurantId) => api.post("/customer/favorites", { restaurant_id: restaurantId }),
   removeFavorite: (restaurantId) => api.delete(`/customer/favorites/${restaurantId}`),
@@ -65,12 +72,22 @@ export const restaurantApi = {
 
 export const adminApi = {
   getOverview: () => api.get("/admin/overview"),
+  getStats: () => api.get("/admin/stats"),
   getUsers: () => api.get("/admin/users"),
   updateUserRole: (id, data) => api.put(`/admin/users/${id}/role`, data),
   getRestaurants: () => api.get("/admin/restaurants"),
+  getPendingRestaurants: () => api.get("/admin/restaurants/pending"),
+  approveRestaurant: (id) => api.post(`/admin/restaurants/${id}/approve`),
+  rejectRestaurant: (id) => api.post(`/admin/restaurants/${id}/reject`),
   updateRestaurantStatus: (id, data) => api.put(`/admin/restaurants/${id}/status`, data),
+  getActivityLog: () => api.get("/admin/activity-log"),
   getOrders: () => api.get("/admin/orders"),
   updateOrderStatus: (id, data) => api.put(`/admin/orders/${id}/status`, data),
+  getCategories: () => api.get("/admin/categories"),
+  createCategory: (data) => api.post("/admin/categories", data),
+  updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
+  deleteCategory: (id) => api.delete(`/admin/categories/${id}`),
+  reorderCategories: (ids) => api.put("/admin/categories/reorder", { ids }),
 };
 
 export default api;
