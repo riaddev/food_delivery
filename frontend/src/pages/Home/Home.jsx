@@ -1,6 +1,6 @@
 import Header from "../../components/NavBar";
 import Hero from "./Hero";
-import CuisineStrip from "./CuisineStrip";
+import PopularCategories from "./PopularCategories";
 import TrendingDishes from "./TrendingDishes";
 import WhyUs from "./WhyUs";
 import Testimonials from "./Testimonials";
@@ -12,7 +12,7 @@ const LandingPage = () => {
     <>
       <Header />
       <Hero />
-      <CuisineStrip />
+      <PopularCategories />
       <TrendingDishes />
       <WhyUs />
       <Testimonials />

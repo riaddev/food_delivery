@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft, Search, SearchX, LayoutGrid, ChevronDown, WifiOff,
-  Bike, ShoppingBag, Utensils,
+  Bike, ShoppingBag, Utensils, ShoppingCart,
 } from "lucide-react";
 import api from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../features/auth/AuthContext";
 import FoodCard from "../../components/FoodCard";
+import { formatPrice } from "../../utils/foodImages";
 
 const SORT_OPTIONS = [
   { id: "recommended", label: "Recommended" },
@@ -112,13 +114,16 @@ const enrich = (r, idx) => {
 
 export default function Restaurants() {
   const navigate = useNavigate();
-  const { addItem } = useCart();
+  const { user, isCustomer } = useAuth();
+  const { addItem, cart, itemCount, total } = useCart();
+  const canOrder = !user || isCustomer;
   const [restaurants, setRestaurants] = useState([]);
   const [failed, setFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState("delivery");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState(searchParams.get("filter") || "all");
   const [activeCategory, setActiveCategory] = useState("all");
   const [sortBy, setSortBy] = useState("recommended");
   const [sortOpen, setSortOpen] = useState(false);
@@ -176,8 +181,7 @@ export default function Restaurants() {
         const k = activeCat.keyword.toLowerCase();
         const inCat = (d.category || "").toLowerCase().includes(k);
         const inName = (d.name || "").toLowerCase().includes(k);
-        const inCuisine = (d.cuisine_type || "").toLowerCase().includes(k);
-        if (!inCat && !inName && !inCuisine) return false;
+        if (!inCat && !inName) return false;
       }
       if (filter === "rating" && d.rating < 4.0) return false;
       if (filter === "offers" && !d.offers) return false;
@@ -219,7 +223,7 @@ export default function Restaurants() {
     <div className="min-h-screen bg-[#F8F9FA]">
       {/* Sticky header */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-100">
-        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 pt-4">
+        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-3">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -228,47 +232,50 @@ export default function Restaurants() {
             >
               <ArrowLeft size={18} />
             </button>
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search restaurants or dishes"
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors"
-              />
+
+            {/* Search (70%) + Order mode toggle (30%) on the same row */}
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-10 gap-2 sm:gap-3">
+              <div className="relative sm:col-span-7">
+                <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search restaurants or dishes"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-zinc-50 border border-zinc-200 focus:bg-white focus:border-zinc-300 outline-none text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-1 bg-zinc-100 rounded-full p-1 sm:col-span-3">
+                {MODES.map((m) => {
+                  const Icon = m.icon;
+                  const isActive = mode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => changeMode(m.id)}
+                      className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 rounded-full py-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
+                        isActive
+                          ? "bg-zinc-900 text-white shadow-[0_1px_3px_rgba(0,0,0,0.15)]"
+                          : "text-zinc-500 hover:text-zinc-800"
+                      }`}
+                    >
+                      <Icon size={14} strokeWidth={2} className="shrink-0" />
+                      <span className="truncate">{m.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Order mode toggle */}
-          <div className="grid grid-cols-3 gap-1 bg-zinc-100 rounded-full p-1 mt-4">
-            {MODES.map((m) => {
-              const Icon = m.icon;
-              const isActive = mode === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => changeMode(m.id)}
-                  className={`inline-flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-semibold transition-colors cursor-pointer ${
-                    isActive
-                      ? "bg-zinc-900 text-white shadow-[0_1px_3px_rgba(0,0,0,0.15)]"
-                      : "text-zinc-500 hover:text-zinc-800"
-                  }`}
-                >
-                  <Icon size={15} strokeWidth={2} />
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-
           {/* Mode-specific filter pills */}
-          <div className="flex gap-2.5 py-3.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-2 mt-2.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FILTERS_BY_MODE[mode].map((f) => (
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id)}
-                className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors cursor-pointer ${
+                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${
                   filter === f.id ? "bg-zinc-900 text-white" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                 }`}
               >
@@ -278,16 +285,16 @@ export default function Restaurants() {
           </div>
 
           {/* Category carousel */}
-          <div className="flex gap-4 pb-4 pt-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-3 mt-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {CATEGORIES.map((c) => {
               const isActive = activeCategory === c.id;
               return (
                 <button
                   key={c.id}
                   onClick={() => setActiveCategory(c.id)}
-                  className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
+                  className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group"
                 >
-                  <span className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center transition-all ${
+                  <span className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center transition-all ${
                     isActive
                       ? "ring-2 ring-[#E03546] ring-offset-2"
                       : "ring-1 ring-zinc-200 group-hover:ring-zinc-300"
@@ -296,7 +303,7 @@ export default function Restaurants() {
                       <img src={c.image} alt={c.label} loading="lazy" className="w-full h-full object-cover" />
                     ) : (
                       <span className="w-full h-full bg-zinc-900 flex items-center justify-center text-white">
-                        <LayoutGrid size={20} strokeWidth={2} />
+                        <LayoutGrid size={16} strokeWidth={2} />
                       </span>
                     )}
                   </span>
@@ -310,7 +317,7 @@ export default function Restaurants() {
         </div>
       </header>
 
-      <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6">
+      <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 pb-24">
         {failed && (
           <div className="mb-5">
             <p className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-lg">
@@ -390,12 +397,33 @@ export default function Restaurants() {
                   onToggleFav={toggleSaved}
                   onAdd={handleAdd}
                   offline={failed}
+                  canOrder={canOrder}
                 />
               ))}
             </div>
           </>
         )}
       </main>
+
+      {canOrder && itemCount > 0 && (
+        <div className="fixed bottom-0 inset-x-0 z-40 bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+          <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-3.5 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="font-extrabold text-zinc-900">
+                {itemCount} {itemCount === 1 ? "Item" : "Items"} <span className="text-zinc-300">|</span> {formatPrice(total)}
+              </p>
+              <p className="text-xs text-zinc-400 truncate">{cart.restaurantName}</p>
+            </div>
+            <Link
+              to="/checkout"
+              className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-[0_12px_30px_-10px_rgba(239,68,68,0.7)] transition-all hover:-translate-y-0.5 shrink-0"
+            >
+              <ShoppingCart size={17} /> View Cart
+              <span className="bg-white/20 rounded-full px-2 py-0.5 text-xs">{itemCount}</span>
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

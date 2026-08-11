@@ -33,7 +33,6 @@ export const authApi = {
 };
 
 export const publicApi = {
-  getCategories: () => api.get("/categories"),
   getRestaurantReviews: (id) => api.get(`/restaurants/${id}/reviews`),
 };
 
@@ -42,13 +41,11 @@ export const customerApi = {
   changePassword: (data) => api.put("/customer/change-password", data),
   getOverview: () => api.get("/customer/overview"),
   getOrders: () => api.get("/customer/orders"),
-  getOrder: (id) => api.get(`/customer/orders/${id}`),
   placeOrder: (data) => api.post("/customer/orders", data),
   cancelOrder: (id) => api.post(`/customer/orders/${id}/cancel`),
   reorder: (id) => api.post(`/customer/orders/${id}/reorder`),
   submitReview: (data) => api.post("/customer/reviews", data),
   getFavorites: () => api.get("/customer/favorites"),
-  addFavorite: (restaurantId) => api.post("/customer/favorites", { restaurant_id: restaurantId }),
   removeFavorite: (restaurantId) => api.delete(`/customer/favorites/${restaurantId}`),
   getWishlistItems: () => api.get("/customer/wishlist-items"),
   addWishlistItem: (menuItemId) => api.post("/customer/wishlist-items", { menu_item_id: menuItemId }),
@@ -71,15 +68,12 @@ export const restaurantApi = {
 };
 
 export const adminApi = {
-  getOverview: () => api.get("/admin/overview"),
   getStats: () => api.get("/admin/stats"),
   getUsers: () => api.get("/admin/users"),
   updateUserRole: (id, data) => api.put(`/admin/users/${id}/role`, data),
-  getRestaurants: () => api.get("/admin/restaurants"),
   getPendingRestaurants: () => api.get("/admin/restaurants/pending"),
   approveRestaurant: (id) => api.post(`/admin/restaurants/${id}/approve`),
   rejectRestaurant: (id) => api.post(`/admin/restaurants/${id}/reject`),
-  updateRestaurantStatus: (id, data) => api.put(`/admin/restaurants/${id}/status`, data),
   getActivityLog: () => api.get("/admin/activity-log"),
   getOrders: () => api.get("/admin/orders"),
   updateOrderStatus: (id, data) => api.put(`/admin/orders/${id}/status`, data),

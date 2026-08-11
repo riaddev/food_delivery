@@ -42,7 +42,14 @@ export default function Routers() {
           </ProtectedRoute>
         }
       />
-      <Route path="/order/tracking/:id" element={<OrderTracking />} />
+      <Route
+        path="/order/tracking/:id"
+        element={
+          <ProtectedRoute allowedRoles={["customer"]}>
+            <OrderTracking />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/customer/dashboard"
         element={

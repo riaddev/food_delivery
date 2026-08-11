@@ -7,6 +7,7 @@ import {
 import api from "../../features/api/apiSlice";
 import { customerApi, publicApi } from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
+import { useAuth } from "../../features/auth/AuthContext";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop";
@@ -56,7 +57,9 @@ const handleImgError = (e) => {
 
 export default function RestaurantMenu() {
   const { id } = useParams();
+  const { user, isCustomer } = useAuth();
   const { addItem, removeItem, updateQuantity, cart, itemCount, total } = useCart();
+  const canOrder = !user || isCustomer;
   const [payload, setPayload] = useState(null);
   const [failed, setFailed] = useState(false);
   const [activeCat, setActiveCat] = useState("");
@@ -362,7 +365,7 @@ export default function RestaurantMenu() {
                               )}
                             </button>
                           )}
-                          {!useMock && (qty === 0 ? (
+                          {canOrder && !useMock && (qty === 0 ? (
                             <button
                               onClick={() => handleAdd(item)}
                               aria-label={`Add ${item.name} to cart`}
@@ -499,7 +502,7 @@ export default function RestaurantMenu() {
       )}
 
       {/* Floating cart bar */}
-      {itemCount > 0 && (
+      {canOrder && itemCount > 0 && (
         <div className="fixed bottom-0 inset-x-0 z-40 bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
             <div className="min-w-0">
