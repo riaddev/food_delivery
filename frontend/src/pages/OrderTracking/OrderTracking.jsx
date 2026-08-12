@@ -1,5 +1,6 @@
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle, Utensils, Bike, Home, Headphones } from "lucide-react";
+import { useParams } from "react-router-dom";
+import { CheckCircle, Utensils, Bike, Home, Headphones } from "lucide-react";
+import BackToHome from "../../components/BackToHome";
 
 const STEPS = [
   { label: "Order Confirmed", time: "12:30 PM", icon: CheckCircle },
@@ -18,7 +19,6 @@ const ITEMS = [
 const TOTAL = 510;
 
 export default function OrderTracking() {
-  const navigate = useNavigate();
   const { id } = useParams();
   const orderRef = id || "ORD-1024";
 
@@ -26,13 +26,7 @@ export default function OrderTracking() {
     <div className="min-h-screen bg-[#F8F9FA]">
       <header className="bg-white border-b border-zinc-100 sticky top-0 z-10">
         <div className="max-w-md mx-auto px-4 h-16 flex items-center gap-4">
-          <button
-            onClick={() => navigate(-1)}
-            aria-label="Go back"
-            className="w-9 h-9 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-700 hover:bg-zinc-200 transition-colors shrink-0"
-          >
-            <ArrowLeft size={18} strokeWidth={2.2} />
-          </button>
+          <BackToHome />
           <div className="flex-1 text-center -ml-9">
             <h1 className="font-extrabold tracking-tight text-zinc-900">Order Tracking</h1>
             <p className="text-xs text-zinc-400 font-medium mt-0.5">#{orderRef}</p>

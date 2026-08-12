@@ -7,10 +7,42 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    public function applyRestaurant(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'phone' => 'required|string|max:20',
+            'restaurant_name' => 'required|string|max:255',
+            'cuisine_type' => 'required|string|max:255',
+            'address' => 'nullable|string|max:255',
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make(Str::random(32)),
+            'role' => 'restaurant',
+        ]);
+
+        Restaurant::create([
+            'user_id' => $user->id,
+            'restaurant_name' => $validated['restaurant_name'],
+            'phone' => $validated['phone'],
+            'cuisine_type' => $validated['cuisine_type'],
+            'address' => $validated['address'] ?? null,
+        ]);
+
+        return response()->json([
+            'message' => 'Application submitted for review.',
+        ], 201);
+    }
+
     public function registerCustomer(Request $request): JsonResponse
     {
         $validated = $request->validate([

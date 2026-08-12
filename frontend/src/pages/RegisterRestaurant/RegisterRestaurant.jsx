@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
+import BackToHome from "../../components/BackToHome";
 
 const cuisineOptions = ["Bangladeshi", "Fast Food", "Chinese", "Pizza", "Burgers", "Cafe", "Dessert", "Others"];
 
@@ -32,6 +33,9 @@ const RegisterRestaurantPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f6f2ec] py-10 px-5">
+      <div className="fixed top-5 left-5 z-10">
+        <BackToHome />
+      </div>
       <div className="w-full max-w-[520px]">
         <div className="text-center mb-8">
           <Link to="/" className="text-[28px] font-extrabold text-[#ff6b35] no-underline">

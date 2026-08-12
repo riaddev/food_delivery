@@ -4,6 +4,7 @@ import { useCart } from "../../context/CartContext";
 import { customerApi } from "../../features/api/apiSlice";
 import api from "../../features/api/apiSlice";
 import { useAuth } from "../../features/auth/AuthContext";
+import BackToHome from "../../components/BackToHome";
 
 const PAYMENT_METHODS = [
   { id: "cash", label: "Cash on Delivery", desc: "Pay in cash when your order arrives" },
@@ -109,7 +110,10 @@ export default function Checkout() {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">Checkout</h1>
+        <div className="flex items-center gap-3 mb-8">
+          <BackToHome />
+          <h1 className="text-3xl font-bold">Checkout</h1>
+        </div>
 
         <div className="space-y-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">

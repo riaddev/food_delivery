@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::post('/register/customer', [AuthController::class, 'registerCustomer']);
 Route::post('/register/restaurant', [AuthController::class, 'registerRestaurant']);
+Route::post('/apply/restaurant', [AuthController::class, 'applyRestaurant']);
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::get('/restaurants', [RestaurantController::class, 'publicList']);

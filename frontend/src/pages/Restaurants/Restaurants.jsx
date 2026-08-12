@@ -1,13 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft, Search, SearchX, LayoutGrid, ChevronDown, WifiOff,
+  Search, SearchX, LayoutGrid, ChevronDown, WifiOff,
   Bike, ShoppingBag, Utensils, ShoppingCart,
 } from "lucide-react";
 import api from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../features/auth/AuthContext";
 import FoodCard from "../../components/FoodCard";
+import BackToHome from "../../components/BackToHome";
 import { formatPrice } from "../../utils/foodImages";
 
 const SORT_OPTIONS = [
@@ -113,7 +114,6 @@ const enrich = (r, idx) => {
 };
 
 export default function Restaurants() {
-  const navigate = useNavigate();
   const { user, isCustomer } = useAuth();
   const { addItem, cart, itemCount, total } = useCart();
   const canOrder = !user || isCustomer;
@@ -225,13 +225,7 @@ export default function Restaurants() {
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-100">
         <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-3">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-lg bg-white border border-zinc-200 flex items-center justify-center text-zinc-600 hover:bg-zinc-50 transition-colors shrink-0"
-              aria-label="Back"
-            >
-              <ArrowLeft size={18} />
-            </button>
+            <BackToHome />
 
             {/* Search (70%) + Order mode toggle (30%) on the same row */}
             <div className="flex-1 grid grid-cols-1 sm:grid-cols-10 gap-2 sm:gap-3">

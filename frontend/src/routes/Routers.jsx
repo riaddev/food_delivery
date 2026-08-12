@@ -3,6 +3,7 @@ import Home from "../pages/Home/Home";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
 import RegisterRestaurant from "../pages/RegisterRestaurant/RegisterRestaurant";
+import SignupRestaurant from "../pages/SignupRestaurant/SignupRestaurant";
 import CustomerDashboard from "../pages/CustomerDashboard/CustomerDashboard";
 import RestaurantDashboard from "../pages/RestaurantDashboard/RestaurantDashboard";
 import AdminDashboard from "../pages/AdminDashboard/AdminDashboard";
@@ -31,7 +32,9 @@ export default function Routers() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/signup/customer" element={<Register />} />
       <Route path="/register/restaurant" element={<RegisterRestaurant />} />
+      <Route path="/signup/restaurant" element={<SignupRestaurant />} />
       <Route path="/restaurants" element={<Restaurants />} />
       <Route path="/restaurants/:id" element={<RestaurantMenu />} />
       <Route

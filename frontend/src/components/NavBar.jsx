@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  ShoppingBag, Utensils, UtensilsCrossed, Tag, Store, Info,
-  ClipboardList, MapPin, User, Heart, LogOut, Menu, X,
+  ShoppingBag, Utensils, UtensilsCrossed, Tag, Info, User, Store,
+  ClipboardList, MapPin, Heart, LogOut, Menu, X,
 } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { useCart } from "../context/CartContext";
@@ -17,6 +17,7 @@ const Header = () => {
   const [cartOpen, setCartOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signupOpen, setSignupOpen] = useState(false);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -52,10 +53,6 @@ const Header = () => {
       <Link to="/restaurants?filter=offers" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
         <Tag size={15} strokeWidth={2} />
         Offers
-      </Link>
-      <Link to="/register/restaurant" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
-        <Store size={15} strokeWidth={2} />
-        Become a Partner
       </Link>
       <Link to="/#about" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
         <Info size={15} strokeWidth={2} />
@@ -185,9 +182,9 @@ const Header = () => {
               <Link to="/login" className="text-zinc-900 hover:text-[#E03546] text-sm font-medium transition whitespace-nowrap">
                 Login
               </Link>
-              <Link to="/register" className="bg-[#E03546] hover:bg-[#c72e3e] text-white text-sm font-medium px-5 py-2 rounded-full transition whitespace-nowrap">
+              <button onClick={() => setSignupOpen(true)} className="bg-[#E03546] hover:bg-[#c72e3e] text-white text-sm font-medium px-5 py-2 rounded-full transition whitespace-nowrap">
                 Sign Up
-              </Link>
+              </button>
             </>
           )}
         </div>
@@ -200,6 +197,68 @@ const Header = () => {
         </div>
       )}
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+
+      {signupOpen && (
+        <div
+          className="fixed inset-0 z-[1100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setSignupOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full mx-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSignupOpen(false)}
+              aria-label="Close sign up"
+              className="absolute top-5 right-5 w-9 h-9 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition"
+            >
+              <X size={19} strokeWidth={2} />
+            </button>
+
+            <div className="text-center">
+              <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Join Swift Bite</h2>
+              <p className="text-sm text-zinc-500 mt-1">Choose your account type to get started.</p>
+            </div>
+
+            <div className="mt-7 flex flex-col gap-3">
+              <Link
+                to="/signup/customer"
+                onClick={() => setSignupOpen(false)}
+                className="flex items-center gap-4 border border-zinc-200 rounded-2xl p-5 cursor-pointer transition-all hover:border-[#E03546] hover:shadow-md"
+              >
+                <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-red-50 text-[#E03546]">
+                  <Utensils size={22} strokeWidth={2} />
+                </span>
+                <span>
+                  <span className="block font-bold text-zinc-900 text-lg">Customer</span>
+                  <span className="block text-sm text-zinc-500">Order food and get fast delivery.</span>
+                </span>
+              </Link>
+
+              <Link
+                to="/signup/restaurant"
+                onClick={() => setSignupOpen(false)}
+                className="flex items-center gap-4 border border-zinc-200 rounded-2xl p-5 cursor-pointer transition-all hover:border-[#E03546] hover:shadow-md"
+              >
+                <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-zinc-100 text-zinc-900">
+                  <Store size={22} strokeWidth={2} />
+                </span>
+                <span>
+                  <span className="block font-bold text-zinc-900 text-lg">Restaurant Partner</span>
+                  <span className="block text-sm text-zinc-500">Sell your food and grow your business.</span>
+                </span>
+              </Link>
+            </div>
+
+            <p className="text-center mt-6 text-sm text-zinc-500">
+              Already have an account?{" "}
+              <Link to="/login" onClick={() => setSignupOpen(false)} className="text-[#E03546] font-semibold">
+                Log in
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

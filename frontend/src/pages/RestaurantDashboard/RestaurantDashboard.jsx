@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { restaurantImage } from "../../utils/foodImages";
+import BackToHome from "../../components/BackToHome";
 
 const navItems = [
   { label: "Dashboard", path: "/restaurant/dashboard", icon: LayoutDashboard, exact: true },
@@ -105,9 +106,14 @@ export default function RestaurantDashboard() {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <header className="bg-[#F8F9FA]/80 backdrop-blur-md border-b border-zinc-100 px-4 lg:px-10 py-4 flex items-center justify-between sticky top-0 z-20">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-zinc-700 bg-white w-10 h-10 rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.06)] flex items-center justify-center">
-            <Menu size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSidebarOpen(true)} className="lg:hidden text-zinc-700 bg-white w-10 h-10 rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.06)] flex items-center justify-center">
+              <Menu size={20} />
+            </button>
+            <span className="lg:hidden">
+              <BackToHome />
+            </span>
+          </div>
 
           <div className="flex-1" />
 

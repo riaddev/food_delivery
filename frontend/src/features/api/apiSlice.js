@@ -27,6 +27,7 @@ api.interceptors.response.use(
 export const authApi = {
   registerCustomer: (data) => api.post("/register/customer", data),
   registerRestaurant: (data) => api.post("/register/restaurant", data),
+  applyRestaurant: (data) => api.post("/apply/restaurant", data),
   login: (data) => api.post("/login", data),
   logout: () => api.post("/logout"),
   user: () => api.get("/user"),
