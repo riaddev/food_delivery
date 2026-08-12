@@ -19,7 +19,7 @@ const SORT_OPTIONS = [
 
 const MODES = [
   { id: "delivery", label: "Delivery", icon: Bike },
-  { id: "pickup", label: "Pickup", icon: ShoppingBag },
+  { id: "pickup", label: "Takeout", icon: ShoppingBag },
   { id: "dine_in", label: "Dine-in", icon: Utensils },
 ];
 
