@@ -1,48 +1,48 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import {
-  Star, Clock, MapPin, Truck, Gift, Percent, ArrowLeft,
-  Plus, Minus, ShoppingCart, ChevronRight, Heart, X, UtensilsCrossed,
+  Star, Clock, Truck, ArrowLeft, Calendar, UtensilsCrossed,
+  Plus, Minus, ShoppingCart, Heart, X,
 } from "lucide-react";
-import api from "../../features/api/apiSlice";
-import { customerApi, publicApi } from "../../features/api/apiSlice";
+import { customerApi } from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../features/auth/AuthContext";
+import ReservationModal from "../../components/ReservationModal";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
+import { getCachedRestaurant, getRestaurantData } from "../../utils/prefetch";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop";
 
 const MOCK_RESTAURANT = {
   id: "mock-1",
   restaurant_name: "The Burger Republic",
-  tagline: "Burgers • American • Fast Food",
+  cuisine_type: "Burgers",
   city: "Dhaka",
   address: "Dhanmondi 27, Road 6",
   description: "Hand-picked smash burgers, flame-grilled wings and loaded fries — cooked fresh to order since 2019.",
   image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1600&auto=format&fit=crop",
+  cover_image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1600&auto=format&fit=crop",
   logo: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=400&auto=format&fit=crop",
   rating: 4.8,
-  eta: "25-30 mins",
+  delivery_time: "25-30 mins",
   delivery_fee: 60,
-  free_delivery_over: 1000,
   accepts_dine_in: true,
 };
 
 const MOCK_MENU_ITEMS = [
-  { id: 101, name: "Classic Cheeseburger", description: "Flame-grilled beef patty, melted cheddar, crisp lettuce & our secret sauce.", price: 450, category: "Burgers", img: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
-  { id: 102, name: "Spicy Chicken Wings", description: "Crispy wings tossed in our signature chilli-garlic glaze.", price: 320, category: "Recommended", img: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800&auto=format&fit=crop" },
-  { id: 103, name: "Double Smokehouse Burger", description: "Two beef patties, smoky bacon, onion rings & BBQ mayo.", price: 620, category: "Burgers", img: "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
-  { id: 104, name: "Loaded Cheese Fries", description: "Crispy fries smothered in molten cheese sauce & spring onions.", price: 190, category: "Sides", img: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?q=80&w=800&auto=format&fit=crop" },
-  { id: 105, name: "Crispy Garden Salad", description: "Fresh greens, cherry tomatoes, olives, grilled chicken & ranch.", price: 150, category: "Sides", img: "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=800&auto=format&fit=crop" },
-  { id: 106, name: "Chilled Coca-Cola", description: "An ice-cold 300ml can to wash it all down.", price: 55, category: "Drinks", img: "https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=800&auto=format&fit=crop" },
-  { id: 107, name: "Molten Chocolate Lava", description: "Warm chocolate cake with a gooey centre, served with a scoop of ice cream.", price: 280, category: "Desserts", img: "https://images.unsplash.com/photo-1551024506-0bccd828d307?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
+  { id: 101, name: "Classic Cheeseburger", description: "Flame-grilled beef patty, melted cheddar, crisp lettuce & our secret sauce.", price: 450, category: "Burgers", image_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
+  { id: 102, name: "Spicy Chicken Wings", description: "Crispy wings tossed in our signature chilli-garlic glaze.", price: 320, category: "Recommended", image_url: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800&auto=format&fit=crop" },
+  { id: 103, name: "Double Smokehouse Burger", description: "Two beef patties, smoky bacon, onion rings & BBQ mayo.", price: 620, category: "Burgers", image_url: "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
+  { id: 104, name: "Loaded Cheese Fries", description: "Crispy fries smothered in molten cheese sauce & spring onions.", price: 190, category: "Sides", image_url: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?q=80&w=800&auto=format&fit=crop" },
+  { id: 105, name: "Crispy Garden Salad", description: "Fresh greens, cherry tomatoes, olives, grilled chicken & ranch.", price: 150, category: "Sides", image_url: "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=800&auto=format&fit=crop" },
+  { id: 106, name: "Chilled Coca-Cola", description: "An ice-cold 300ml can to wash it all down.", price: 55, category: "Drinks", image_url: "https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=800&auto=format&fit=crop" },
+  { id: 107, name: "Molten Chocolate Lava", description: "Warm chocolate cake with a gooey centre, served with a scoop of ice cream.", price: 280, category: "Desserts", image_url: "https://images.unsplash.com/photo-1551024506-0bccd828d307?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
 ];
 
 const MOCK_REVIEWS = [
   { name: "Riad Hossain", rating: 5, comment: "The Classic Cheeseburger is insanely juicy. It arrived in 22 minutes flat!" },
   { name: "Nabila Rahman", rating: 4, comment: "Crispy wings and great value. Just wish there were a few more drink options." },
   { name: "Tanvir Ahmed", rating: 5, comment: "Easily the best smash burger in Dhanmondi. The loaded fries are addictive." },
-  { name: "Sumaiya Chowdhury", rating: 5, comment: "Ordered twice this week — consistent flavour and always hot on arrival." },
 ];
 
 const AVATAR_COLORS = ["from-red-500 to-rose-400", "from-amber-500 to-orange-400", "from-emerald-500 to-teal-400", "from-violet-500 to-purple-400"];
@@ -57,36 +57,28 @@ const handleImgError = (e) => {
 
 export default function RestaurantMenu() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user, isCustomer } = useAuth();
   const { addItem, removeItem, updateQuantity, cart, itemCount, total } = useCart();
   const canOrder = !user || isCustomer;
-  const [payload, setPayload] = useState(null);
+  const [payload, setPayload] = useState(() => getCachedRestaurant(id));
   const [failed, setFailed] = useState(false);
   const [activeCat, setActiveCat] = useState("");
   const [wishlist, setWishlist] = useState(() => new Set());
   const [wishlistBusy, setWishlistBusy] = useState(() => new Set());
   const [wishlistMsg, setWishlistMsg] = useState("");
-  const [reviews, setReviews] = useState(null);
-  const [reviewsFailed, setReviewsFailed] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingValue, setRatingValue] = useState(5);
   const [ratingComment, setRatingComment] = useState("");
   const [ratingBusy, setRatingBusy] = useState(false);
   const [ratingMsg, setRatingMsg] = useState("");
+  const [reserveOpen, setReserveOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
-    api.get(`/restaurants/${id}`)
-      .then((res) => { if (active) setPayload(res.data); })
+    getRestaurantData(id)
+      .then((res) => { if (active) setPayload(res); })
       .catch(() => { if (active) setFailed(true); });
-    return () => { active = false; };
-  }, [id]);
-
-  useEffect(() => {
-    let active = true;
-    publicApi.getRestaurantReviews(id)
-      .then((res) => { if (active) setReviews(res.data); })
-      .catch(() => { if (active) setReviewsFailed(true); });
     return () => { active = false; };
   }, [id]);
 
@@ -101,38 +93,41 @@ export default function RestaurantMenu() {
     return () => { active = false; };
   }, []);
 
-  const useMock = failed || !payload;
+  const loading = !payload && !failed;
+  const useMock = failed;
+  const demoTarget = useMock || loading;
 
   const restaurant = {
     ...MOCK_RESTAURANT,
-    ...(useMock ? {} : payload.restaurant),
+    ...(demoTarget ? {} : payload.restaurant),
   };
 
-  const cuisine = useMock
-    ? MOCK_RESTAURANT.tagline
+  const tagline = demoTarget
+    ? "Burgers • American • Fast Food"
     : [payload.restaurant.cuisine_type, payload.restaurant.city].filter(Boolean).join(" • ");
 
-  const menuItems = useMock
+  const menuItems = demoTarget
     ? MOCK_MENU_ITEMS
     : payload.menu_items.filter((i) => i.is_available !== false);
 
-  const displayRating = useMock
+  const displayRating = demoTarget
     ? MOCK_RESTAURANT.rating
     : (payload.restaurant.avg_rating ?? MOCK_RESTAURANT.rating);
 
-  const reviewCount = useMock
+  const reviewCount = demoTarget
     ? MOCK_REVIEWS.length
     : (payload.restaurant.review_count ?? 0);
 
-  const displayReviews = reviews
-    ? reviews.reviews.map((r) => ({
+  const coverSrc = restaurant.cover_image_url || restaurant.cover_image || restaurant.image_url || restaurant.image || restaurantImage(restaurant.restaurant_name);
+  const logoSrc = restaurant.logo_url || restaurant.logo || restaurant.image_url || restaurant.image || restaurantImage(restaurant.restaurant_name);
+
+  const displayReviews = demoTarget
+    ? MOCK_REVIEWS
+    : (payload.reviews || []).map((r) => ({
         name: r.user?.name || "Customer",
         rating: r.rating,
         comment: r.comment || "",
-      }))
-    : reviewsFailed
-      ? MOCK_REVIEWS
-      : [];
+      }));
 
   const handleSubmitReview = async () => {
     setRatingBusy(true);
@@ -169,8 +164,6 @@ export default function RestaurantMenu() {
 
   const qtyOf = (item) =>
     cart.items.find((i) => i.menu_item_id === item.id)?.quantity || 0;
-
-  const currentCat = activeCat || categories[0] || "";
 
   const handleAdd = (item) => {
     addItem(restaurant.id, restaurant.restaurant_name, item);
@@ -220,80 +213,127 @@ export default function RestaurantMenu() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] pb-28">
+        <div className="h-48 w-full bg-zinc-200 animate-pulse" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-10 relative z-10">
+          <div className="bg-white rounded-2xl p-5 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
+            <div className="flex items-start gap-4">
+              <div className="w-16 h-16 rounded-full bg-zinc-200 animate-pulse shrink-0" />
+              <div className="flex-1 pt-1 space-y-3">
+                <div className="h-6 w-56 max-w-full bg-zinc-200 rounded-lg animate-pulse" />
+                <div className="h-4 w-40 bg-zinc-200 rounded-lg animate-pulse" />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <div className="h-8 w-24 bg-zinc-200 rounded-lg animate-pulse" />
+              <div className="h-8 w-28 bg-zinc-200 rounded-lg animate-pulse" />
+              <div className="h-8 w-32 bg-zinc-200 rounded-lg animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-10 mb-6 space-y-3">
+            <div className="h-7 w-40 bg-zinc-200 rounded-lg animate-pulse" />
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+                  <div className="aspect-[4/3] bg-zinc-200 animate-pulse" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 w-3/4 bg-zinc-200 rounded animate-pulse" />
+                    <div className="h-3 w-full bg-zinc-200 rounded animate-pulse" />
+                    <div className="h-3 w-2/3 bg-zinc-200 rounded animate-pulse" />
+                    <div className="flex items-center justify-between pt-3">
+                      <div className="h-4 w-14 bg-zinc-200 rounded animate-pulse" />
+                      <div className="h-7 w-16 bg-zinc-200 rounded-lg animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-28">
-      {/* Cover banner */}
-      <div className="relative h-52 sm:h-64 overflow-hidden">
-        <img src={restaurant.image || restaurantImage(restaurant.restaurant_name)} onError={handleImgError} alt={restaurant.restaurant_name} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/60 via-zinc-900/10 to-transparent" />
-        <Link to="/restaurants" className="absolute top-5 left-5 sm:top-6 sm:left-8 inline-flex items-center gap-2 bg-white/90 hover:bg-white text-zinc-900 text-sm font-semibold px-4 py-2 rounded-full shadow-lg backdrop-blur transition-all hover:-translate-y-0.5">
-          <ArrowLeft size={16} /> Back
-        </Link>
+      {/* Cover image */}
+      <div className="relative h-48 w-full overflow-hidden">
+        <img src={coverSrc} onError={handleImgError} fetchPriority="high" alt={restaurant.restaurant_name} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/40 via-transparent to-transparent" />
+        <button
+          onClick={() => navigate("/restaurants", { replace: true })}
+          className="absolute top-4 left-4 inline-flex items-center gap-1.5 bg-white/90 hover:bg-white text-zinc-900 text-sm font-semibold px-3.5 py-2 rounded-full shadow-lg backdrop-blur transition-all hover:-translate-y-0.5 cursor-pointer"
+        >
+          <ArrowLeft size={15} /> Back
+        </button>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
-        {/* Floating info card */}
-        <div className="bg-white rounded-3xl shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] p-6 sm:p-8 -mt-14 relative z-10">
-          <div className="flex flex-col lg:flex-row lg:items-end gap-6">
-            <div className="flex items-center gap-5 min-w-0">
-              <div className="shrink-0">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full p-1 bg-gradient-to-tr from-red-500 via-rose-400 to-amber-300">
-                  <img src={restaurant.logo || restaurantImage(restaurant.restaurant_name)} onError={handleImgError} alt={restaurant.restaurant_name} className="w-full h-full rounded-full object-cover border-4 border-white" />
-                </div>
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900">{restaurant.restaurant_name}</h1>
-                <p className="text-zinc-400 text-sm mt-1 flex items-center gap-1.5 flex-wrap">
-                  <MapPin size={14} className="text-red-500 shrink-0" />
-                  {cuisine}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 lg:ml-auto">
-              <span className="inline-flex items-center gap-1.5 bg-zinc-900 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)]">
-                <Star size={15} className="text-amber-400" fill="currentColor" /> {displayRating}
-                {reviewCount > 0 && <span className="text-zinc-400 font-medium">({reviewCount})</span>}
-              </span>
-              <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-700 text-sm font-semibold px-4 py-2 rounded-full">
-                <Clock size={14} className="text-zinc-500" /> {restaurant.eta}
-              </span>
-              <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-700 text-sm font-semibold px-4 py-2 rounded-full">
-                <Truck size={14} className="text-zinc-500" /> {formatPrice(restaurant.delivery_fee)} Delivery
-              </span>
-              {restaurant.accepts_dine_in && (
-                <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-sm font-bold px-4 py-2 rounded-full">
-                  <UtensilsCrossed size={14} /> Dine-In Available
-                </span>
-              )}
-              <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-sm font-bold px-4 py-2 rounded-full">
-                <Gift size={14} /> Free delivery over {formatPrice(restaurant.free_delivery_over)}
-              </span>
+      {/* Overlapping info card */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-10 relative z-10">
+        <div className="bg-white rounded-2xl shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] p-5">
+          <div className="flex items-start gap-4">
+            <img
+              src={logoSrc}
+              onError={handleImgError}
+              alt={restaurant.restaurant_name}
+              className="w-16 h-16 rounded-full object-cover border-4 border-white shadow-md shrink-0"
+            />
+            <div className="min-w-0 pt-0.5">
+              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 truncate">{restaurant.restaurant_name}</h1>
+              {tagline && <p className="text-sm text-zinc-500 mt-0.5 truncate">{tagline}</p>}
             </div>
           </div>
 
-          <div className="mt-6 bg-gradient-to-r from-red-500 to-rose-500 rounded-2xl px-5 py-3 text-white flex items-center gap-2.5 text-sm font-semibold">
-            <Percent size={16} />
-            <span>Get 20% off on orders above ৳800!</span>
-            <ChevronRight size={15} className="ml-auto shrink-0" />
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            {displayRating > 0 && (
+              <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-sm font-bold px-3 py-1.5 rounded-lg">
+                <Star size={14} className="text-amber-400" fill="currentColor" />
+                {displayRating}{reviewCount > 0 && <span className="text-green-600/70 font-medium">({reviewCount})</span>}
+              </span>
+            )}
+            {restaurant.delivery_time && (
+              <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-600 text-sm font-medium px-3 py-1.5 rounded-lg">
+                <Clock size={14} className="text-zinc-500" /> {restaurant.delivery_time}
+              </span>
+            )}
+            {restaurant.delivery_fee !== undefined && (
+              <span className="inline-flex items-center gap-1.5 bg-zinc-100 text-zinc-600 text-sm font-medium px-3 py-1.5 rounded-lg">
+                <Truck size={14} className="text-zinc-500" /> {formatPrice(restaurant.delivery_fee)} delivery
+              </span>
+            )}
           </div>
+
+          {restaurant.accepts_dine_in && (
+            <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-4 border-t border-zinc-100">
+              <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-sm font-bold px-3 py-1.5 rounded-lg">
+                <UtensilsCrossed size={14} /> Dine-In Available
+              </span>
+              <button
+                onClick={() => setReserveOpen(true)}
+                className="inline-flex items-center gap-2 bg-[#E03546] hover:bg-red-600 text-white text-sm font-bold px-5 py-2 rounded-xl shadow-[0_8px_20px_rgba(224,53,70,0.3)] transition-colors cursor-pointer"
+              >
+                <Calendar size={15} /> Reserve a Table
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Sticky category nav */}
         {categories.length > 0 && (
-          <nav className="sticky top-0 z-20 -mx-4 px-4 sm:-mx-6 sm:px-6 bg-[#F8F9FA]/90 backdrop-blur-md mt-7 mb-6 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav className="sticky top-0 z-30 -mx-4 px-4 sm:-mx-6 sm:px-6 mt-6 bg-white border-b border-zinc-100 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex gap-7">
               {categories.map((cat) => {
-                const key = cat.toLowerCase();
-                const isActive = currentCat.toLowerCase() === key;
+                const isActive = activeCat.toLowerCase() === cat.toLowerCase();
                 return (
                   <button
                     key={cat}
                     onClick={() => scrollToCat(cat)}
-                    className={`relative pb-3 pt-2 whitespace-nowrap text-sm font-semibold transition-colors duration-200 ${isActive ? "text-zinc-900" : "text-zinc-400 hover:text-zinc-700"}`}
+                    className={`relative shrink-0 py-3 whitespace-nowrap text-sm font-medium transition-colors duration-200 cursor-pointer ${isActive ? "text-zinc-900" : "text-zinc-400 hover:text-zinc-700"}`}
                   >
                     {cat}
-                    <span className={`absolute -bottom-px left-0 right-0 h-[3px] rounded-full bg-red-500 transition-transform duration-200 origin-left ${isActive ? "scale-x-100" : "scale-x-0"}`} />
+                    <span className={`absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#E03546] transition-all duration-200 ${isActive ? "opacity-100" : "opacity-0"}`} />
                   </button>
                 );
               })}
@@ -303,87 +343,81 @@ export default function RestaurantMenu() {
 
         {/* Menu sections */}
         {wishlistMsg && (
-          <p className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-lg">
+          <p className="mt-6 inline-flex items-center gap-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-1.5 rounded-lg">
             <Heart size={13} /> {wishlistMsg}
           </p>
         )}
+
         {menuItems.length === 0 ? (
-          <div className="bg-white rounded-3xl py-20 px-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
-            <p className="text-2xl font-extrabold tracking-tight text-zinc-900 mb-2">Menu coming soon</p>
+          <div className="bg-white rounded-2xl py-20 px-6 mt-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
+            <p className="text-2xl font-bold tracking-tight text-zinc-900 mb-2">Menu coming soon</p>
             <p className="text-zinc-400">Check back a little later for the full menu.</p>
           </div>
         ) : (
-          categories.map((cat, catIdx) => {
+          categories.map((cat) => {
             const key = cat.toLowerCase();
             const items = menuItems.filter((i) => (i.category || "Recommended").toLowerCase() === key);
             return (
-              <section key={cat} id={`menu-${key}`} className="scroll-mt-20 mb-12">
-                <div className={`flex items-center gap-4 mb-5 ${catIdx === 0 ? "mt-2" : "mt-6"}`}>
-                  <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">{cat}</h2>
-                  <span className="h-px flex-1 bg-zinc-200" />
-                  <span className="text-xs font-semibold text-zinc-400 bg-white px-3 py-1 rounded-full shadow-sm">
-                    {items.length} {items.length === 1 ? "item" : "items"}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
+              <section key={cat} id={`menu-${key}`} className="scroll-mt-14">
+                <h2 className="text-2xl font-bold text-zinc-900 mt-10 mb-6">{cat}</h2>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
                   {items.map((item) => {
                     const qty = qtyOf(item);
                     return (
-                      <div
-                        key={item.id}
-                        className="group bg-white rounded-3xl p-4 sm:p-5 flex items-center gap-5 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.18)]"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                            <h3 className="font-bold text-zinc-900">{item.name}</h3>
-                            {item.is_bestseller && (
-                              <span className="bg-amber-400 text-amber-900 text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wide">
-                                Bestseller
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-zinc-400 leading-relaxed line-clamp-2">{item.description}</p>
-                          <p className="font-extrabold text-zinc-900 mt-2.5">{formatPrice(item.price)}</p>
-                        </div>
-
-                        <div className="relative shrink-0">
-                          <img src={item.image_url || item.img || restaurantImage(restaurant.restaurant_name)} onError={handleImgError} alt={item.name} className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover" />
+                      <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden flex flex-col">
+                        <div className="relative">
+                          <img
+                            src={item.image_url || restaurantImage(item.name)}
+                            onError={handleImgError}
+                            alt={item.name}
+                            loading="lazy"
+                            decoding="async"
+                            className="aspect-[4/3] w-full object-cover"
+                          />
                           {!useMock && (
                             <button
                               onClick={() => toggleWishlist(item)}
                               disabled={wishlistBusy.has(item.id)}
                               aria-label={wishlist.has(item.id) ? `Remove ${item.name} from wishlist` : `Save ${item.name} to wishlist`}
-                              className={`absolute top-2 right-2 w-8 h-8 rounded-full bg-white/95 shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center transition-colors disabled:opacity-50 cursor-pointer ${
+                              className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/95 shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center transition-colors disabled:opacity-50 cursor-pointer ${
                                 wishlist.has(item.id) ? "text-[#E03546]" : "text-zinc-500 hover:text-[#E03546]"
                               }`}
                             >
                               {wishlistBusy.has(item.id) ? (
-                                <span className="w-3.5 h-3.5 rounded-full border-2 border-[#E03546] border-t-transparent animate-spin" />
+                                <span className="w-3 h-3 rounded-full border-2 border-[#E03546] border-t-transparent animate-spin" />
                               ) : (
-                                <Heart size={16} fill={wishlist.has(item.id) ? "currentColor" : "none"} strokeWidth={2} />
+                                <Heart size={14} fill={wishlist.has(item.id) ? "currentColor" : "none"} strokeWidth={2} />
                               )}
                             </button>
                           )}
-                          {canOrder && !useMock && (qty === 0 ? (
-                            <button
-                              onClick={() => handleAdd(item)}
-                              aria-label={`Add ${item.name} to cart`}
-                              className="absolute bottom-2 left-1/2 -translate-x-1/2 w-9 h-9 rounded-full bg-white shadow-[0_6px_18px_rgba(0,0,0,0.15)] flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all active:scale-95"
-                            >
-                              <Plus size={18} strokeWidth={2.5} />
-                            </button>
-                          ) : (
-                            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-zinc-900 rounded-full px-1.5 py-1 shadow-lg">
-                              <button onClick={() => (qty === 1 ? removeItem(item.id) : updateQuantity(item.id, qty - 1))} className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors" aria-label="Decrease">
-                                <Minus size={13} strokeWidth={2.5} />
+                        </div>
+                        <div className="p-4 flex flex-col flex-1">
+                          <h3 className="font-bold text-zinc-900 text-base">{item.name}</h3>
+                          {item.description && (
+                            <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{item.description}</p>
+                          )}
+                          <div className="mt-auto pt-3 flex items-center justify-between">
+                            <span className="font-bold text-zinc-900">{formatPrice(item.price)}</span>
+                            {canOrder && !useMock && (qty === 0 ? (
+                              <button
+                                onClick={() => handleAdd(item)}
+                                aria-label={`Add ${item.name} to cart`}
+                                className="border border-zinc-200 rounded-lg px-3 py-1 text-sm font-bold text-[#E03546] hover:bg-red-50 hover:border-[#E03546] transition flex items-center gap-1 cursor-pointer"
+                              >
+                                <Plus size={14} strokeWidth={2.5} /> ADD
                               </button>
-                              <span className="w-6 text-center text-sm font-bold text-white">{qty}</span>
-                              <button onClick={() => updateQuantity(item.id, qty + 1)} className="w-6 h-6 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-colors" aria-label="Increase">
-                                <Plus size={13} strokeWidth={2.5} />
-                              </button>
-                            </div>
-                          ))}
+                            ) : (
+                              <div className="flex items-center gap-1 border border-zinc-200 rounded-lg px-1 py-1">
+                                <button onClick={() => (qty === 1 ? removeItem(item.id) : updateQuantity(item.id, qty - 1))} className="w-6 h-6 rounded-md text-zinc-700 hover:bg-zinc-100 flex items-center justify-center transition-colors cursor-pointer" aria-label="Decrease">
+                                  <Minus size={13} strokeWidth={2.5} />
+                                </button>
+                                <span className="w-6 text-center text-sm font-bold text-zinc-900">{qty}</span>
+                                <button onClick={() => updateQuantity(item.id, qty + 1)} className="w-6 h-6 rounded-md text-[#E03546] hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer" aria-label="Increase">
+                                  <Plus size={13} strokeWidth={2.5} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     );
@@ -395,39 +429,34 @@ export default function RestaurantMenu() {
         )}
 
         {/* Reviews */}
-        <section className="mt-4">
-          <div className="flex items-center gap-3 mb-5 flex-wrap">
-            <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">Reviews</h2>
-            <span className="inline-flex items-center gap-1 bg-white text-zinc-700 text-sm font-semibold px-3 py-1 rounded-full shadow-sm">
-              <Star size={14} className="text-amber-400" fill="currentColor" /> {displayRating}
-              {reviewCount > 0 && <span className="text-zinc-400 font-medium">· {reviewCount}</span>}
-            </span>
+        <section className="mt-4 mb-8">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">What people are saying</h2>
             {!useMock && localStorage.getItem("token") && (
               <button
                 onClick={() => setRatingOpen(true)}
                 className="inline-flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-colors ml-auto cursor-pointer"
               >
-                <Star size={13} className="text-amber-400" fill="currentColor" />
-                Rate this restaurant
+                <Star size={13} className="text-amber-400" fill="currentColor" /> Rate this restaurant
               </button>
             )}
           </div>
 
           {ratingMsg && (
-            <p className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg">
+            <p className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg">
               <Star size={13} /> {ratingMsg}
             </p>
           )}
 
           {displayReviews.length === 0 ? (
-            <div className="bg-white rounded-3xl py-12 px-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
+            <div className="bg-white rounded-2xl py-12 px-6 mt-4 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
               <p className="text-zinc-500 text-sm">No reviews yet. Be the first to rate this restaurant!</p>
             </div>
           ) : (
-            <div className="flex gap-5 overflow-x-auto pb-4 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x snap-mandatory">
+            <div className="flex gap-4 mt-4 overflow-x-auto pb-2 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x snap-mandatory">
               {displayReviews.map((review, i) => (
-                <div key={review.name + i} className="bg-white rounded-3xl p-6 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] w-[300px] sm:w-[340px] shrink-0 snap-start flex flex-col">
-                  <div className="flex items-center gap-3 mb-4">
+                <div key={review.name + i} className="bg-white rounded-2xl p-5 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] w-[300px] sm:w-[340px] shrink-0 snap-start flex flex-col">
+                  <div className="flex items-center gap-3 mb-3">
                     <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${AVATAR_COLORS[i % AVATAR_COLORS.length]} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
                       {initials(review.name)}
                     </div>
@@ -448,13 +477,21 @@ export default function RestaurantMenu() {
         </section>
       </div>
 
+      {/* Reservation modal */}
+      <ReservationModal
+        open={reserveOpen}
+        onClose={() => setReserveOpen(false)}
+        restaurant={restaurant}
+        user={user}
+      />
+
       {/* Review modal */}
       {ratingOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setRatingOpen(false)}>
           <div className="bg-white rounded-3xl w-full max-w-md p-7 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-1">
               <h3 className="text-xl font-extrabold tracking-tight text-zinc-900">Rate {restaurant.restaurant_name}</h3>
-              <button onClick={() => setRatingOpen(false)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 transition-colors" aria-label="Close">
+              <button onClick={() => setRatingOpen(false)} className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 transition-colors cursor-pointer" aria-label="Close">
                 <X size={16} />
               </button>
             </div>
@@ -493,7 +530,7 @@ export default function RestaurantMenu() {
             <button
               onClick={handleSubmitReview}
               disabled={ratingBusy}
-              className="w-full mt-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl transition-colors"
+              className="w-full mt-4 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white font-bold py-3.5 rounded-2xl transition-colors cursor-pointer"
             >
               {ratingBusy ? "Submitting..." : "Submit Review"}
             </button>

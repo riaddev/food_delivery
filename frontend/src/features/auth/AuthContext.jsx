@@ -42,13 +42,6 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
-  const registerRestaurant = async (data) => {
-    const res = await authApi.registerRestaurant(data);
-    localStorage.setItem("token", res.data.token);
-    setUser(res.data.user);
-    return res.data;
-  };
-
   const logout = async () => {
     try {
       await authApi.logout();
@@ -64,7 +57,7 @@ export const AuthProvider = ({ children }) => {
   }, [fetchUser]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, isCustomer: user?.role === "customer", login, registerCustomer, registerRestaurant, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, isCustomer: user?.role === "customer", login, registerCustomer, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

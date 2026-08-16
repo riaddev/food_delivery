@@ -1,7 +1,17 @@
+import { Link } from "react-router-dom";
+
 const columns = [
   { title: "Company", links: ["About", "Careers", "Press", "Blog"] },
   { title: "Customers", links: ["Browse Restaurants", "Track Order", "Promotions", "Gift Cards"] },
-  { title: "Restaurants", links: ["Partner Portal", "Dashboard", "Analytics", "Support"] },
+  {
+    title: "Restaurants",
+    links: [
+      { label: "Partner Portal", to: "/signup/restaurant" },
+      { label: "Dashboard", to: "/restaurant/dashboard" },
+      { label: "Analytics", to: "#" },
+      { label: "Support", to: "#" },
+    ],
+  },
   { title: "Riders", links: ["Become a Rider", "Rider App", "Earnings", "Community"] },
 ];
 
@@ -28,8 +38,12 @@ const Footer = () => (
             <h4 className="text-[11.5px] tracking-widest uppercase text-[#8b8b8e] mb-3">{col.title}</h4>
             <ul className="space-y-2">
               {col.links.map((link) => (
-                <li key={link}>
-                  <a href="#" className="text-[#d4d4d6] text-sm hover:text-white">{link}</a>
+                <li key={typeof link === "string" ? link : link.label}>
+                  {typeof link === "object" ? (
+                    <Link to={link.to} className="text-[#d4d4d6] text-sm hover:text-white">{link.label}</Link>
+                  ) : (
+                    <a href="#" className="text-[#d4d4d6] text-sm hover:text-white">{link}</a>
+                  )}
                 </li>
               ))}
             </ul>

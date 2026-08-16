@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\SendsSetupOtp;
 use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -12,6 +13,7 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    use SendsSetupOtp;
     public function applyRestaurant(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -65,32 +67,107 @@ class AuthController extends Controller
         ], 201);
     }
 
-    public function registerRestaurant(Request $request): JsonResponse
+    public function verifySetupOtp(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8',
-            'restaurant_name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20',
-            'cuisine_type' => 'required|string|max:255',
+            'email' => 'required|string|email',
+            'otp' => 'required|digits:6',
         ]);
 
-        $validated['password'] = Hash::make($validated['password']);
+        $user = User::where('email', $validated['email'])->first();
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => $validated['password'],
-            'role' => 'restaurant',
+        if (!$user || !$user->isRestaurant() || $user->restaurant?->status !== 'approved') {
+            throw ValidationException::withMessages([
+                'otp' => ['No approved restaurant application found for this email.'],
+            ]);
+        }
+
+        if (!$user->setup_otp || !$user->setup_otp_expires_at || $user->setup_otp_expires_at->isPast()) {
+            throw ValidationException::withMessages([
+                'otp' => ['This code has expired. Request a new one.'],
+            ]);
+        }
+
+        if (!Hash::check($validated['otp'], $user->setup_otp)) {
+            throw ValidationException::withMessages([
+                'otp' => ['The code is incorrect.'],
+            ]);
+        }
+
+        $token = $user->createToken('account-setup')->plainTextToken;
+
+        return response()->json([
+            'user' => $user->load('restaurant'),
+            'token' => $token,
+            'message' => 'Code verified. Set your password to finish setup.',
+        ]);
+    }
+
+    public function resendSetupOtp(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
         ]);
 
-        Restaurant::create([
-            'user_id' => $user->id,
-            'restaurant_name' => $validated['restaurant_name'],
-            'phone' => $validated['phone'],
-            'cuisine_type' => $validated['cuisine_type'],
+        $user = User::where('email', $validated['email'])->first();
+
+        if (!$user || !$user->isRestaurant()) {
+            throw ValidationException::withMessages([
+                'email' => ['No restaurant application found for this email.'],
+            ]);
+        }
+
+        $status = $user->restaurant?->status;
+
+        if ($status !== 'approved') {
+            throw ValidationException::withMessages([
+                'email' => [$status === 'rejected'
+                    ? 'Your application was rejected. Please contact support.'
+                    : 'Your application is still pending approval.'],
+            ]);
+        }
+
+        $otp = (string) random_int(100000, 999999);
+
+        $user->update([
+            'setup_otp' => Hash::make($otp),
+            'setup_otp_expires_at' => now()->addMinutes(15),
         ]);
+
+        if ($user->restaurant) {
+            $this->sendSetupOtp($user, $user->restaurant, $otp);
+        }
+
+        return response()->json(['message' => 'A new code has been sent to your email.']);
+    }
+
+    public function setSetupPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (!$user || !$user->isRestaurant()) {
+            throw ValidationException::withMessages([
+                'password' => ['Setup session is invalid.'],
+            ]);
+        }
+
+        if ($request->user()->currentAccessToken()->name !== 'account-setup') {
+            throw ValidationException::withMessages([
+                'password' => ['Setup session is invalid.'],
+            ]);
+        }
+
+        $user->update([
+            'password' => Hash::make($validated['password']),
+            'setup_otp' => null,
+            'setup_otp_expires_at' => null,
+        ]);
+
+        $request->user()->currentAccessToken()->delete();
 
         $user->load('restaurant');
 
@@ -99,7 +176,8 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
             'token' => $token,
-        ], 201);
+            'message' => 'Password set. Welcome to SwiftBite!',
+        ]);
     }
 
     public function login(Request $request): JsonResponse
@@ -115,6 +193,28 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => ['The provided credentials are incorrect.'],
             ]);
+        }
+
+        if ($user->isRestaurant()) {
+            $status = $user->restaurant?->status;
+
+            if ($status === 'pending') {
+                return response()->json([
+                    'message' => 'Your account is pending Admin approval.',
+                ], 403);
+            }
+
+            if ($status === 'rejected') {
+                return response()->json([
+                    'message' => 'Your application was rejected. Please contact support for more information.',
+                ], 403);
+            }
+
+            if ($user->setup_otp !== null) {
+                return response()->json([
+                    'message' => 'Your account is approved. Complete your account setup to set your password.',
+                ], 403);
+            }
         }
 
         $token = $user->createToken('auth-token')->plainTextToken;

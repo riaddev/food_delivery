@@ -25,8 +25,29 @@ class RestaurantController extends Controller
             'description' => 'nullable|string',
             'opening_hours' => 'nullable|string|max:255',
             'delivery_fee' => 'nullable|numeric|min:0',
+            'delivery_time' => 'nullable|string|max:255',
             'accepts_dine_in' => 'boolean',
+            'cover_image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:4096',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'cover_image_url' => 'nullable|string|url|max:2048',
+            'logo_url' => 'nullable|string|url|max:2048',
+            'remove_cover_image' => 'boolean',
+            'remove_logo' => 'boolean',
         ]);
+
+        foreach (['cover_image', 'logo'] as $field) {
+            if ($request->hasFile($field)) {
+                $this->deleteStored(optional($restaurant)->{$field});
+                $validated[$field] = $request->file($field)->store('restaurants', 'public');
+            } elseif (!empty($validated[$field . '_url'])) {
+                $this->deleteStored(optional($restaurant)->{$field});
+                $validated[$field] = $validated[$field . '_url'];
+            } elseif (!empty($validated['remove_' . $field])) {
+                $this->deleteStored(optional($restaurant)->{$field});
+                $validated[$field] = null;
+            }
+            unset($validated[$field . '_url'], $validated['remove_' . $field]);
+        }
 
         $restaurant->update($validated);
 
@@ -34,6 +55,13 @@ class RestaurantController extends Controller
             'restaurant' => $restaurant,
             'message' => 'Profile updated successfully.',
         ]);
+    }
+
+    private function deleteStored(?string $path): void
+    {
+        if ($path && !str_starts_with($path, 'http://') && !str_starts_with($path, 'https://')) {
+            Storage::disk('public')->delete($path);
+        }
     }
 
     public function menuItems(Request $request): JsonResponse
@@ -189,6 +217,9 @@ class RestaurantController extends Controller
                     'description' => $r->description,
                     'opening_hours' => $r->opening_hours,
                     'image' => $r->image,
+                    'cover_image' => $r->cover_image,
+                    'logo' => $r->logo,
+                    'delivery_time' => $r->delivery_time,
                     'delivery_fee' => (float) $r->delivery_fee,
                     'accepts_dine_in' => (bool) $r->accepts_dine_in,
                     'menu_items' => $r->menuItems
@@ -233,6 +264,23 @@ class RestaurantController extends Controller
             ->orderBy('name')
             ->get();
 
+        $reviews = Review::with('user:id,name,avatar')
+            ->where('restaurant_id', $id)
+            ->latest()
+            ->get()
+            ->map(function ($review) {
+                return [
+                    'id' => $review->id,
+                    'rating' => $review->rating,
+                    'comment' => $review->comment,
+                    'created_at' => $review->created_at,
+                    'user' => [
+                        'name' => $review->user?->name ?? 'Customer',
+                        'avatar_url' => $review->user?->avatar_url,
+                    ],
+                ];
+            });
+
         return response()->json([
             'restaurant' => [
                 'id' => $restaurant->id,
@@ -244,12 +292,17 @@ class RestaurantController extends Controller
                 'description' => $restaurant->description,
                 'opening_hours' => $restaurant->opening_hours,
                 'image' => $restaurant->image,
+                'cover_image' => $restaurant->cover_image,
+                'logo' => $restaurant->logo,
+                'delivery_time' => $restaurant->delivery_time,
                 'delivery_fee' => (float) $restaurant->delivery_fee,
                 'accepts_dine_in' => (bool) $restaurant->accepts_dine_in,
                 'avg_rating' => $restaurant->reviews_avg_rating ? round((float) $restaurant->reviews_avg_rating, 1) : null,
                 'review_count' => $restaurant->reviews_count,
             ],
             'menu_items' => $menuItems,
+            'review_count' => $restaurant->reviews_count,
+            'reviews' => $reviews,
         ]);
     }
 

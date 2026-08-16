@@ -2,8 +2,8 @@ import { Routes, Route } from "react-router-dom";
 import Home from "../pages/Home/Home";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
-import RegisterRestaurant from "../pages/RegisterRestaurant/RegisterRestaurant";
 import SignupRestaurant from "../pages/SignupRestaurant/SignupRestaurant";
+import RestaurantSetup from "../pages/RestaurantSetup/RestaurantSetup";
 import CustomerDashboard from "../pages/CustomerDashboard/CustomerDashboard";
 import RestaurantDashboard from "../pages/RestaurantDashboard/RestaurantDashboard";
 import AdminDashboard from "../pages/AdminDashboard/AdminDashboard";
@@ -25,6 +25,7 @@ import { SettingsPage } from "../pages/RestaurantDashboard/Settings";
 import OrdersManagement from "../pages/RestaurantDashboard/OrdersManagement";
 import MenuManagement from "../pages/RestaurantDashboard/MenuManagement";
 import EditProfile from "../pages/RestaurantDashboard/EditProfile";
+import Reservations from "../pages/RestaurantDashboard/Reservations";
 
 export default function Routers() {
   return (
@@ -33,8 +34,8 @@ export default function Routers() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/signup/customer" element={<Register />} />
-      <Route path="/register/restaurant" element={<RegisterRestaurant />} />
       <Route path="/signup/restaurant" element={<SignupRestaurant />} />
+      <Route path="/restaurant/setup" element={<RestaurantSetup />} />
       <Route path="/restaurants" element={<Restaurants />} />
       <Route path="/restaurants/:id" element={<RestaurantMenu />} />
       <Route
@@ -86,6 +87,7 @@ export default function Routers() {
       >
         <Route index element={<OwnerDashboard />} />
         <Route path="orders" element={<OrdersManagement />} />
+        <Route path="reservations" element={<Reservations />} />
         <Route path="menu" element={<MenuManagement />} />
         <Route path="profile" element={<EditProfile />} />
         <Route path="analytics" element={<Analytics />} />

@@ -72,7 +72,7 @@ const RegisterPage = () => {
 
           <div className="border-t border-gray-200 mt-5 pt-5 text-center">
             <p className="text-sm text-gray-500 mb-2">Own a restaurant?</p>
-            <Link to="/register/restaurant" className="text-[#ff6b35] font-semibold text-sm no-underline">Register your restaurant</Link>
+            <Link to="/signup/restaurant" className="text-[#ff6b35] font-semibold text-sm no-underline">Register your restaurant</Link>
           </div>
         </form>
       </div>

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  User, Mail, Phone, Store, MapPin, UtensilsCrossed, Check, ClipboardCheck,
+  User, Mail, Phone, Store, MapPin, UtensilsCrossed, CheckCircle,
+  TrendingUp, Bike, Users, ArrowLeft,
 } from "lucide-react";
 import { authApi } from "../../features/api/apiSlice";
-import BackToHome from "../../components/BackToHome";
 
 const CUISINE_OPTIONS = ["Biryani", "Burger", "Pizza", "Kabab", "Dessert", "Fast Food", "Other"];
 
@@ -28,6 +28,7 @@ export default function SignupRestaurant() {
     address: "",
   });
   const [cuisineTypes, setCuisineTypes] = useState([]);
+  const [customCuisine, setCustomCuisine] = useState("");
   const [terms, setTerms] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -41,17 +42,25 @@ export default function SignupRestaurant() {
     );
   };
 
+  const cuisineValid =
+    cuisineTypes.length > 0 &&
+    (!cuisineTypes.includes("Other") || customCuisine.trim().length > 0);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setSubmitting(true);
     try {
+      const selectedCuisines = [...cuisineTypes];
+      if (cuisineTypes.includes("Other") && customCuisine.trim()) {
+        selectedCuisines.push(customCuisine.trim());
+      }
       await authApi.applyRestaurant({
         name: form.name,
         email: form.email,
         phone: form.phone,
         restaurant_name: form.restaurant_name,
-        cuisine_type: cuisineTypes.join(", "),
+        cuisine_type: selectedCuisines.join(", "),
         address: form.address,
       });
       setSubmitted(true);
@@ -65,46 +74,78 @@ export default function SignupRestaurant() {
 
   return (
     <div className="min-h-screen flex bg-[#F8F9FA]">
-      <aside className="hidden lg:flex w-[42%] xl:w-[38%] bg-zinc-900 text-white p-12 flex-col justify-between min-h-screen sticky top-0">
-        <Link to="/" className="flex items-center gap-2.5 text-xl tracking-tight font-bold text-[#E03546]">
-          <span className="w-10 h-10 rounded-lg bg-[#E03546] flex items-center justify-center text-white">
-            <UtensilsCrossed size={19} strokeWidth={2.2} />
-          </span>
-          Swift<span className="text-white">Bite</span>
-        </Link>
+      <aside className="hidden lg:flex w-[42%] xl:w-[38%] bg-zinc-900 text-white px-12 py-8 flex-col justify-between min-h-screen sticky top-0 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(224,53,70,0.15),transparent_50%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none" />
 
-        <div>
-          <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight leading-tight">
+        <div className="relative z-10">
+          <Link to="/" className="flex items-center gap-2.5 text-xl tracking-tight font-bold text-[#E03546]">
+            <span className="w-10 h-10 rounded-lg bg-[#E03546] flex items-center justify-center text-white">
+              <UtensilsCrossed size={19} strokeWidth={2.2} />
+            </span>
+            Swift<span className="text-white">Bite</span>
+          </Link>
+        </div>
+
+        <div className="relative z-10">
+          <h2 className="text-4xl font-bold tracking-tight text-white leading-tight">
             Partner with Swift Bite
           </h2>
-          <ul className="mt-8 space-y-4 text-sm text-zinc-300">
-            <li className="flex items-start gap-3">
-              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                <Check size={13} strokeWidth={2.5} />
+          <ul className="mt-10 space-y-6">
+            <li className="flex items-start gap-4">
+              <span className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+                <TrendingUp size={18} strokeWidth={2.2} />
               </span>
-              Reach thousands of hungry customers across Dhaka.
+              <span>
+                <span className="block font-semibold text-white">Increase revenue</span>
+                <span className="block text-sm text-zinc-400 mt-0.5">Keep 90% of every order — just a simple 10% commission.</span>
+              </span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                <Check size={13} strokeWidth={2.5} />
+            <li className="flex items-start gap-4">
+              <span className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+                <Bike size={18} strokeWidth={2.2} />
               </span>
-              Keep 90% of every order — just a simple 10% commission.
+              <span>
+                <span className="block font-semibold text-white">Fast delivery</span>
+                <span className="block text-sm text-zinc-400 mt-0.5">Get orders out quickly with our delivery network.</span>
+              </span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
-                <Check size={13} strokeWidth={2.5} />
+            <li className="flex items-start gap-4">
+              <span className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+                <Users size={18} strokeWidth={2.2} />
               </span>
-              Get verified by our team before going live.
+              <span>
+                <span className="block font-semibold text-white">Reach more customers</span>
+                <span className="block text-sm text-zinc-400 mt-0.5">Thousands of hungry customers across Dhaka, every day.</span>
+              </span>
             </li>
           </ul>
         </div>
 
-        <p className="text-xs text-zinc-500">Swift Bite &copy; 2026. All rights reserved.</p>
+        <div className="relative z-10">
+          <div className="rounded-2xl bg-white/5 border border-white/10 p-5">
+            <div className="flex items-center">
+              <span className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300 ring-2 ring-zinc-900">JS</span>
+              <span className="w-9 h-9 rounded-full bg-zinc-600 flex items-center justify-center text-[10px] font-bold text-zinc-300 ring-2 ring-zinc-900 -ml-2.5">MR</span>
+              <span className="w-9 h-9 rounded-full bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300 ring-2 ring-zinc-900 -ml-2.5">AK</span>
+              <span className="w-9 h-9 rounded-full bg-zinc-600 flex items-center justify-center text-[10px] font-bold text-zinc-300 ring-2 ring-zinc-900 -ml-2.5">+</span>
+            </div>
+            <p className="text-sm font-semibold text-white mt-3">Join 500+ restaurants in Dhaka</p>
+            <p className="text-xs text-zinc-400 mt-0.5">Trusted by food partners across the city.</p>
+          </div>
+          <p className="text-xs text-zinc-500 mt-6">Swift Bite &copy; 2026. All rights reserved.</p>
+        </div>
       </aside>
 
       <div className="flex-1 min-w-0">
-        <div className="fixed top-5 left-5 z-10">
-          <BackToHome />
+        <div className="px-12 py-8">
+          <Link
+            to="/"
+            className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-zinc-600 hover:text-zinc-900 transition-colors"
+          >
+            <ArrowLeft size={16} />
+            Back to Home
+          </Link>
         </div>
 
         <div className="max-w-lg mx-auto mt-10 mb-16 px-5">
@@ -118,19 +159,23 @@ export default function SignupRestaurant() {
           <div className="bg-white rounded-2xl shadow-sm p-8">
             {submitted ? (
               <div className="text-center py-6">
-                <span className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
-                  <ClipboardCheck size={30} strokeWidth={2} />
+                <span className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto">
+                  <CheckCircle size={40} strokeWidth={2} />
                 </span>
-                <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 mt-5">Application Submitted</h1>
-                <p className="text-zinc-500 text-sm mt-2 leading-relaxed">
-                  Thanks for applying! Our team will review your business information and
-                  email <span className="font-semibold text-zinc-900">{form.email}</span> to set up
-                  your password once your account is approved.
+                <h1 className="text-2xl font-extrabold tracking-tight text-zinc-900 mt-6">Application Submitted!</h1>
+                <p className="text-zinc-500 text-sm mt-2.5 leading-relaxed">
+                  Our admin team is reviewing your details. Once approved, a one-time setup code will be sent to your email — use it to create your password.
                 </p>
-                <div className="mt-7 flex flex-col gap-3">
+                <div className="mt-8 flex flex-col gap-3">
+                  <Link
+                    to="/restaurant/setup"
+                    className="w-full py-3 rounded-xl font-medium text-white bg-[#E03546] hover:bg-[#c72e3e] transition-colors text-center"
+                  >
+                    Check setup status
+                  </Link>
                   <Link
                     to="/"
-                    className="w-full py-3 rounded-xl font-medium text-white bg-[#E03546] hover:bg-[#c72e3e] transition-colors text-center"
+                    className="w-full py-3 rounded-xl font-medium text-zinc-700 border border-zinc-200 hover:border-zinc-300 transition-colors text-center"
                   >
                     Back to Home
                   </Link>
@@ -221,25 +266,34 @@ export default function SignupRestaurant() {
                   <div>
                     <label className={fieldLabel}>Cuisine Type</label>
                     <div className="flex flex-wrap gap-2">
-                      {CUISINE_OPTIONS.map((c) => {
-                        const selected = cuisineTypes.includes(c);
-                        return (
-                          <button
-                            key={c}
-                            type="button"
-                            onClick={() => toggleCuisine(c)}
-                            aria-pressed={selected}
-                            className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer ${
-                              selected
-                                ? "bg-[#E03546] text-white border-[#E03546]"
-                                : "bg-white text-zinc-600 border-zinc-200 hover:border-[#E03546] hover:text-[#E03546]"
-                            }`}
-                          >
-                            {c}
-                          </button>
-                        );
-                      })}
+                      {CUISINE_OPTIONS.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => toggleCuisine(c)}
+                          aria-pressed={cuisineTypes.includes(c)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer ${
+                            cuisineTypes.includes(c)
+                              ? "bg-[#E03546] text-white border-[#E03546]"
+                              : "bg-white text-zinc-600 border-zinc-200 hover:border-[#E03546] hover:text-[#E03546]"
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
                     </div>
+                    <p className="text-xs text-zinc-400 mt-2">Select all that apply.</p>
+                    {cuisineTypes.includes("Other") && (
+                      <div className="mt-3">
+                        <input
+                          type="text"
+                          value={customCuisine}
+                          onChange={(e) => setCustomCuisine(e.target.value)}
+                          placeholder="Specify your cuisine"
+                          className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -280,7 +334,7 @@ export default function SignupRestaurant() {
 
                   <button
                     type="submit"
-                    disabled={!terms || cuisineTypes.length === 0 || submitting}
+                    disabled={!terms || !cuisineValid || submitting}
                     className="w-full py-3 rounded-xl font-medium text-white transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed bg-[#E03546] hover:bg-[#c72e3e] cursor-pointer"
                   >
                     {submitting ? "Submitting..." : "Submit Application"}

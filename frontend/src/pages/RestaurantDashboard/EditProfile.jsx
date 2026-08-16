@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Store, Save } from "lucide-react";
+import { useRef, useState } from "react";
+import { Store, Save, ImagePlus, X } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
-import { restaurantApi } from "../../features/api/apiSlice";
+import api from "../../features/api/apiSlice";
 
 const cuisineOptions = ["Bangladeshi", "Fast Food", "Chinese", "Pizza", "Burgers", "Cafe", "Dessert", "Others"];
 
@@ -12,18 +12,45 @@ export default function EditProfile() {
   const [form, setForm] = useState({
     restaurant_name: r.restaurant_name || "", cuisine_type: r.cuisine_type || "", phone: r.phone || "",
     address: r.address || "", city: r.city || "", opening_hours: r.opening_hours || "", description: r.description || "",
+    delivery_time: r.delivery_time || "", delivery_fee: r.delivery_fee ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
+  const coverRef = useRef(null);
+  const logoRef = useRef(null);
+  const [cover, setCover] = useState({ file: null, preview: r.cover_image_url || r.cover_image || null, remove: false });
+  const [logo, setLogo] = useState({ file: null, preview: r.logo_url || r.logo || null, remove: false });
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleFile = (kind, e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    setKindState(kind, { file, preview: URL.createObjectURL(file), remove: false });
+  };
+
+  const setKindState = (kind, next) => kind === "cover" ? setCover(next) : setLogo(next);
+
+  const clearKind = (kind) => {
+    const state = kind === "cover" ? cover : logo;
+    setKindState(kind, { file: null, preview: null, remove: true });
+    if (state.preview && state.preview.startsWith("blob:")) URL.revokeObjectURL(state.preview);
+    (kind === "cover" ? coverRef : logoRef).current.value = "";
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     setMessage(null);
     try {
-      await restaurantApi.updateProfile(form);
+      const fd = new FormData();
+      fd.append("_method", "PUT");
+      Object.entries(form).forEach(([k, v]) => { if (v !== "" && v != null) fd.append(k, v); });
+      if (cover.file) fd.append("cover_image", cover.file);
+      else if (cover.remove) fd.append("remove_cover_image", "1");
+      if (logo.file) fd.append("logo", logo.file);
+      else if (logo.remove) fd.append("remove_logo", "1");
+      await api.post("/restaurant/profile", fd);
       await refreshUser();
       setMessage({ type: "success", text: "Profile updated!" });
     } catch (err) {
@@ -54,6 +81,46 @@ export default function EditProfile() {
           </div>
         )}
 
+        <div className="space-y-6">
+          <div>
+            <label className={labelCls}>Cover Image</label>
+            {cover.preview ? (
+              <div className="relative mt-2">
+                <img src={cover.preview} alt="Cover preview" className="w-full h-32 sm:h-44 object-cover rounded-2xl" />
+                <button type="button" onClick={() => clearKind("cover")} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors" aria-label="Remove cover image">
+                  <X size={14} />
+                </button>
+              </div>
+            ) : null}
+            <button type="button" onClick={() => coverRef.current?.click()} className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
+              <ImagePlus size={16} /> {cover.preview ? "Replace cover" : "Upload cover image"}
+            </button>
+            <input ref={coverRef} type="file" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" onChange={(e) => handleFile("cover", e)} className="hidden" />
+            <p className="text-xs text-zinc-400 mt-1">Shown as the hero banner on your menu page.</p>
+          </div>
+
+          <div>
+            <label className={labelCls}>Logo</label>
+            <div className="flex items-center gap-4 mt-2">
+              {logo.preview ? (
+                <div className="relative shrink-0">
+                  <img src={logo.preview} alt="Logo preview" className="w-20 h-20 rounded-2xl object-cover ring-1 ring-zinc-200" />
+                  <button type="button" onClick={() => clearKind("logo")} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors" aria-label="Remove logo">
+                    <X size={12} />
+                  </button>
+                </div>
+              ) : null}
+              <div>
+                <button type="button" onClick={() => logoRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
+                  <ImagePlus size={16} /> {logo.preview ? "Replace logo" : "Upload logo"}
+                </button>
+                <p className="text-xs text-zinc-400 mt-1">Shown next to your restaurant name on the menu page.</p>
+              </div>
+            </div>
+            <input ref={logoRef} type="file" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" onChange={(e) => handleFile("logo", e)} className="hidden" />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
           <div>
             <label className={labelCls}>Restaurant Name *</label>
@@ -81,6 +148,14 @@ export default function EditProfile() {
           <div>
             <label className={labelCls}>Opening Hours</label>
             <input type="text" name="opening_hours" value={form.opening_hours} onChange={handleChange} className={inputCls} placeholder="Mon-Sun 10AM-11PM" />
+          </div>
+          <div>
+            <label className={labelCls}>Delivery Time</label>
+            <input type="text" name="delivery_time" value={form.delivery_time} onChange={handleChange} className={inputCls} placeholder="30-40 min" />
+          </div>
+          <div>
+            <label className={labelCls}>Delivery Fee (&#2547;)</label>
+            <input type="number" min="0" step="0.01" name="delivery_fee" value={form.delivery_fee} onChange={handleChange} className={inputCls} placeholder="0" />
           </div>
         </div>
 

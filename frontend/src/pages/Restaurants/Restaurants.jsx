@@ -8,6 +8,8 @@ import api from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../features/auth/AuthContext";
 import FoodCard from "../../components/FoodCard";
+import RestaurantCard from "../../components/RestaurantCard";
+import ReservationModal from "../../components/ReservationModal";
 import BackToHome from "../../components/BackToHome";
 import { formatPrice } from "../../utils/foodImages";
 
@@ -128,6 +130,7 @@ export default function Restaurants() {
   const [sortBy, setSortBy] = useState("recommended");
   const [sortOpen, setSortOpen] = useState(false);
   const [saved, setSaved] = useState(() => new Set());
+  const [reserveRestaurant, setReserveRestaurant] = useState(null);
 
   useEffect(() => {
     api.get("/restaurants")
@@ -197,6 +200,40 @@ export default function Restaurants() {
     return list;
   }, [dishes, search, filter, mode, activeCategory, sortBy]);
 
+  const dineInRestaurants = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = restaurantsRich.filter((r) => {
+      if (!r.accepts_dine_in) return false;
+      if (q) {
+        const inName = (r.restaurant_name || "").toLowerCase().includes(q);
+        const inCuisine = (r.cuisine_type || "").toLowerCase().includes(q);
+        const inCity = (r.city || "").toLowerCase().includes(q);
+        const inDish = (r.menu_items || []).some((m) =>
+          [(m.name || "").toLowerCase(), (m.category || "").toLowerCase()].some((s) => s.includes(q))
+        );
+        if (!inName && !inCuisine && !inCity && !inDish) return false;
+      }
+      const activeCat = CATEGORIES.find((c) => c.id === activeCategory);
+      if (activeCat?.keyword) {
+        const k = activeCat.keyword.toLowerCase();
+        const inDish = (r.menu_items || []).some((m) =>
+          [(m.name || "").toLowerCase(), (m.category || "").toLowerCase()].some((s) => s.includes(k))
+        );
+        if (!inDish) return false;
+      }
+      if (filter === "rating" || filter === "top") {
+        if (r.rating < 4.0) return false;
+      }
+      if (filter === "tables" && !r.tablesAvailable) return false;
+      return true;
+    });
+    if (filter === "top") list = [...list].sort((a, b) => b.rating - a.rating);
+    if (sortBy === "rating") list = [...list].sort((a, b) => b.rating - a.rating);
+    if (sortBy === "eta") list = [...list].sort((a, b) => a.eta - b.eta);
+    if (sortBy === "fee") list = [...list].sort((a, b) => a.fee - b.fee);
+    return list;
+  }, [restaurantsRich, search, filter, activeCategory, sortBy]);
+
   const changeMode = (next) => {
     setMode(next);
     setFilter("all");
@@ -204,6 +241,10 @@ export default function Restaurants() {
 
   const activeHeading = CATEGORIES.find((c) => c.id === activeCategory).heading;
   const activeSortLabel = SORT_OPTIONS.find((s) => s.id === sortBy).label;
+  const shown = mode === "dine_in" ? dineInRestaurants : results;
+  const shownHeading = mode === "dine_in"
+    ? activeCategory === "all" ? "Dine-In Restaurants" : `${CATEGORIES.find((c) => c.id === activeCategory).label} Restaurants`
+    : activeHeading;
 
   const toggleSaved = (e, id) => {
     e.preventDefault();
@@ -217,6 +258,13 @@ export default function Restaurants() {
 
   const handleAdd = (dish) => {
     addItem(dish.restaurant_id, dish.restaurant_name, dish);
+  };
+
+  const handleReserve = (dish) => {
+    setReserveRestaurant({
+      id: dish.restaurant_id ?? dish.id,
+      restaurant_name: dish.restaurant_name,
+    });
   };
 
   return (
@@ -334,21 +382,32 @@ export default function Restaurants() {
               </div>
             ))}
           </div>
-        ) : results.length === 0 ? (
+        ) : shown.length === 0 ? (
           <div className="py-24 text-center">
             <div className="w-12 h-12 mx-auto rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 mb-4">
-              <SearchX size={22} />
+              {mode === "dine_in" ? <Utensils size={22} /> : <SearchX size={22} />}
             </div>
-            <p className="text-base font-semibold tracking-tight text-zinc-900 mb-1">No dishes found</p>
-            <p className="text-sm text-zinc-500">Try adjusting your search or filters.</p>
+            {mode === "dine_in" ? (
+              <>
+                <p className="text-base font-semibold tracking-tight text-zinc-900 mb-1">No dine-in restaurants yet</p>
+                <p className="text-sm text-zinc-500">Restaurants can enable dine-in from their dashboard settings.</p>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-semibold tracking-tight text-zinc-900 mb-1">No dishes found</p>
+                <p className="text-sm text-zinc-500">Try adjusting your search or filters.</p>
+              </>
+            )}
           </div>
         ) : (
           <>
             <div className="flex items-center justify-between gap-4 mb-5">
               <div className="min-w-0">
-                <h1 className="text-xl font-bold tracking-tight text-zinc-900">{activeHeading}</h1>
+                <h1 className="text-xl font-bold tracking-tight text-zinc-900">{shownHeading}</h1>
                 <p className="text-sm text-zinc-500 mt-0.5">
-                  {results.length} {results.length === 1 ? "dish" : "dishes"} near you
+                  {shown.length} {mode === "dine_in"
+                    ? shown.length === 1 ? "restaurant" : "restaurants"
+                    : shown.length === 1 ? "dish" : "dishes"} {mode === "dine_in" ? "dine-in" : ""} near you
                 </p>
               </div>
               <div className="relative shrink-0">
@@ -383,17 +442,28 @@ export default function Restaurants() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5 pb-12">
-              {results.map((dish) => (
-                <FoodCard
-                  key={dish.id}
-                  dish={dish}
-                  isFav={saved.has(dish.id)}
-                  onToggleFav={toggleSaved}
-                  onAdd={handleAdd}
-                  offline={failed}
-                  canOrder={canOrder}
-                />
-              ))}
+              {mode === "dine_in" ? (
+                shown.map((r) => (
+                  <RestaurantCard
+                    key={r.id}
+                    restaurant={r}
+                    onReserve={() => handleReserve(r)}
+                    offline={failed}
+                  />
+                ))
+              ) : (
+                results.map((dish) => (
+                  <FoodCard
+                    key={dish.id}
+                    dish={dish}
+                    isFav={saved.has(dish.id)}
+                    onToggleFav={toggleSaved}
+                    onAdd={handleAdd}
+                    offline={failed}
+                    canOrder={canOrder}
+                  />
+                ))
+              )}
             </div>
           </>
         )}
@@ -418,6 +488,13 @@ export default function Restaurants() {
           </div>
         </div>
       )}
+
+      <ReservationModal
+        open={reserveRestaurant !== null}
+        onClose={() => setReserveRestaurant(null)}
+        restaurant={reserveRestaurant}
+        user={user}
+      />
     </div>
   );
 }

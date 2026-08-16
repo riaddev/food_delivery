@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\SendsSetupOtp;
 use App\Models\ActivityLog;
 use App\Models\Category;
 use App\Models\Order;
@@ -9,9 +10,11 @@ use App\Models\Restaurant;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
 {
+    use SendsSetupOtp;
     public function categories(): JsonResponse
     {
         $categories = Category::withCount('menuItems')
@@ -259,6 +262,17 @@ class AdminController extends Controller
 
         $restaurant->update(['status' => 'approved']);
 
+        $otp = (string) random_int(100000, 999999);
+
+        $restaurant->user()->update([
+            'setup_otp' => Hash::make($otp),
+            'setup_otp_expires_at' => now()->addMinutes(15),
+        ]);
+
+        if ($restaurant->user) {
+            $this->sendSetupOtp($restaurant->user, $restaurant, $otp);
+        }
+
         ActivityLog::create([
             'type' => 'restaurant_approved',
             'description' => "Restaurant \"{$restaurant->restaurant_name}\" was approved.",
@@ -266,7 +280,7 @@ class AdminController extends Controller
 
         return response()->json([
             'restaurant' => $restaurant->fresh(),
-            'message' => "{$restaurant->restaurant_name} approved.",
+            'message' => "{$restaurant->restaurant_name} approved. A setup code was sent to the owner.",
         ]);
     }
 
@@ -281,6 +295,11 @@ class AdminController extends Controller
         }
 
         $restaurant->update(['status' => 'rejected']);
+
+        $restaurant->user()?->update([
+            'setup_otp' => null,
+            'setup_otp_expires_at' => null,
+        ]);
 
         ActivityLog::create([
             'type' => 'restaurant_rejected',

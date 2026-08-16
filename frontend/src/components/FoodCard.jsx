@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart, Plus, Check } from "lucide-react";
 import { formatPrice, restaurantImage } from "../utils/foodImages";
+import { prefetchRestaurant } from "../utils/prefetch";
 
 export default function FoodCard({ dish, isFav, onToggleFav, onAdd, offline, canOrder = true }) {
   const [imgSrc, setImgSrc] = useState(() => dish.image_url || restaurantImage(dish.name));
@@ -16,7 +17,7 @@ export default function FoodCard({ dish, isFav, onToggleFav, onAdd, offline, can
 
   return (
     <div className="group bg-white rounded-xl border border-zinc-100 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.05)] hover:shadow-[0_10px_30px_-15px_rgba(0,0,0,0.15)] transition-shadow">
-      <Link to={`/restaurants/${dish.restaurant_id}`} className="block relative">
+      <Link to={`/restaurants/${dish.restaurant_id}`} onMouseEnter={() => prefetchRestaurant(dish.restaurant_id)} className="block relative">
         <img
           src={imgSrc}
           alt={dish.name}
@@ -37,7 +38,7 @@ export default function FoodCard({ dish, isFav, onToggleFav, onAdd, offline, can
       </Link>
 
       <div className="p-4">
-        <Link to={`/restaurants/${dish.restaurant_id}`}>
+        <Link to={`/restaurants/${dish.restaurant_id}`} onMouseEnter={() => prefetchRestaurant(dish.restaurant_id)}>
           <h3 className="font-bold text-zinc-900 text-sm truncate group-hover:text-[#E03546] transition-colors">
             {dish.name}
           </h3>

@@ -2,21 +2,26 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RestaurantController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/register/customer', [AuthController::class, 'registerCustomer']);
-Route::post('/register/restaurant', [AuthController::class, 'registerRestaurant']);
 Route::post('/apply/restaurant', [AuthController::class, 'applyRestaurant']);
 Route::post('/login', [AuthController::class, 'login']);
+
+Route::post('/owner/verify-otp', [AuthController::class, 'verifySetupOtp'])->middleware('throttle:5,1');
+Route::post('/owner/resend-otp', [AuthController::class, 'resendSetupOtp'])->middleware('throttle:3,1');
 
 Route::get('/restaurants', [RestaurantController::class, 'publicList']);
 Route::get('/restaurants/{id}', [RestaurantController::class, 'publicShow']);
 Route::get('/restaurants/{id}/reviews', [RestaurantController::class, 'publicReviews']);
 Route::get('/categories', [RestaurantController::class, 'publicCategories']);
+Route::post('/reservations', [ReservationController::class, 'store']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/owner/set-password', [AuthController::class, 'setSetupPassword']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         $user = $request->user();
@@ -42,6 +47,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/orders', [CustomerController::class, 'placeOrder']);
         Route::post('/orders/{id}/cancel', [CustomerController::class, 'cancelOrder']);
         Route::post('/orders/{id}/reorder', [CustomerController::class, 'reorder']);
+        Route::get('/reservations', [ReservationController::class, 'customerIndex']);
+        Route::post('/reservations/{id}/cancel', [ReservationController::class, 'cancel']);
         Route::post('/reviews', [CustomerController::class, 'storeReview']);
         Route::get('/favorites', [CustomerController::class, 'favorites']);
         Route::post('/favorites', [CustomerController::class, 'addFavorite']);
@@ -68,6 +75,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/profile', [RestaurantController::class, 'updateProfile']);
         Route::get('/orders', [RestaurantController::class, 'orders']);
         Route::put('/orders/{id}/status', [RestaurantController::class, 'updateOrderStatus']);
+        Route::get('/reservations', [ReservationController::class, 'restaurantIndex']);
+        Route::put('/reservations/{id}/status', [ReservationController::class, 'updateStatus']);
         Route::get('/menu-items', [RestaurantController::class, 'menuItems']);
         Route::post('/menu-items', [RestaurantController::class, 'createMenuItem']);
         Route::put('/menu-items/{id}', [RestaurantController::class, 'updateMenuItem']);

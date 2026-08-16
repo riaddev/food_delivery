@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, ClipboardList, UtensilsCrossed, Store,
+  LayoutDashboard, ClipboardList, UtensilsCrossed, Store, CalendarClock,
   BarChart3, Settings, LogOut, ShoppingBag, Menu, X, ExternalLink,
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
@@ -11,6 +11,7 @@ import BackToHome from "../../components/BackToHome";
 const navItems = [
   { label: "Dashboard", path: "/restaurant/dashboard", icon: LayoutDashboard, exact: true },
   { label: "Live Orders", path: "/restaurant/dashboard/orders", icon: ClipboardList },
+  { label: "Reservations", path: "/restaurant/dashboard/reservations", icon: CalendarClock },
   { label: "Food Menu", path: "/restaurant/dashboard/menu", icon: UtensilsCrossed },
   { label: "Restaurant Profile", path: "/restaurant/dashboard/profile", icon: Store },
   { label: "Analytics", path: "/restaurant/dashboard/analytics", icon: BarChart3 },
@@ -28,7 +29,7 @@ export default function RestaurantDashboard() {
   const restaurant = user?.restaurant || {};
   const name = restaurant.restaurant_name || user?.name || "Restaurant";
   const initials = (name || "R").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-  const logo = restaurant.image || restaurantImage(name);
+  const logo = restaurant.image_url || restaurant.image || restaurantImage(name);
 
   return (
     <div className="h-screen overflow-hidden bg-[#F8F9FA] flex">

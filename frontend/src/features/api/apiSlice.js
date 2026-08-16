@@ -16,7 +16,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !error.config?.skipAuthRedirect && window.location.pathname !== "/login") {
       localStorage.removeItem("token");
       window.location.href = "/login";
     }
@@ -26,8 +26,10 @@ api.interceptors.response.use(
 
 export const authApi = {
   registerCustomer: (data) => api.post("/register/customer", data),
-  registerRestaurant: (data) => api.post("/register/restaurant", data),
   applyRestaurant: (data) => api.post("/apply/restaurant", data),
+  verifySetupOtp: (data) => api.post("/owner/verify-otp", data),
+  resendSetupOtp: (data) => api.post("/owner/resend-otp", data),
+  setSetupPassword: (data) => api.post("/owner/set-password", data),
   login: (data) => api.post("/login", data),
   logout: () => api.post("/logout"),
   user: () => api.get("/user"),
@@ -35,6 +37,14 @@ export const authApi = {
 
 export const publicApi = {
   getRestaurantReviews: (id) => api.get(`/restaurants/${id}/reviews`),
+};
+
+export const reservationApi = {
+  create: (data) => api.post("/reservations", data),
+  getMine: () => api.get("/customer/reservations"),
+  cancel: (id) => api.post(`/customer/reservations/${id}/cancel`),
+  getForRestaurant: () => api.get("/restaurant/reservations"),
+  updateStatus: (id, status) => api.put(`/restaurant/reservations/${id}/status`, { status }),
 };
 
 export const customerApi = {
@@ -48,7 +58,7 @@ export const customerApi = {
   submitReview: (data) => api.post("/customer/reviews", data),
   getFavorites: () => api.get("/customer/favorites"),
   removeFavorite: (restaurantId) => api.delete(`/customer/favorites/${restaurantId}`),
-  getWishlistItems: () => api.get("/customer/wishlist-items"),
+  getWishlistItems: () => api.get("/customer/wishlist-items", { skipAuthRedirect: true }),
   addWishlistItem: (menuItemId) => api.post("/customer/wishlist-items", { menu_item_id: menuItemId }),
   removeWishlistItem: (menuItemId) => api.delete(`/customer/wishlist-items/${menuItemId}`),
   getAddresses: () => api.get("/customer/addresses"),

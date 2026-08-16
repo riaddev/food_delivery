@@ -78,6 +78,15 @@ const LoginPage = () => {
             Don't have an account?{" "}
             <Link to="/register" className="text-[#ff6b35] font-semibold no-underline">Create one</Link>
           </p>
+
+          <div className="border-t border-gray-200 mt-5 pt-5 text-center">
+            <p className="text-sm text-gray-500 mb-2">Own a restaurant?</p>
+            <Link to="/signup/restaurant" className="text-[#ff6b35] font-semibold text-sm no-underline">Apply as a Restaurant Partner</Link>
+            <p className="text-sm text-gray-500 mt-3">
+              Approved already?{" "}
+              <Link to="/restaurant/setup" className="text-[#ff6b35] font-semibold text-sm no-underline">Set up your account</Link>
+            </p>
+          </div>
         </form>
       </div>
     </div>
