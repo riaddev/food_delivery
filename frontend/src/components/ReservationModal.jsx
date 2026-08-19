@@ -5,7 +5,7 @@ import { reservationApi } from "../features/api/apiSlice";
 const PARTY_SIZES = ["2", "4", "6", "8", "8+ Guests"];
 
 const inputClass =
-  "w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400";
+  "w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#F97316] focus:ring-2 focus:ring-[#F97316]/15 transition-colors bg-white placeholder:text-zinc-400";
 
 const fieldLabel = "block text-sm font-semibold text-zinc-700 mb-1.5";
 
@@ -92,7 +92,7 @@ export default function ReservationModal({ open, onClose, restaurant, user }) {
         ) : (
           <>
             <div className="flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-[#E03546]/10 text-[#E03546] flex items-center justify-center">
+              <span className="w-10 h-10 rounded-xl bg-[#F97316]/10 text-[#F97316] flex items-center justify-center">
                 <Calendar size={20} strokeWidth={2} />
               </span>
               <div>
@@ -141,8 +141,8 @@ export default function ReservationModal({ open, onClose, restaurant, user }) {
                       aria-pressed={partySize === size}
                       className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors cursor-pointer ${
                         partySize === size
-                          ? "bg-[#E03546] text-white border-[#E03546]"
-                          : "bg-white text-zinc-600 border-zinc-200 hover:border-[#E03546] hover:text-[#E03546]"
+                          ? "bg-[#F97316] text-white border-[#F97316]"
+                          : "bg-white text-zinc-600 border-zinc-200 hover:border-[#F97316] hover:text-[#F97316]"
                       }`}
                     >
                       {size} {size !== "8+ Guests" && "Guests"}

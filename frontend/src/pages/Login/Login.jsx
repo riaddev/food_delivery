@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import BackToHome from "../../components/BackToHome";
 
 const roleRedirect = (role) => {
   switch (role) {
-    case "customer": return "/customer/account";
+    case "customer": return "/customer/dashboard";
     case "restaurant": return "/restaurant/dashboard";
+    case "rider": return "/rider/dashboard";
     case "admin": return "/admin/dashboard";
     default: return "/";
   }
@@ -15,6 +16,7 @@ const roleRedirect = (role) => {
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -25,7 +27,8 @@ const LoginPage = () => {
     setSubmitting(true);
     try {
       const data = await login(form.email, form.password);
-      navigate(roleRedirect(data.user.role));
+      const from = data.user.role === "customer" ? location.state?.from : null;
+      navigate(from || roleRedirect(data.user.role));
     } catch (err) {
       setError(
         err.response?.data?.errors?.email?.[0] ||
@@ -85,6 +88,15 @@ const LoginPage = () => {
             <p className="text-sm text-gray-500 mt-3">
               Approved already?{" "}
               <Link to="/restaurant/setup" className="text-[#ff6b35] font-semibold text-sm no-underline">Set up your account</Link>
+            </p>
+          </div>
+
+          <div className="border-t border-gray-200 mt-5 pt-5 text-center">
+            <p className="text-sm text-gray-500 mb-2">Want to deliver?</p>
+            <Link to="/signup/rider" className="text-[#ff6b35] font-semibold text-sm no-underline">Apply as a Rider</Link>
+            <p className="text-sm text-gray-500 mt-3">
+              Approved already?{" "}
+              <Link to="/rider/setup" className="text-[#ff6b35] font-semibold text-sm no-underline">Set up your rider account</Link>
             </p>
           </div>
         </form>

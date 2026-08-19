@@ -1,16 +1,18 @@
-import { useState, useEffect, useMemo } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
-  Search, SearchX, LayoutGrid, ChevronDown, WifiOff,
-  Bike, ShoppingBag, Utensils, ShoppingCart,
+  Search, SearchX, LayoutGrid, ChevronDown, WifiOff, SlidersHorizontal,
+  Bike, ShoppingBag, Utensils, ShoppingCart, Check,
 } from "lucide-react";
-import api from "../../features/api/apiSlice";
+import api, { customerApi } from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../features/auth/AuthContext";
 import FoodCard from "../../components/FoodCard";
 import RestaurantCard from "../../components/RestaurantCard";
 import ReservationModal from "../../components/ReservationModal";
+import CartDrawer from "../../components/CartDrawer";
 import BackToHome from "../../components/BackToHome";
+import StorefrontNavbar from "../../components/StorefrontNavbar";
 import { formatPrice } from "../../utils/foodImages";
 
 const SORT_OPTIONS = [
@@ -22,7 +24,7 @@ const SORT_OPTIONS = [
 
 const MODES = [
   { id: "delivery", label: "Delivery", icon: Bike },
-  { id: "pickup", label: "Takeout", icon: ShoppingBag },
+  { id: "takeout", label: "Takeout", icon: ShoppingBag },
   { id: "dine_in", label: "Dine-in", icon: Utensils },
 ];
 
@@ -33,7 +35,7 @@ const FILTERS_BY_MODE = {
     { id: "rating", label: "Rating 4.0+" },
     { id: "offers", label: "Offers" },
   ],
-  pickup: [
+  takeout: [
     { id: "all", label: "All" },
     { id: "ready", label: "Ready in 15 mins" },
     { id: "rating", label: "Rating 4.0+" },
@@ -50,10 +52,50 @@ const CATEGORIES = [
   { id: "biryani", label: "Biryani", keyword: "biryani", heading: "Biryani Dishes", image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=200&auto=format&fit=crop" },
   { id: "pizza", label: "Pizza", keyword: "pizza", heading: "Pizza Dishes", image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=200&auto=format&fit=crop" },
   { id: "burgers", label: "Burgers", keyword: "burger", heading: "Burger Dishes", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=200&auto=format&fit=crop" },
+  { id: "chicken", label: "Chicken", keyword: "chicken", heading: "Chicken Dishes", image: "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=200&auto=format&fit=crop" },
   { id: "kabab", label: "Kabab", keyword: "kabab", heading: "Kabab Dishes", image: "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?q=80&w=200&auto=format&fit=crop" },
-  { id: "fastfood", label: "Fast Food", keyword: "fast food", heading: "Fast Food Dishes", image: "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=200&auto=format&fit=crop" },
+  { id: "fastfood", label: "Fast Food", keyword: "fast food", heading: "Fast Food Dishes", image: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=200&auto=format&fit=crop" },
   { id: "desserts", label: "Desserts", keyword: "dessert", heading: "Dessert Dishes", image: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=200&auto=format&fit=crop" },
+  { id: "drinks", label: "Drinks", keyword: "drink", heading: "Drinks", image: "https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=200&auto=format&fit=crop" },
 ];
+
+const FILTER_PRICE = [
+  { id: "any", label: "Any price" },
+  { id: "lt200", label: "Under ৳200" },
+  { id: "200_400", label: "৳200 – ৳400" },
+  { id: "gt400", label: "Over ৳400" },
+];
+
+const FILTER_RATING = [
+  { id: "any", label: "Any rating" },
+  { id: "4", label: "4.0 & up" },
+  { id: "4.5", label: "4.5 & up" },
+];
+
+const FILTER_TIME = [
+  { id: "any", label: "Any time" },
+  { id: "30", label: "Up to 30 min" },
+  { id: "45", label: "Up to 45 min" },
+];
+
+const minutesFrom = (dish) => {
+  const t = dish.delivery_time || "";
+  const m = String(t).match(/\d+/);
+  return m ? parseInt(m[0], 10) : dish.eta ?? null;
+};
+
+const matchesFilters = (d, price, rating, time) => {
+  if (price === "lt200" && Number(d.price) >= 200) return false;
+  if (price === "200_400" && (Number(d.price) < 200 || Number(d.price) > 400)) return false;
+  if (price === "gt400" && Number(d.price) <= 400) return false;
+  if (rating === "4" && Number(d.rating) < 4) return false;
+  if (rating === "4.5" && Number(d.rating) < 4.5) return false;
+  if (time !== "any") {
+    const mins = minutesFrom(d);
+    if (mins === null || mins > parseInt(time, 10)) return false;
+  }
+  return true;
+};
 
 const MOCK_RESTAURANTS = [
   { id: 901, restaurant_name: "Ember Burger Co.", cuisine_type: "Burgers • American", city: "Dhaka", accepts_dine_in: true, menu_items: [
@@ -123,14 +165,35 @@ export default function Restaurants() {
   const [failed, setFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [searchParams] = useSearchParams();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") || "");
   const [mode, setMode] = useState("delivery");
   const [filter, setFilter] = useState(searchParams.get("filter") || "all");
-  const [activeCategory, setActiveCategory] = useState("all");
+  const [activeCategory, setActiveCategory] = useState(() => {
+    const c = searchParams.get("category");
+    return CATEGORIES.some((x) => x.id === c) ? c : "all";
+  });
   const [sortBy, setSortBy] = useState("recommended");
   const [sortOpen, setSortOpen] = useState(false);
+  const [priceFilter, setPriceFilter] = useState("any");
+  const [ratingFilter, setRatingFilter] = useState("any");
+  const [timeFilter, setTimeFilter] = useState("any");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [saved, setSaved] = useState(() => new Set());
   const [reserveRestaurant, setReserveRestaurant] = useState(null);
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
+
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return;
+    let active = true;
+    customerApi.getWishlistItems()
+      .then((res) => {
+        if (active) setSaved(new Set((res.data.wishlist_items || []).map((wi) => wi.menu_item_id)));
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     api.get("/restaurants")
@@ -164,9 +227,12 @@ export default function Restaurants() {
         accepts_dine_in: r.accepts_dine_in,
         tableFor: r.tableFor,
         tablesAvailable: r.tablesAvailable,
+        delivery_time: r.delivery_time,
       }))
     )
   ), [restaurantsRich]);
+
+  const activeFilterCount = [priceFilter, ratingFilter, timeFilter].filter((f) => f !== "any").length;
 
   const results = useMemo(() => {
     const activeCat = CATEGORIES.find((c) => c.id === activeCategory);
@@ -190,15 +256,16 @@ export default function Restaurants() {
       if (filter === "offers" && !d.offers) return false;
       if (filter === "ready" && d.readyIn > 15) return false;
       if (filter === "tables" && !d.tablesAvailable) return false;
+      if (!matchesFilters(d, priceFilter, ratingFilter, timeFilter)) return false;
       return true;
     });
     if (filter === "fastest") list = [...list].sort((a, b) => a.eta - b.eta);
     if (filter === "top") list = [...list].sort((a, b) => b.rating - a.rating);
     if (sortBy === "rating") list = [...list].sort((a, b) => b.rating - a.rating);
-    if (sortBy === "eta") list = [...list].sort((a, b) => a.eta - b.eta);
+    if (sortBy === "eta") list = [...list].sort((a, b) => minutesFrom(a) - minutesFrom(b));
     if (sortBy === "fee") list = [...list].sort((a, b) => a.fee - b.fee);
     return list;
-  }, [dishes, search, filter, mode, activeCategory, sortBy]);
+  }, [dishes, search, filter, mode, activeCategory, sortBy, priceFilter, ratingFilter, timeFilter]);
 
   const dineInRestaurants = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -225,14 +292,23 @@ export default function Restaurants() {
         if (r.rating < 4.0) return false;
       }
       if (filter === "tables" && !r.tablesAvailable) return false;
+      if (ratingFilter === "4" && Number(r.rating) < 4) return false;
+      if (ratingFilter === "4.5" && Number(r.rating) < 4.5) return false;
+      if (priceFilter === "lt200" && !(r.menu_items || []).some((i) => Number(i.price) < 200)) return false;
+      if (priceFilter === "200_400" && !(r.menu_items || []).some((i) => Number(i.price) >= 200 && Number(i.price) <= 400)) return false;
+      if (priceFilter === "gt400" && !(r.menu_items || []).some((i) => Number(i.price) > 400)) return false;
+      if (timeFilter !== "any") {
+        const mins = minutesFrom(r);
+        if (mins === null || mins > parseInt(timeFilter, 10)) return false;
+      }
       return true;
     });
     if (filter === "top") list = [...list].sort((a, b) => b.rating - a.rating);
     if (sortBy === "rating") list = [...list].sort((a, b) => b.rating - a.rating);
-    if (sortBy === "eta") list = [...list].sort((a, b) => a.eta - b.eta);
+    if (sortBy === "eta") list = [...list].sort((a, b) => minutesFrom(a) - minutesFrom(b));
     if (sortBy === "fee") list = [...list].sort((a, b) => a.fee - b.fee);
     return list;
-  }, [restaurantsRich, search, filter, activeCategory, sortBy]);
+  }, [restaurantsRich, search, filter, activeCategory, sortBy, priceFilter, ratingFilter, timeFilter]);
 
   const changeMode = (next) => {
     setMode(next);
@@ -246,18 +322,43 @@ export default function Restaurants() {
     ? activeCategory === "all" ? "Dine-In Restaurants" : `${CATEGORIES.find((c) => c.id === activeCategory).label} Restaurants`
     : activeHeading;
 
-  const toggleSaved = (e, id) => {
+  const showToast = (msg) => {
+    setToast({ msg });
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2800);
+  };
+
+  const toggleSaved = async (e, id) => {
     e.preventDefault();
     e.stopPropagation();
+    const isSaved = saved.has(id);
     setSaved((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+    if (!localStorage.getItem("token")) return;
+    try {
+      if (isSaved) await customerApi.removeWishlistItem(id);
+      else await customerApi.addWishlistItem(id);
+    } catch {
+      setSaved((prev) => {
+        const next = new Set(prev);
+        if (isSaved) next.add(id); else next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleAdd = (dish) => {
-    addItem(dish.restaurant_id, dish.restaurant_name, dish);
+    if (cart.restaurantId && cart.restaurantId !== dish.restaurant_id) {
+      const ok = window.confirm(
+        `Your cart has items from ${cart.restaurantName || "another restaurant"}. Add items from ${dish.restaurant_name} and replace the cart?`
+      );
+      if (!ok) return;
+    }
+    addItem(dish.restaurant_id, dish.restaurant_name, dish, mode);
+    showToast(`Added ${dish.name} to cart`);
   };
 
   const handleReserve = (dish) => {
@@ -269,9 +370,11 @@ export default function Restaurants() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
-      {/* Sticky header */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-100">
-        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-3">
+      <StorefrontNavbar />
+      {/* Page header */}
+      <header className="bg-white/95 backdrop-blur border-b border-zinc-100">
+        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-2.5">
+
           <div className="flex items-center gap-3">
             <BackToHome />
 
@@ -338,7 +441,7 @@ export default function Restaurants() {
                 >
                   <span className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center transition-all ${
                     isActive
-                      ? "ring-2 ring-[#E03546] ring-offset-2"
+                      ? "ring-2 ring-[#F97316] ring-offset-2"
                       : "ring-1 ring-zinc-200 group-hover:ring-zinc-300"
                   }`}>
                     {c.image ? (
@@ -410,34 +513,91 @@ export default function Restaurants() {
                     : shown.length === 1 ? "dish" : "dishes"} {mode === "dine_in" ? "dine-in" : ""} near you
                 </p>
               </div>
-              <div className="relative shrink-0">
-                <button
-                  onClick={() => setSortOpen((v) => !v)}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-700 hover:text-zinc-900 bg-white border border-zinc-200 rounded-lg px-3 py-2 transition-colors cursor-pointer"
-                >
-                  Sort: {activeSortLabel}
-                  <ChevronDown size={14} className={`transition-transform ${sortOpen ? "rotate-180" : ""}`} />
-                </button>
-                {sortOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
-                    <div className="absolute right-0 top-full mt-2 z-20 w-48 bg-white rounded-xl border border-zinc-100 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.15)] p-1">
-                      {SORT_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.id}
-                          onClick={() => { setSortBy(opt.id); setSortOpen(false); }}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
-                            sortBy === opt.id
-                              ? "text-[#E03546] font-semibold bg-[#E03546]/5"
-                              : "text-zinc-600 hover:bg-zinc-50"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="relative shrink-0">
+                  <button
+                    onClick={() => setFiltersOpen((v) => !v)}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-700 hover:text-zinc-900 bg-white border border-zinc-200 rounded-lg px-3 py-2 transition-colors cursor-pointer"
+                  >
+                    <SlidersHorizontal size={14} />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <span className="bg-[#F97316] text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                    <ChevronDown size={14} className={`transition-transform ${filtersOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {filtersOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setFiltersOpen(false)} />
+                      <div className="absolute right-0 top-full mt-2 z-20 w-60 bg-white rounded-xl border border-zinc-100 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.15)] p-3 space-y-3">
+                        {[
+                          { title: "Price", options: FILTER_PRICE, value: priceFilter, set: setPriceFilter },
+                          { title: "Rating", options: FILTER_RATING, value: ratingFilter, set: setRatingFilter },
+                          { title: "Delivery time", options: FILTER_TIME, value: timeFilter, set: setTimeFilter },
+                        ].map((g) => (
+                          <div key={g.title}>
+                            <div className="text-[11px] font-bold uppercase tracking-wide text-zinc-400 mb-1.5">{g.title}</div>
+                            <div className="flex flex-col gap-0.5">
+                              {g.options.map((o) => (
+                                <button
+                                  key={o.id}
+                                  onClick={() => g.set(o.id)}
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-md text-[13px] transition-colors cursor-pointer ${
+                                    g.value === o.id
+                                      ? "text-[#F97316] font-semibold bg-[#F97316]/5"
+                                      : "text-zinc-600 hover:bg-zinc-50"
+                                  }`}
+                                >
+                                  {o.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        {activeFilterCount > 0 && (
+                          <button
+                            onClick={() => { setPriceFilter("any"); setRatingFilter("any"); setTimeFilter("any"); }}
+                            className="w-full text-center text-[13px] font-semibold text-[#F97316] hover:text-[#EA580C] pt-2 border-t border-zinc-100 cursor-pointer bg-none"
+                          >
+                            Clear all filters
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <div className="relative shrink-0">
+                  <button
+                    onClick={() => setSortOpen((v) => !v)}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-700 hover:text-zinc-900 bg-white border border-zinc-200 rounded-lg px-3 py-2 transition-colors cursor-pointer"
+                  >
+                    Sort: {activeSortLabel}
+                    <ChevronDown size={14} className={`transition-transform ${sortOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {sortOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
+                      <div className="absolute right-0 top-full mt-2 z-20 w-48 bg-white rounded-xl border border-zinc-100 shadow-[0_10px_30px_-15px_rgba(0,0,0,0.15)] p-1">
+                        {SORT_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => { setSortBy(opt.id); setSortOpen(false); }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer ${
+                              sortBy === opt.id
+                                ? "text-[#F97316] font-semibold bg-[#F97316]/5"
+                                : "text-zinc-600 hover:bg-zinc-50"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -476,15 +636,17 @@ export default function Restaurants() {
               <p className="font-extrabold text-zinc-900">
                 {itemCount} {itemCount === 1 ? "Item" : "Items"} <span className="text-zinc-300">|</span> {formatPrice(total)}
               </p>
-              <p className="text-xs text-zinc-400 truncate">{cart.restaurantName}</p>
+              <p className="text-xs text-zinc-400 truncate">
+                {cart.restaurantName} · {MODES.find((m) => m.id === mode)?.label || "Delivery"}
+              </p>
             </div>
-            <Link
-              to="/checkout"
-              className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-[0_12px_30px_-10px_rgba(239,68,68,0.7)] transition-all hover:-translate-y-0.5 shrink-0"
+            <button
+              onClick={() => setCartOpen(true)}
+              className="inline-flex items-center gap-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-[0_12px_30px_-10px_rgba(249,115,22,0.7)] transition-all hover:-translate-y-0.5 shrink-0 cursor-pointer"
             >
               <ShoppingCart size={17} /> View Cart
               <span className="bg-white/20 rounded-full px-2 py-0.5 text-xs">{itemCount}</span>
-            </Link>
+            </button>
           </div>
         </div>
       )}
@@ -495,6 +657,23 @@ export default function Restaurants() {
         restaurant={reserveRestaurant}
         user={user}
       />
+
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} mode={mode} />
+
+      {toast && (
+        <div className="fixed top-5 right-5 z-[60] animate-fade-in-up">
+          <div className="bg-success text-white px-4 py-3 rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.12)] flex items-center gap-3">
+            <Check size={16} strokeWidth={2.5} className="shrink-0" />
+            <span className="text-sm font-semibold max-w-[220px] truncate">{toast.msg}</span>
+            <button
+              onClick={() => { setToast(null); setCartOpen(true); }}
+              className="text-[12px] font-bold bg-white/20 hover:bg-white/30 px-2.5 py-1 rounded-md cursor-pointer shrink-0"
+            >
+              View Cart
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

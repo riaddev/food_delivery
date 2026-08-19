@@ -60,7 +60,7 @@ export default function Reservations() {
     return (
       <div className="max-w-5xl space-y-5">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white rounded-3xl p-6 animate-pulse">
+          <div key={i} className="bg-card rounded-[13px] border border-border p-6 animate-pulse">
             <div className="h-5 bg-zinc-100 rounded w-40 mb-3" />
             <div className="h-4 bg-zinc-100 rounded w-full mb-2" />
             <div className="h-4 bg-zinc-100 rounded w-2/3" />
@@ -71,16 +71,18 @@ export default function Reservations() {
   }
 
   return (
-    <div className="max-w-5xl">
-      <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 mb-2">Reservations</h1>
-      <p className="text-zinc-400 mb-6">Confirm, complete or no-show every table booking.</p>
+    <div className="max-w-5xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
+      <div className="mb-7">
+        <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px]">Reservations</h1>
+        <p className="text-[14px] text-text-muted mt-1">Confirm, complete or no-show every table booking.</p>
+      </div>
 
       <div className="flex gap-2.5 mb-8 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${filter === "all" ? "bg-zinc-900 text-white shadow-[0_8px_24px_rgba(0,0,0,0.15)]" : "bg-white text-zinc-500 hover:text-zinc-900 shadow-sm"}`}>
+        <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${filter === "all" ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
           All ({reservations.length})
         </button>
         {filters.filter((f) => f !== "all").map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap capitalize transition-all ${filter === f ? "bg-zinc-900 text-white shadow-[0_8px_24px_rgba(0,0,0,0.15)]" : "bg-white text-zinc-500 hover:text-zinc-900 shadow-sm"}`}>
+          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap capitalize transition-all cursor-pointer ${filter === f ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
             {statusLabel(f)}
           </button>
         ))}
@@ -89,47 +91,47 @@ export default function Reservations() {
       {error && (
         <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl text-sm mb-5 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => { setError(null); load(); }} className="inline-flex items-center gap-1.5 font-semibold hover:text-red-700"><RefreshCw size={14} /> Retry</button>
+          <button onClick={() => { setError(null); load(); }} className="inline-flex items-center gap-1.5 font-semibold hover:text-red-700 cursor-pointer"><RefreshCw size={14} /> Retry</button>
         </div>
       )}
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-3xl py-20 px-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
-          <div className="w-16 h-16 mx-auto rounded-3xl bg-zinc-50 flex items-center justify-center text-zinc-300 mb-4">
+        <div className="bg-card rounded-[13px] border border-border py-20 px-6 text-center">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-soft flex items-center justify-center text-orange-deep mb-4">
             <CalendarClock size={26} />
           </div>
-          <p className="font-semibold text-zinc-700 mb-1">No reservations yet</p>
-          <p className="text-sm text-zinc-400">When guests book a table at your restaurant, they'll show up here.</p>
+          <p className="font-semibold text-text-primary mb-1">No reservations yet</p>
+          <p className="text-sm text-text-muted">When guests book a table at your restaurant, they'll show up here.</p>
         </div>
       ) : (
         <div className="space-y-5">
           {filtered.map((reservation) => {
             const actionable = reservation.status === "pending" || reservation.status === "confirmed";
             return (
-              <div key={reservation.id} className="bg-white rounded-3xl p-6 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.18)]">
+              <div key={reservation.id} className="bg-card rounded-[13px] border border-border p-6 transition-all duration-300 hover:border-zinc-300">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <div>
                     <div className="flex items-center gap-2.5 mb-1">
-                      <span className="font-extrabold text-zinc-900">Reservation #{reservation.id}</span>
+                      <span className="font-bold text-text-primary">Reservation #{reservation.id}</span>
                       {reservation.status === "pending" && (
                         <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Pending
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot" /> Pending
                         </span>
                       )}
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(reservation.status)}`}>
                         {statusLabel(reservation.status)}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-zinc-800">{reservation.guest_name}</p>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm font-semibold text-text-primary">{reservation.guest_name}</p>
+                    <p className="text-sm text-text-muted">
                       {formatDate(reservation.reservation_date)} · {reservation.reservation_time} · {reservation.party_size} {reservation.party_size === "8+ Guests" ? "" : "Guests"}
                     </p>
                     {reservation.special_requests && (
-                      <p className="text-xs text-zinc-500 mt-2 inline-flex items-start gap-1.5 bg-[#F8F9FA] border border-zinc-100 rounded-lg px-3 py-2">
-                        <MessageSquareText size={12} className="text-red-500 shrink-0 mt-0.5" /> {reservation.special_requests}
+                      <p className="text-xs text-text-muted mt-2 inline-flex items-start gap-1.5 bg-surface border border-border rounded-lg px-3 py-2">
+                        <MessageSquareText size={12} className="text-orange-primary shrink-0 mt-0.5" /> {reservation.special_requests}
                       </p>
                     )}
-                    <p className="text-xs text-zinc-400 mt-2 inline-flex items-center gap-1.5">
+                    <p className="text-xs text-text-light mt-2 inline-flex items-center gap-1.5">
                       <Phone size={11} /> {reservation.guest_phone}
                     </p>
                   </div>
@@ -141,7 +143,7 @@ export default function Reservations() {
                       <button
                         onClick={() => handleStatus(reservation, "confirmed")}
                         disabled={updatingId === reservation.id}
-                        className="text-sm font-semibold px-4 py-2 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="text-sm font-semibold px-4 py-2 rounded-lg bg-orange-primary text-white hover:bg-orange-deep transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-outfit"
                       >
                         {updatingId === reservation.id ? "Updating..." : "Confirm Booking"}
                       </button>
@@ -150,14 +152,14 @@ export default function Reservations() {
                         <button
                           onClick={() => handleStatus(reservation, "completed")}
                           disabled={updatingId === reservation.id}
-                          className="text-sm font-semibold px-4 py-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-sm font-semibold px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                         >
                           {updatingId === reservation.id ? "Updating..." : "Mark Completed"}
                         </button>
                         <button
                           onClick={() => handleStatus(reservation, "no_show")}
                           disabled={updatingId === reservation.id}
-                          className="text-sm font-semibold px-4 py-2 rounded-full border border-zinc-300 text-zinc-700 hover:border-zinc-900 hover:text-zinc-900 transition disabled:opacity-50"
+                          className="text-sm font-semibold px-4 py-2 rounded-lg border border-border text-text-muted hover:border-zinc-300 hover:text-text-primary transition disabled:opacity-50 cursor-pointer"
                         >
                           No Show
                         </button>
@@ -166,7 +168,7 @@ export default function Reservations() {
                     <button
                       onClick={() => handleStatus(reservation, "cancelled")}
                       disabled={updatingId === reservation.id}
-                      className="text-sm font-semibold px-4 py-2 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50"
+                      className="text-sm font-semibold px-4 py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50 cursor-pointer"
                     >
                       Cancel
                     </button>

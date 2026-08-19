@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\MenuItem;
 use App\Models\Order;
+use App\Models\OrderStatusHistory;
 use App\Models\Restaurant;
 use App\Models\Review;
+use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class RestaurantController extends Controller
 {
@@ -187,10 +190,29 @@ class RestaurantController extends Controller
             ->findOrFail($id);
 
         $validated = $request->validate([
-            'status' => 'required|string|in:confirmed,preparing,out_for_delivery,delivered,served,cancelled',
+            'status' => 'required|string|in:' . implode(',', OrderStatuses::ORDER_STATUSES),
         ]);
 
-        $order->update(['status' => $validated['status']]);
+        if (!OrderStatuses::canTransition($order->status, $validated['status'])) {
+            throw ValidationException::withMessages([
+                'status' => ["Order cannot move from \"{$order->status}\" to \"{$validated['status']}\"."],
+            ]);
+        }
+
+        $order->update([
+            'status' => $validated['status'],
+            'delivered_at' => in_array($validated['status'], ['delivered', 'served']) ? now() : $order->delivered_at,
+        ]);
+
+        if ($validated['status'] === 'cancelled' && $order->payment_status === 'pending') {
+            $order->update(['payment_status' => 'cancelled']);
+        }
+
+        OrderStatusHistory::create([
+            'order_id' => $order->id,
+            'status' => $validated['status'],
+            'changed_by' => 'restaurant',
+        ]);
 
         return response()->json([
             'order' => $order->fresh()->load('user', 'items'),
@@ -340,6 +362,7 @@ class RestaurantController extends Controller
     public function publicCategories(): JsonResponse
     {
         $categories = \App\Models\Category::withCount('menuItems')
+            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();

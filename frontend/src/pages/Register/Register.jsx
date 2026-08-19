@@ -17,7 +17,7 @@ const RegisterPage = () => {
     setSubmitting(true);
     try {
       await registerCustomer(form.name, form.email, form.password, form.phone);
-      navigate("/customer/account");
+      navigate("/customer/dashboard");
     } catch (err) {
       const errors = err.response?.data?.errors;
       setError(errors ? Object.values(errors)[0]?.[0] : err.response?.data?.message || "Registration failed.");
@@ -73,6 +73,11 @@ const RegisterPage = () => {
           <div className="border-t border-gray-200 mt-5 pt-5 text-center">
             <p className="text-sm text-gray-500 mb-2">Own a restaurant?</p>
             <Link to="/signup/restaurant" className="text-[#ff6b35] font-semibold text-sm no-underline">Register your restaurant</Link>
+          </div>
+
+          <div className="border-t border-gray-200 mt-5 pt-5 text-center">
+            <p className="text-sm text-gray-500 mb-2">Want to earn as a rider?</p>
+            <Link to="/signup/rider" className="text-[#ff6b35] font-semibold text-sm no-underline">Apply as a Rider</Link>
           </div>
         </form>
       </div>

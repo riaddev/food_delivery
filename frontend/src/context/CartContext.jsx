@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect } from "react";
+import { createContext, useContext, useReducer, useEffect, useCallback } from "react";
 
 const CartContext = createContext();
 
@@ -7,27 +7,29 @@ const STORAGE_KEY = "swiftbite_cart";
 function loadCart() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { restaurantId: null, restaurantName: null, items: [] };
+    return raw ? JSON.parse(raw) : { restaurantId: null, restaurantName: null, items: [], mode: null };
   } catch {
-    return { restaurantId: null, restaurantName: null, items: [] };
+    return { restaurantId: null, restaurantName: null, items: [], mode: null };
   }
 }
 
 function cartReducer(state, action) {
   switch (action.type) {
     case "ADD_ITEM": {
-      const { restaurantId, restaurantName, item } = action.payload;
+      const { restaurantId, restaurantName, item, mode } = action.payload;
       if (state.restaurantId && state.restaurantId !== restaurantId) {
         return {
           restaurantId,
           restaurantName,
           items: [{ ...item, menu_item_id: item.id, quantity: 1 }],
+          mode: mode || "delivery",
         };
       }
       const existing = state.items.find((i) => i.menu_item_id === item.id);
       if (existing) {
         return {
           ...state,
+          mode: mode || state.mode || "delivery",
           items: state.items.map((i) =>
             i.menu_item_id === item.id ? { ...i, quantity: i.quantity + 1 } : i
           ),
@@ -37,12 +39,13 @@ function cartReducer(state, action) {
         restaurantId,
         restaurantName,
         items: [...state.items, { ...item, menu_item_id: item.id, quantity: 1 }],
+        mode: mode || state.mode || "delivery",
       };
     }
     case "REMOVE_ITEM": {
       const filtered = state.items.filter((i) => i.menu_item_id !== action.payload);
       return filtered.length === 0
-        ? { restaurantId: null, restaurantName: null, items: [] }
+        ? { restaurantId: null, restaurantName: null, items: [], mode: null }
         : { ...state, items: filtered };
     }
     case "UPDATE_QUANTITY": {
@@ -50,7 +53,7 @@ function cartReducer(state, action) {
       if (quantity <= 0) {
         const filtered = state.items.filter((i) => i.menu_item_id !== id);
         return filtered.length === 0
-          ? { restaurantId: null, restaurantName: null, items: [] }
+          ? { restaurantId: null, restaurantName: null, items: [], mode: null }
           : { ...state, items: filtered };
       }
       return {
@@ -61,7 +64,7 @@ function cartReducer(state, action) {
       };
     }
     case "CLEAR_CART":
-      return { restaurantId: null, restaurantName: null, items: [] };
+      return { restaurantId: null, restaurantName: null, items: [], mode: null };
     default:
       return state;
   }
@@ -74,16 +77,16 @@ export function CartProvider({ children }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
   }, [cart]);
 
-  const addItem = (restaurantId, restaurantName, item) =>
-    dispatch({ type: "ADD_ITEM", payload: { restaurantId, restaurantName, item } });
+  const addItem = useCallback((restaurantId, restaurantName, item, mode) =>
+    dispatch({ type: "ADD_ITEM", payload: { restaurantId, restaurantName, item, mode } }), []);
 
-  const removeItem = (menuItemId) =>
-    dispatch({ type: "REMOVE_ITEM", payload: menuItemId });
+  const removeItem = useCallback((menuItemId) =>
+    dispatch({ type: "REMOVE_ITEM", payload: menuItemId }), []);
 
-  const updateQuantity = (menuItemId, quantity) =>
-    dispatch({ type: "UPDATE_QUANTITY", payload: { id: menuItemId, quantity } });
+  const updateQuantity = useCallback((menuItemId, quantity) =>
+    dispatch({ type: "UPDATE_QUANTITY", payload: { id: menuItemId, quantity } }), []);
 
-  const clearCart = () => dispatch({ type: "CLEAR_CART" });
+  const clearCart = useCallback(() => dispatch({ type: "CLEAR_CART" }), []);
 
   const itemCount = cart.items.reduce((sum, i) => sum + i.quantity, 0);
   const total = cart.items.reduce((sum, i) => sum + parseFloat(i.price) * i.quantity, 0);

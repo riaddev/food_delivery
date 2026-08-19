@@ -21,6 +21,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'status',
         'phone',
         'address',
         'avatar',
@@ -31,6 +32,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'setup_otp',
     ];
 
     protected $appends = ['avatar_url'];
@@ -47,6 +49,11 @@ class User extends Authenticatable
     public function restaurant(): HasOne
     {
         return $this->hasOne(Restaurant::class);
+    }
+
+    public function rider(): HasOne
+    {
+        return $this->hasOne(Rider::class);
     }
 
     public function orders(): HasMany
@@ -82,6 +89,11 @@ class User extends Authenticatable
     public function isRestaurant(): bool
     {
         return $this->role === 'restaurant';
+    }
+
+    public function isRider(): bool
+    {
+        return $this->role === 'rider';
     }
 
     public function isCustomer(): bool

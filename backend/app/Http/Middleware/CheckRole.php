@@ -10,8 +10,14 @@ class CheckRole
 {
     public function handle(Request $request, Closure $next, string ...$roles): Response
     {
-        if (!$request->user() || !in_array($request->user()->role, $roles)) {
+        $user = $request->user();
+
+        if (!$user || !in_array($user->role, $roles)) {
             return response()->json(['message' => 'Unauthorized.'], 403);
+        }
+
+        if ($user->role !== 'admin' && $user->status === 'suspended') {
+            return response()->json(['message' => 'Your account has been suspended. Please contact support.'], 403);
         }
 
         return $next($request);

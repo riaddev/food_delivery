@@ -19,7 +19,7 @@ const PopularCategories = () => (
     <div className="max-w-[1240px] mx-auto px-8">
       <div className="flex items-center justify-between mb-9">
         <h2 className="text-[32px] font-extrabold tracking-tight m-0">Popular Categories</h2>
-        <Link to="/restaurants" className="text-sm font-medium text-[#E03546] hover:text-[#c72e3e] transition whitespace-nowrap">
+        <Link to="/restaurants" className="text-sm font-medium text-[#F97316] hover:text-[#EA580C] transition whitespace-nowrap">
           See all
         </Link>
       </div>
@@ -27,7 +27,7 @@ const PopularCategories = () => (
         {categories.map((c) => (
           <Link
             key={c.id}
-            to="/restaurants"
+            to={`/restaurants?category=${c.id}`}
             aria-label={`Browse ${c.label}`}
             className={`group relative rounded-3xl overflow-hidden ${c.featured ? "col-span-2 row-span-2" : "col-span-1 row-span-1"}`}
           >

@@ -7,9 +7,11 @@ use App\Models\CustomerAddress;
 use App\Models\Favorite;
 use App\Models\MenuItem;
 use App\Models\Order;
+use App\Models\OrderStatusHistory;
 use App\Models\Restaurant;
 use App\Models\Review;
 use App\Models\WishlistItem;
+use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -89,8 +91,8 @@ class CustomerController extends Controller
             'items.*.quantity' => 'required|integer|min:1',
             'delivery_address' => 'nullable|string|max:255',
             'delivery_instructions' => 'nullable|string|max:255',
-            'payment_method' => 'nullable|string|in:cash,bkash,card',
-            'order_type' => 'nullable|string|in:delivery,dine_in',
+            'payment_method' => 'nullable|string|in:cash,bkash,nagad,card',
+            'order_type' => 'nullable|string|in:delivery,dine_in,takeout',
             'table_number' => 'nullable|string|max:50',
         ]);
 
@@ -122,7 +124,7 @@ class CustomerController extends Controller
         }
 
         $orderType = $validated['order_type'] ?? 'delivery';
-        $deliveryFee = $orderType === 'dine_in' ? 0 : (float) $restaurant->delivery_fee;
+        $deliveryFee = in_array($orderType, ['dine_in', 'takeout']) ? 0 : (float) $restaurant->delivery_fee;
         $paymentMethod = $validated['payment_method'] ?? 'cash';
 
         $order = Order::create([
@@ -133,8 +135,8 @@ class CustomerController extends Controller
             'total' => $subtotal + $deliveryFee,
             'delivery_fee' => $deliveryFee,
             'payment_method' => $paymentMethod,
-            'payment_status' => $paymentMethod === 'cash' ? 'pending' : 'paid',
-            'delivery_address' => $orderType === 'dine_in' ? null : ($validated['delivery_address'] ?? $request->user()->address),
+            'payment_status' => 'pending',
+            'delivery_address' => in_array($orderType, ['dine_in', 'takeout']) ? null : ($validated['delivery_address'] ?? $request->user()->address),
             'delivery_instructions' => $validated['delivery_instructions'] ?? null,
             'table_number' => $validated['table_number'] ?? null,
         ]);
@@ -186,7 +188,7 @@ class CustomerController extends Controller
 
         $restaurant = Restaurant::findOrFail($previousOrder->restaurant_id);
         $orderType = $previousOrder->order_type ?? 'delivery';
-        $deliveryFee = $orderType === 'dine_in' ? 0 : (float) $restaurant->delivery_fee;
+        $deliveryFee = in_array($orderType, ['dine_in', 'takeout']) ? 0 : (float) $restaurant->delivery_fee;
 
         $order = Order::create([
             'user_id' => $request->user()->id,
@@ -196,7 +198,7 @@ class CustomerController extends Controller
             'total' => $total + $deliveryFee,
             'delivery_fee' => $deliveryFee,
             'payment_method' => $previousOrder->payment_method ?? 'cash',
-            'payment_status' => $previousOrder->payment_method === 'cash' ? 'pending' : 'paid',
+            'payment_status' => 'pending',
             'delivery_address' => $previousOrder->delivery_address,
             'table_number' => $previousOrder->table_number,
         ]);
@@ -350,7 +352,7 @@ class CustomerController extends Controller
 
         return response()->json([
             'total_orders' => $orders->count(),
-            'active_orders' => $orders->whereIn('status', ['pending', 'confirmed', 'preparing', 'out_for_delivery'])->count(),
+            'active_orders' => $orders->whereIn('status', OrderStatuses::ACTIVE_STATUSES)->count(),
             'favorites_count' => $user->favorites()->count(),
             'wishlist_count' => $user->wishlistItems()->count(),
             'addresses_count' => $user->addresses()->count(),
@@ -369,6 +371,16 @@ class CustomerController extends Controller
         }
 
         $order->update(['status' => 'cancelled']);
+
+        if ($order->payment_status === 'pending') {
+            $order->update(['payment_status' => 'cancelled']);
+        }
+
+        OrderStatusHistory::create([
+            'order_id' => $order->id,
+            'status' => 'cancelled',
+            'changed_by' => 'customer',
+        ]);
 
         ActivityLog::create([
             'type' => 'order_cancelled',

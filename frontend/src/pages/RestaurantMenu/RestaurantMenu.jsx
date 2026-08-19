@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Star, Clock, Truck, ArrowLeft, Calendar, UtensilsCrossed,
   Plus, Minus, ShoppingCart, Heart, X,
@@ -58,12 +58,14 @@ const handleImgError = (e) => {
 export default function RestaurantMenu() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isCustomer } = useAuth();
   const { addItem, removeItem, updateQuantity, cart, itemCount, total } = useCart();
   const canOrder = !user || isCustomer;
   const [payload, setPayload] = useState(() => getCachedRestaurant(id));
   const [failed, setFailed] = useState(false);
   const [activeCat, setActiveCat] = useState("");
+  const [highlightId, setHighlightId] = useState(() => searchParams.get("dish"));
   const [wishlist, setWishlist] = useState(() => new Set());
   const [wishlistBusy, setWishlistBusy] = useState(() => new Set());
   const [wishlistMsg, setWishlistMsg] = useState("");
@@ -92,6 +94,14 @@ export default function RestaurantMenu() {
       .catch(() => {});
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!highlightId || !payload) return;
+    const el = document.getElementById(`dish-${highlightId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = window.setTimeout(() => setHighlightId(null), 2400);
+    return () => window.clearTimeout(t);
+  }, [highlightId, payload]);
 
   const loading = !payload && !failed;
   const useMock = failed;
@@ -166,6 +176,12 @@ export default function RestaurantMenu() {
     cart.items.find((i) => i.menu_item_id === item.id)?.quantity || 0;
 
   const handleAdd = (item) => {
+    if (cart.restaurantId && cart.restaurantId !== restaurant.id) {
+      const ok = window.confirm(
+        `Your cart has items from ${cart.restaurantName || "another restaurant"}. Add items from ${restaurant.restaurant_name} and replace the cart?`
+      );
+      if (!ok) return;
+    }
     addItem(restaurant.id, restaurant.restaurant_name, item);
   };
 
@@ -312,7 +328,7 @@ export default function RestaurantMenu() {
               </span>
               <button
                 onClick={() => setReserveOpen(true)}
-                className="inline-flex items-center gap-2 bg-[#E03546] hover:bg-red-600 text-white text-sm font-bold px-5 py-2 rounded-xl shadow-[0_8px_20px_rgba(224,53,70,0.3)] transition-colors cursor-pointer"
+                className="inline-flex items-center gap-2 bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-bold px-5 py-2 rounded-xl shadow-[0_8px_20px_rgba(249,115,22,0.3)] transition-colors cursor-pointer"
               >
                 <Calendar size={15} /> Reserve a Table
               </button>
@@ -333,7 +349,7 @@ export default function RestaurantMenu() {
                     className={`relative shrink-0 py-3 whitespace-nowrap text-sm font-medium transition-colors duration-200 cursor-pointer ${isActive ? "text-zinc-900" : "text-zinc-400 hover:text-zinc-700"}`}
                   >
                     {cat}
-                    <span className={`absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#E03546] transition-all duration-200 ${isActive ? "opacity-100" : "opacity-0"}`} />
+                    <span className={`absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-[#F97316] transition-all duration-200 ${isActive ? "opacity-100" : "opacity-0"}`} />
                   </button>
                 );
               })}
@@ -364,7 +380,15 @@ export default function RestaurantMenu() {
                   {items.map((item) => {
                     const qty = qtyOf(item);
                     return (
-                      <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden flex flex-col">
+                      <div
+                        key={item.id}
+                        id={`dish-${item.id}`}
+                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col scroll-mt-24 transition-shadow ${
+                          highlightId === String(item.id)
+                            ? "border-[#F97316] ring-2 ring-[#F97316]/40 shadow-[0_10px_30px_-12px_rgba(249,115,22,0.45)]"
+                            : "border-zinc-100"
+                        }`}
+                      >
                         <div className="relative">
                           <img
                             src={item.image_url || restaurantImage(item.name)}
@@ -380,11 +404,11 @@ export default function RestaurantMenu() {
                               disabled={wishlistBusy.has(item.id)}
                               aria-label={wishlist.has(item.id) ? `Remove ${item.name} from wishlist` : `Save ${item.name} to wishlist`}
                               className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/95 shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center transition-colors disabled:opacity-50 cursor-pointer ${
-                                wishlist.has(item.id) ? "text-[#E03546]" : "text-zinc-500 hover:text-[#E03546]"
+                                wishlist.has(item.id) ? "text-[#F97316]" : "text-zinc-500 hover:text-[#F97316]"
                               }`}
                             >
                               {wishlistBusy.has(item.id) ? (
-                                <span className="w-3 h-3 rounded-full border-2 border-[#E03546] border-t-transparent animate-spin" />
+                                <span className="w-3 h-3 rounded-full border-2 border-[#F97316] border-t-transparent animate-spin" />
                               ) : (
                                 <Heart size={14} fill={wishlist.has(item.id) ? "currentColor" : "none"} strokeWidth={2} />
                               )}
@@ -402,7 +426,7 @@ export default function RestaurantMenu() {
                               <button
                                 onClick={() => handleAdd(item)}
                                 aria-label={`Add ${item.name} to cart`}
-                                className="border border-zinc-200 rounded-lg px-3 py-1 text-sm font-bold text-[#E03546] hover:bg-red-50 hover:border-[#E03546] transition flex items-center gap-1 cursor-pointer"
+                                className="border border-zinc-200 rounded-lg px-3 py-1 text-sm font-bold text-[#F97316] hover:bg-orange-50 hover:border-[#F97316] transition flex items-center gap-1 cursor-pointer"
                               >
                                 <Plus size={14} strokeWidth={2.5} /> ADD
                               </button>
@@ -412,7 +436,7 @@ export default function RestaurantMenu() {
                                   <Minus size={13} strokeWidth={2.5} />
                                 </button>
                                 <span className="w-6 text-center text-sm font-bold text-zinc-900">{qty}</span>
-                                <button onClick={() => updateQuantity(item.id, qty + 1)} className="w-6 h-6 rounded-md text-[#E03546] hover:bg-red-50 flex items-center justify-center transition-colors cursor-pointer" aria-label="Increase">
+                                <button onClick={() => updateQuantity(item.id, qty + 1)} className="w-6 h-6 rounded-md text-[#F97316] hover:bg-orange-50 flex items-center justify-center transition-colors cursor-pointer" aria-label="Increase">
                                   <Plus size={13} strokeWidth={2.5} />
                                 </button>
                               </div>
@@ -520,7 +544,7 @@ export default function RestaurantMenu() {
               onChange={(e) => setRatingComment(e.target.value)}
               placeholder="Share your feedback (optional)..."
               rows={3}
-              className="w-full border border-zinc-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#E03546]/40 placeholder:text-zinc-400 resize-none"
+              className="w-full border border-zinc-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]/40 placeholder:text-zinc-400 resize-none"
             />
 
             {ratingMsg && (
@@ -550,7 +574,7 @@ export default function RestaurantMenu() {
             </div>
             <Link
               to="/checkout"
-              className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-[0_12px_30px_-10px_rgba(239,68,68,0.7)] transition-all hover:-translate-y-0.5 shrink-0"
+              className="inline-flex items-center gap-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-[0_12px_30px_-10px_rgba(249,115,22,0.7)] transition-all hover:-translate-y-0.5 shrink-0"
             >
               <ShoppingCart size={17} /> View Cart
               <span className="bg-white/20 rounded-full px-2 py-0.5 text-xs">{itemCount}</span>

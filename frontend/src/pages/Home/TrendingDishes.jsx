@@ -74,7 +74,7 @@ const matchesTab = (r, tabId) => {
   return true;
 };
 
-const RestaurantCard = ({ restaurant, onAdd, canOrder }) => (
+const RestaurantCard = ({ restaurant, onAdd, canOrder, linkable }) => (
   <div className="border border-gray-200 rounded-[14px] overflow-hidden bg-white transition-transform duration-300 hover:-translate-y-2 hover:shadow-[0_16px_40px_rgba(0,0,0,0.1)]">
     <div className="relative aspect-[16/9] overflow-hidden">
       <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 hover:scale-110" style={{ backgroundImage: `url(${restaurant.image || restaurantImage(restaurant.restaurant_name)})` }} />
@@ -112,7 +112,11 @@ const RestaurantCard = ({ restaurant, onAdd, canOrder }) => (
         ))}
       </div>
       <div className="border-t border-gray-200 pt-3.5 text-center">
-        <Link to={`/restaurants/${restaurant.id}`} className="text-[#ff6a2b] text-sm font-semibold hover:opacity-70">View Full Menu →</Link>
+        {linkable ? (
+          <Link to={`/restaurants/${restaurant.id}`} className="text-[#ff6a2b] text-sm font-semibold hover:opacity-70">View Full Menu →</Link>
+        ) : (
+          <span className="text-gray-300 text-sm font-semibold">Menu preview unavailable</span>
+        )}
       </div>
     </div>
   </div>
@@ -152,6 +156,7 @@ const TrendingDishes = () => {
   }, []);
 
   const source = failed || restaurants.length === 0 ? MOCK_RESTAURANTS : restaurants;
+  const isMock = source === MOCK_RESTAURANTS;
 
   const enriched = source.map((r, i) => enrich(r, i));
   const filtered = enriched.filter((r) => matchesTab(r, activeTab));
@@ -205,7 +210,7 @@ const TrendingDishes = () => {
               <div className="text-center py-14 text-gray-400 text-sm">No restaurants found in this category yet.</div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {filtered.map((r) => <RestaurantCard key={r.id} restaurant={r} onAdd={handleAdd} canOrder={canOrder} />)}
+                {filtered.map((r) => <RestaurantCard key={r.id} restaurant={r} onAdd={handleAdd} canOrder={canOrder && !isMock} linkable={!isMock} />)}
               </div>
             )}
           </div>

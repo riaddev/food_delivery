@@ -22,13 +22,12 @@ const CTABanner = () => (
       ))}
     </div>
     <div className="max-w-[1240px] mx-auto px-8 relative z-10">
-      <h2 className="text-[34px] font-extrabold mb-3">Your first delivery is on us.</h2>
+      <h2 className="text-[34px] font-extrabold mb-3">Hungry? We've got you covered.</h2>
       <p className="text-[15.5px] text-white/90 max-w-[480px] mx-auto mb-5">
-        Sign up today and get free delivery on your first 3 orders. No promo code needed.
+        Browse hundreds of restaurants in Dhaka and get your favorite food delivered hot, fast, and right to your door.
       </p>
       <div className="flex gap-2.5 justify-center">
-        <Link to="/register" className="inline-flex items-center gap-1.5 bg-white text-[#e6551a] px-5.5 py-3 rounded-full font-semibold text-sm hover:opacity-90 transition">Create Free Account →</Link>
-        <Link to="/restaurants" className="inline-flex items-center gap-1.5 bg-transparent border border-white/70 text-white px-5.5 py-3 rounded-full font-semibold text-sm hover:bg-white/12 transition">Browse Restaurants</Link>
+        <Link to="/restaurants" className="inline-flex items-center gap-1.5 bg-white text-[#e6551a] px-5.5 py-3 rounded-full font-semibold text-sm hover:opacity-90 transition">Browse Restaurants</Link>
       </div>
     </div>
   </section>

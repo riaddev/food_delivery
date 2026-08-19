@@ -7,7 +7,8 @@ const STATUS_FLOW = [
   { value: "pending", label: "Pending", color: "bg-amber-50 text-amber-600" },
   { value: "confirmed", label: "Confirmed", color: "bg-blue-50 text-blue-600" },
   { value: "preparing", label: "Preparing", color: "bg-purple-50 text-purple-600" },
-  { value: "out_for_delivery", label: "Out for Delivery", color: "bg-indigo-50 text-indigo-600" },
+  { value: "ready", label: "Ready", color: "bg-cyan-50 text-cyan-600" },
+  { value: "on_the_way", label: "On the Way", color: "bg-indigo-50 text-indigo-600" },
   { value: "served", label: "Served", color: "bg-emerald-50 text-emerald-600" },
   { value: "delivered", label: "Delivered", color: "bg-emerald-50 text-emerald-600" },
   { value: "cancelled", label: "Cancelled", color: "bg-red-50 text-red-500" },
@@ -31,8 +32,8 @@ const formatDate = (date) => new Date(date).toLocaleString("en-US", {
 
 const AppliedOrders = (order) =>
   order.order_type === "dine_in"
-    ? ["confirmed", "preparing", "served"]
-    : ["confirmed", "preparing", "out_for_delivery"];
+    ? ["confirmed", "preparing", "ready", "served"]
+    : ["confirmed", "preparing", "ready", "on_the_way"];
 
 export default function OrdersManagement() {
   const [orders, setOrders] = useState([]);
@@ -67,13 +68,13 @@ export default function OrdersManagement() {
     ? orders
     : orders.filter((o) => o.status === filter);
 
-  const filters = ["all", "pending", "confirmed", "preparing", "out_for_delivery", "served", "delivered", "cancelled"];
+  const filters = ["all", "pending", "confirmed", "preparing", "ready", "on_the_way", "served", "delivered", "cancelled"];
 
   if (loading) {
     return (
       <div className="max-w-5xl space-y-5">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white rounded-3xl p-6 animate-pulse">
+          <div key={i} className="bg-card rounded-[13px] border border-border p-6 animate-pulse">
             <div className="h-5 bg-zinc-100 rounded w-40 mb-3" />
             <div className="h-4 bg-zinc-100 rounded w-full mb-2" />
             <div className="h-4 bg-zinc-100 rounded w-2/3" />
@@ -84,16 +85,18 @@ export default function OrdersManagement() {
   }
 
   return (
-    <div className="max-w-5xl">
-      <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 mb-2">Live Orders</h1>
-      <p className="text-zinc-400 mb-6">Track and update every order coming in.</p>
+    <div className="max-w-5xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
+      <div className="mb-7">
+        <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px]">Live Orders</h1>
+        <p className="text-[14px] text-text-muted mt-1">Track and update every order coming in.</p>
+      </div>
 
       <div className="flex gap-2.5 mb-8 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${filter === "all" ? "bg-zinc-900 text-white shadow-[0_8px_24px_rgba(0,0,0,0.15)]" : "bg-white text-zinc-500 hover:text-zinc-900 shadow-sm"}`}>
+        <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${filter === "all" ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
           All ({orders.length})
         </button>
         {filters.filter((f) => f !== "all").map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap capitalize transition-all ${filter === f ? "bg-zinc-900 text-white shadow-[0_8px_24px_rgba(0,0,0,0.15)]" : "bg-white text-zinc-500 hover:text-zinc-900 shadow-sm"}`}>
+          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap capitalize transition-all cursor-pointer ${filter === f ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
             {f.replace(/_/g, " ")}
           </button>
         ))}
@@ -102,29 +105,29 @@ export default function OrdersManagement() {
       {error && (
         <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl text-sm mb-5 flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => { setError(null); load(); }} className="inline-flex items-center gap-1.5 font-semibold hover:text-red-700"><RefreshCw size={14} /> Retry</button>
+          <button onClick={() => { setError(null); load(); }} className="inline-flex items-center gap-1.5 font-semibold hover:text-red-700 cursor-pointer"><RefreshCw size={14} /> Retry</button>
         </div>
       )}
 
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-3xl py-20 px-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
-          <div className="w-16 h-16 mx-auto rounded-3xl bg-zinc-50 flex items-center justify-center text-zinc-300 mb-4">
+        <div className="bg-card rounded-[13px] border border-border py-20 px-6 text-center">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-soft flex items-center justify-center text-orange-deep mb-4">
             <ClipboardList size={26} />
           </div>
-          <p className="font-semibold text-zinc-700 mb-1">No orders yet</p>
-          <p className="text-sm text-zinc-400">When customers order from your restaurant, they'll show up here.</p>
+          <p className="font-semibold text-text-primary mb-1">No orders yet</p>
+          <p className="text-sm text-text-muted">When customers order from your restaurant, they'll show up here.</p>
         </div>
       ) : (
         <div className="space-y-5">
           {filtered.map((order) => (
-            <div key={order.id} className="bg-white rounded-3xl p-6 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.18)]">
+            <div key={order.id} className="bg-card rounded-[13px] border border-border p-6 transition-all duration-300 hover:border-zinc-300">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
                   <div className="flex items-center gap-2.5 mb-1">
-                    <span className="font-extrabold text-zinc-900">Order #{order.id}</span>
+                    <span className="font-bold text-text-primary">Order #{order.id}</span>
                     {order.status === "pending" && (
                       <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> Pending
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot" /> Pending
                       </span>
                     )}
                     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(order.status)}`}>
@@ -136,28 +139,28 @@ export default function OrdersManagement() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-zinc-500">
+                  <p className="text-sm text-text-muted">
                     {order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ""} · {formatDate(order.created_at)}
                   </p>
                   {order.payment_method && (
-                    <p className="text-xs text-zinc-400 mt-1.5">
+                    <p className="text-xs text-text-light mt-1.5">
                       {paymentMethodLabel(order.payment_method)} · {order.payment_status === "paid" ? "Paid" : order.order_type === "dine_in" ? "Pay at table" : "Pay on delivery"} · {order.order_type === "dine_in" ? "No delivery fee" : `Delivery ${order.delivery_fee > 0 ? formatPrice(order.delivery_fee) : "Free"}`}
                     </p>
                   )}
                 </div>
-                <p className="font-extrabold text-zinc-900 text-lg">{formatPrice(order.total)}</p>
+                <p className="font-bold text-text-primary text-lg font-mono tracking-tight">{formatPrice(order.total)}</p>
               </div>
 
-              <div className="bg-[#F8F9FA] rounded-2xl p-4 mb-4 border border-zinc-100">
+              <div className="bg-surface rounded-[13px] p-4 mb-4 border border-border">
                 {order.items.map((item) => (
                   <div key={item.id} className="flex justify-between text-sm py-1">
-                    <span className="text-zinc-700">{item.name} <span className="text-zinc-400">× {item.quantity}</span></span>
-                    <span className="font-semibold text-zinc-700">{formatPrice(parseFloat(item.price) * item.quantity)}</span>
+                    <span className="text-text-primary">{item.name} <span className="text-text-light">× {item.quantity}</span></span>
+                    <span className="font-semibold text-text-primary font-mono">{formatPrice(parseFloat(item.price) * item.quantity)}</span>
                   </div>
                 ))}
                 {order.delivery_address && (
-                  <p className="text-xs text-zinc-500 mt-3 pt-3 border-t border-zinc-100 flex items-center gap-1.5">
-                    <MapPin size={12} className="text-red-500 shrink-0" /> {order.delivery_address}
+                  <p className="text-xs text-text-muted mt-3 pt-3 border-t border-border flex items-center gap-1.5">
+                    <MapPin size={12} className="text-orange-primary shrink-0" /> {order.delivery_address}
                   </p>
                 )}
               </div>
@@ -169,12 +172,12 @@ export default function OrdersManagement() {
                       key={s}
                       onClick={() => handleStatus(order, s)}
                       disabled={updatingId === order.id || s === order.status}
-                      className={`text-sm font-semibold px-4 py-2 rounded-full border transition disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`text-sm font-semibold px-4 py-2 rounded-full border transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
                         s === order.status
-                          ? "bg-red-500 text-white border-red-500"
-                          : s === "out_for_delivery" || s === "served"
-                            ? "bg-zinc-900 text-white border-zinc-900 hover:bg-zinc-800"
-                            : "border-zinc-300 text-zinc-700 hover:border-red-500 hover:text-red-500"
+                          ? "bg-orange-primary text-white border-orange-primary"
+                          : s === "on_the_way" || s === "served"
+                            ? "bg-text-primary text-white border-text-primary hover:bg-zinc-800"
+                            : "border-border text-text-muted hover:border-orange-primary hover:text-orange-primary"
                       }`}
                     >
                       {updatingId === order.id ? "Updating..." : statusLabel(s)}
@@ -183,7 +186,7 @@ export default function OrdersManagement() {
                   <button
                     onClick={() => handleStatus(order, "cancelled")}
                     disabled={updatingId === order.id}
-                    className="text-sm font-semibold px-4 py-2 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50"
+                    className="text-sm font-semibold px-4 py-2 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50 cursor-pointer"
                   >
                     Cancel Order
                   </button>

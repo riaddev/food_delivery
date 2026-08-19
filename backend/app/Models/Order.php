@@ -11,6 +11,7 @@ class Order extends Model
     protected $fillable = [
         'user_id',
         'restaurant_id',
+        'rider_id',
         'status',
         'order_type',
         'total',
@@ -19,13 +20,17 @@ class Order extends Model
         'table_number',
         'payment_method',
         'payment_status',
+        'tran_id',
+        'val_id',
         'delivery_fee',
+        'delivered_at',
     ];
 
     protected function casts(): array
     {
         return [
             'total' => 'decimal:2',
+            'delivered_at' => 'datetime',
         ];
     }
 
@@ -39,8 +44,18 @@ class Order extends Model
         return $this->belongsTo(Restaurant::class);
     }
 
+    public function rider(): BelongsTo
+    {
+        return $this->belongsTo(Rider::class);
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function statusHistories(): HasMany
+    {
+        return $this->hasMany(OrderStatusHistory::class)->latest();
     }
 }

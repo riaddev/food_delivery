@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Concerns;
 
 use App\Models\Restaurant;
+use App\Models\Rider;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 trait SendsSetupOtp
 {
-    public function sendSetupOtp(User $user, Restaurant $restaurant, string $otp): void
+    public function sendSetupOtp(User $user, Restaurant $restaurant, string $otp): bool
     {
         try {
             Mail::raw(
@@ -22,8 +23,34 @@ trait SendsSetupOtp
                         ->subject("Your SwiftBite restaurant \"{$restaurant->restaurant_name}\" has been approved");
                 }
             );
+
+            return true;
         } catch (\Throwable $e) {
             Log::warning("Failed to send setup OTP to {$user->email}: {$e->getMessage()}");
+
+            return false;
+        }
+    }
+
+    public function sendRiderSetupOtp(User $user, Rider $rider, string $otp): bool
+    {
+        try {
+            Mail::raw(
+                "Dear {$user->name},\n\n" .
+                "Your SwiftBite rider application has been approved!\n\n" .
+                "Use this one-time code to set up your account: {$otp}\n\n" .
+                "The code expires in 15 minutes. Visit the SwiftBite rider setup page to choose your password.",
+                function ($message) use ($user) {
+                    $message->to($user->email, $user->name)
+                        ->subject("Your SwiftBite rider application has been approved");
+                }
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("Failed to send rider setup OTP to {$user->email}: {$e->getMessage()}");
+
+            return false;
         }
     }
 }

@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  ShoppingBag, Utensils, UtensilsCrossed, Tag, Info, User, Store,
+  ShoppingBag, Utensils, UtensilsCrossed, Tag, Info, User, Store, Bike,
   ClipboardList, MapPin, Heart, LogOut, Menu, X,
 } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { useCart } from "../context/CartContext";
 import CartDrawer from "./CartDrawer";
 
-const Header = () => {
+const Header = ({ transparent = false }) => {
   const { user, logout } = useAuth();
   const { itemCount } = useCart();
   const navigate = useNavigate();
@@ -19,6 +19,8 @@ const Header = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signupOpen, setSignupOpen] = useState(false);
   const menuRef = useRef(null);
+
+  const overHero = transparent && !scrolled;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -44,17 +46,21 @@ const Header = () => {
   const closeMobile = () => setMobileOpen(false);
   const isCustomer = user?.role === "customer";
 
+  const linkCls = overHero
+    ? "text-white/85 hover:text-[#FF6B00]"
+    : "text-zinc-600 hover:text-[#FF6B00]";
+
   const guestLinks = (
     <>
-      <Link to="/restaurants" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
+      <Link to="/restaurants" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
         <Utensils size={15} strokeWidth={2} />
         Browse Food
       </Link>
-      <Link to="/restaurants?filter=offers" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
+      <Link to="/restaurants?filter=offers" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
         <Tag size={15} strokeWidth={2} />
         Offers
       </Link>
-      <Link to="/#about" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
+      <Link to="/#about" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
         <Info size={15} strokeWidth={2} />
         About Us
       </Link>
@@ -63,57 +69,64 @@ const Header = () => {
 
   const customerLinks = (
     <>
-      <Link to="/restaurants" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
+      <Link to="/restaurants" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
         <Utensils size={15} strokeWidth={2} />
         Browse Food
       </Link>
-      <Link to="/customer/account/orders" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
+      <Link to="/customer/dashboard?order=1" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
         <ClipboardList size={15} strokeWidth={2} />
         My Orders
       </Link>
-      <Link to="/restaurants?filter=offers" onClick={closeMobile} className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900 text-sm font-medium whitespace-nowrap transition">
+      <Link to="/restaurants?filter=offers" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
         <Tag size={15} strokeWidth={2} />
         Offers
       </Link>
     </>
   );
 
+  const roleBtnCls = overHero
+    ? "border-white/40 text-white hover:border-[#FF6B00] hover:text-[#FF6B00]"
+    : "border-gray-300 text-gray-900 hover:border-[#FF6B00] hover:text-[#FF6B00]";
+
   return (
-    <header className={`sticky top-0 z-[1000] bg-white border-b border-zinc-100 py-3 transition-shadow duration-[400ms] ${
-      scrolled ? "shadow-[0_4px_24px_rgba(0,0,0,0.06)]" : ""
+    <header className={`${transparent ? "fixed top-0 left-0 right-0" : "sticky top-0"} z-[1000] py-3 transition-all duration-300 ${
+      !transparent ? "bg-white border-b border-zinc-100 shadow-[0_4px_24px_rgba(0,0,0,0.06)]"
+      : scrolled ? "bg-white/95 backdrop-blur-xl shadow-[0_1px_0_rgba(0,0,0,0.08)]"
+      : "bg-transparent"
     }`}>
       <div className="max-w-[1240px] mx-auto px-4 md:px-8 flex items-center justify-between gap-5">
-        <Link to="/" onClick={closeMobile} className="flex items-center gap-2 font-extrabold text-xl tracking-tight text-[#E03546]">
-          <span className="w-[34px] h-[34px] rounded-lg bg-[#E03546] flex items-center justify-center text-white">
-            <UtensilsCrossed size={18} strokeWidth={2.2} />
+        <Link to="/" onClick={closeMobile} className="flex items-center gap-2 font-extrabold text-[19px] tracking-tight">
+          <span className="w-[34px] h-[34px] rounded-[10px] bg-gradient-to-br from-[#FF8C00] to-[#FF6B00] flex items-center justify-center text-white shadow-[0_4px_16px_rgba(255,107,0,0.4)]">
+            <UtensilsCrossed size={16} strokeWidth={2.2} />
           </span>
-          Swift<span className="text-gray-900">Bite</span>
+          <span className={overHero ? "text-white" : "text-gray-900"}>Swift</span>
+          <span className="text-[#FF6B00]">Bite</span>
         </Link>
 
         {!user && (
-          <nav className="hidden lg:flex items-center gap-8">
+          <nav className="hidden lg:flex items-center gap-8 lg:mr-8">
             {guestLinks}
           </nav>
         )}
 
         {isCustomer && (
-          <nav className="hidden lg:flex items-center gap-8">
+          <nav className="hidden lg:flex items-center gap-8 lg:mr-8">
             {customerLinks}
           </nav>
         )}
 
         <div className="flex items-center gap-2.5">
-          <button onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu" className="lg:hidden w-[38px] h-[38px] rounded-full flex items-center justify-center text-zinc-900 hover:bg-zinc-100 transition">
+          <button onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu" className={`lg:hidden w-[38px] h-[38px] rounded-full flex items-center justify-center transition ${overHero ? "text-white hover:bg-white/10" : "text-zinc-900 hover:bg-zinc-100"}`}>
             {mobileOpen ? <X size={19} strokeWidth={2} /> : <Menu size={19} strokeWidth={2} />}
           </button>
           {user ? (
             <>
               {isCustomer && (
                 <>
-                  <button onClick={() => setCartOpen(true)} aria-label="Open cart" className="relative bg-transparent hover:bg-zinc-100 w-[38px] h-[38px] rounded-full flex items-center justify-center text-zinc-900 transition">
+                  <button onClick={() => setCartOpen(true)} aria-label="Open cart" className={`relative w-[38px] h-[38px] rounded-full flex items-center justify-center transition ${overHero ? "text-white hover:bg-white/10" : "text-zinc-900 hover:bg-zinc-100"}`}>
                     <ShoppingBag size={19} strokeWidth={2} />
                     {itemCount > 0 && (
-                      <span className="absolute top-0.5 right-0.5 bg-[#E03546] text-white text-xs font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                      <span className="absolute top-0.5 right-0.5 bg-[#FF6B00] text-white text-xs font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
                         {itemCount}
                       </span>
                     )}
@@ -132,15 +145,15 @@ const Header = () => {
                           <div className="text-sm font-semibold text-zinc-900 truncate">{user.name}</div>
                           <div className="text-xs text-zinc-500 truncate">{user.email}</div>
                         </div>
-                        <Link to="/customer/account/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
+                        <Link to="/customer/dashboard?order=1" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
                           <User size={16} strokeWidth={2} />
-                          My Profile
+                          My Dashboard
                         </Link>
-                        <Link to="/customer/account/addresses" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
+                        <Link to="/customer/dashboard?order=1" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
                           <MapPin size={16} strokeWidth={2} />
-                          Saved Addresses
+                          My Orders
                         </Link>
-                        <Link to="/customer/account/wishlist" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
+                        <Link to="/customer/dashboard?order=1" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
                           <Heart size={16} strokeWidth={2} />
                           Wishlist
                         </Link>
@@ -158,20 +171,25 @@ const Header = () => {
                 </>
               )}
               {user.role === "restaurant" && (
-                <Link to="/restaurant/dashboard" className="bg-transparent border border-gray-300 text-gray-900 px-4.5 py-[9px] rounded-full font-semibold text-sm hover:border-[#E03546] hover:text-[#E03546] hover:-translate-y-0.5 transition whitespace-nowrap">
+                <Link to="/restaurant/dashboard" className={`bg-transparent border px-4.5 py-[9px] rounded-[10px] font-semibold text-sm hover:-translate-y-0.5 transition whitespace-nowrap ${roleBtnCls}`}>
                   Dashboard
                 </Link>
               )}
+              {user.role === "rider" && (
+                <Link to="/rider/dashboard" className={`bg-transparent border px-4.5 py-[9px] rounded-[10px] font-semibold text-sm hover:-translate-y-0.5 transition whitespace-nowrap ${roleBtnCls}`}>
+                  Rider Dashboard
+                </Link>
+              )}
               {user.role === "admin" && (
-                <Link to="/admin/dashboard" className="bg-transparent border border-gray-300 text-gray-900 px-4.5 py-[9px] rounded-full font-semibold text-sm hover:border-[#E03546] hover:text-[#E03546] hover:-translate-y-0.5 transition whitespace-nowrap">
+                <Link to="/admin/dashboard" className={`bg-transparent border px-4.5 py-[9px] rounded-[10px] font-semibold text-sm hover:-translate-y-0.5 transition whitespace-nowrap ${roleBtnCls}`}>
                   Admin
                 </Link>
               )}
-              <span className="hidden md:inline text-sm font-semibold text-gray-600">{user.name}</span>
+              <span className={`hidden md:inline text-sm font-semibold ${overHero ? "text-white/85" : "text-gray-600"}`}>{user.name}</span>
               {user.role !== "customer" && (
                 <button
                   onClick={async () => { setMobileOpen(false); await logout(); navigate("/"); }}
-                  className="bg-transparent border border-gray-300 text-gray-900 px-4.5 py-[9px] rounded-full font-semibold text-sm hover:border-[#E03546] hover:text-[#E03546] hover:-translate-y-0.5 transition"
+                  className={`bg-transparent border px-4.5 py-[9px] rounded-[10px] font-semibold text-sm hover:-translate-y-0.5 transition ${roleBtnCls}`}
                 >
                   Logout
                 </button>
@@ -179,10 +197,10 @@ const Header = () => {
             </>
           ) : (
             <>
-              <Link to="/login" className="text-zinc-900 hover:text-[#E03546] text-sm font-medium transition whitespace-nowrap">
+              <Link to="/login" className={`border-[1.5px] px-5 py-2 rounded-[10px] text-sm font-semibold transition whitespace-nowrap ${overHero ? "border-white/40 text-white hover:border-[#FF6B00] hover:text-[#FF6B00]" : "border-[#E5E5E5] text-zinc-900 hover:border-[#FF6B00] hover:text-[#FF6B00]"}`}>
                 Login
               </Link>
-              <button onClick={() => setSignupOpen(true)} className="bg-[#E03546] hover:bg-[#c72e3e] text-white text-sm font-medium px-5 py-2 rounded-full transition whitespace-nowrap">
+              <button onClick={() => setSignupOpen(true)} className="bg-gradient-to-br from-[#FF6B00] to-[#E05500] hover:opacity-90 text-white text-sm font-bold px-5 py-2 rounded-[10px] shadow-[0_4px_16px_rgba(255,107,0,0.38)] transition whitespace-nowrap">
                 Sign Up
               </button>
             </>
@@ -191,7 +209,7 @@ const Header = () => {
       </div>
 
       {mobileOpen && (
-        <div className="lg:hidden border-t border-zinc-100 mt-3 px-4 md:px-8 pt-3 pb-2 flex flex-col items-start gap-3">
+        <div className="lg:hidden border-t border-zinc-100 mt-3 px-4 md:px-8 pt-3 pb-2 flex flex-col items-start gap-3 bg-white">
           {!user && guestLinks}
           {isCustomer && customerLinks}
         </div>
@@ -224,9 +242,9 @@ const Header = () => {
               <Link
                 to="/signup/customer"
                 onClick={() => setSignupOpen(false)}
-                className="flex items-center gap-4 border border-zinc-200 rounded-2xl p-5 cursor-pointer transition-all hover:border-[#E03546] hover:shadow-md"
+                className="flex items-center gap-4 border border-zinc-200 rounded-2xl p-5 cursor-pointer transition-all hover:border-[#FF6B00] hover:shadow-md"
               >
-                <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-red-50 text-[#E03546]">
+                <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-orange-50 text-[#FF6B00]">
                   <Utensils size={22} strokeWidth={2} />
                 </span>
                 <span>
@@ -238,7 +256,7 @@ const Header = () => {
               <Link
                 to="/signup/restaurant"
                 onClick={() => setSignupOpen(false)}
-                className="flex items-center gap-4 border border-zinc-200 rounded-2xl p-5 cursor-pointer transition-all hover:border-[#E03546] hover:shadow-md"
+                className="flex items-center gap-4 border border-zinc-200 rounded-2xl p-5 cursor-pointer transition-all hover:border-[#FF6B00] hover:shadow-md"
               >
                 <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-zinc-100 text-zinc-900">
                   <Store size={22} strokeWidth={2} />
@@ -248,11 +266,25 @@ const Header = () => {
                   <span className="block text-sm text-zinc-500">Sell your food and grow your business.</span>
                 </span>
               </Link>
+
+              <Link
+                to="/signup/rider"
+                onClick={() => setSignupOpen(false)}
+                className="flex items-center gap-4 border border-zinc-200 rounded-2xl p-5 cursor-pointer transition-all hover:border-[#FF6B00] hover:shadow-md"
+              >
+                <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-emerald-50 text-emerald-600">
+                  <Bike size={22} strokeWidth={2} />
+                </span>
+                <span>
+                  <span className="block font-bold text-zinc-900 text-lg">Rider</span>
+                  <span className="block text-sm text-zinc-500">Deliver food and earn on your schedule.</span>
+                </span>
+              </Link>
             </div>
 
             <p className="text-center mt-6 text-sm text-zinc-500">
               Already have an account?{" "}
-              <Link to="/login" onClick={() => setSignupOpen(false)} className="text-[#E03546] font-semibold">
+              <Link to="/login" onClick={() => setSignupOpen(false)} className="text-[#FF6B00] font-semibold">
                 Log in
               </Link>
             </p>

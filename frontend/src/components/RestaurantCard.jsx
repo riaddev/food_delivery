@@ -26,7 +26,7 @@ export default function RestaurantCard({ restaurant, onReserve, offline }) {
 
       <div className="p-4">
         <Link to={`/restaurants/${restaurant.id}`} onMouseEnter={() => prefetchRestaurant(restaurant.id)}>
-          <h3 className="font-bold text-zinc-900 text-sm truncate group-hover:text-[#E03546] transition-colors">
+          <h3 className="font-bold text-zinc-900 text-sm truncate group-hover:text-[#F97316] transition-colors">
             {restaurant.restaurant_name}
           </h3>
         </Link>
@@ -44,7 +44,7 @@ export default function RestaurantCard({ restaurant, onReserve, offline }) {
           type="button"
           onClick={onReserve}
           disabled={offline}
-          className="mt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#E03546] hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="mt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#F97316] hover:bg-[#EA580C] text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           <Calendar size={14} strokeWidth={2.5} /> Reserve a Table
         </button>

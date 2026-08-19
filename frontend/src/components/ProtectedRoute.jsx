@@ -4,7 +4,8 @@ import { useAuth } from "../features/auth/AuthContext";
 const dashboardFor = (role) => {
   if (role === "restaurant") return "/restaurant/dashboard";
   if (role === "admin") return "/admin/dashboard";
-  if (role === "customer") return "/customer/account";
+  if (role === "rider") return "/rider/dashboard";
+  if (role === "customer") return "/customer/dashboard";
   return "/";
 };
 

@@ -125,24 +125,24 @@ export default function MenuManagement() {
     try { await restaurantApi.deleteMenuItem(id); fetchItems(); } catch { alert("Failed to delete."); }
   };
 
-  const inputCls = "w-full bg-transparent border-b border-zinc-200 focus:border-red-500 outline-none py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors";
-  const labelCls = "block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-0.5";
+  const inputCls = "w-full bg-transparent border-b border-zinc-200 focus:border-orange-500 outline-none py-2.5 text-sm text-text-primary placeholder:text-text-light transition-colors";
+  const labelCls = "block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-light mb-0.5";
 
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-5xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 mb-2">Food Menu</h1>
-          <p className="text-zinc-400">Manage the dishes customers see on your store.</p>
+          <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px] mb-1">Food Menu</h1>
+          <p className="text-[14px] text-text-muted">Manage the dishes customers see on your store.</p>
         </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold px-6 py-3 rounded-full shadow-[0_12px_30px_-10px_rgba(239,68,68,0.7)] transition-all hover:-translate-y-0.5">
+        <button onClick={openCreate} className="inline-flex items-center gap-2 bg-orange-primary hover:bg-orange-deep text-white text-sm font-bold px-6 py-3 rounded-lg transition-all hover:-translate-y-0.5 cursor-pointer font-outfit">
           <Plus size={16} /> Add Menu Item
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-white rounded-3xl p-7 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] mb-8">
-          <h2 className="font-extrabold tracking-tight text-zinc-900 mb-6">{editingId ? "Edit Menu Item" : "New Menu Item"}</h2>
+        <div className="bg-card rounded-[13px] border border-border p-7 mb-8">
+          <h2 className="text-[15px] font-bold text-text-primary mb-6">{editingId ? "Edit Menu Item" : "New Menu Item"}</h2>
 
           {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-6">{error}</div>}
 
@@ -177,11 +177,11 @@ export default function MenuManagement() {
               <div>
                 <label className={labelCls}>Availability</label>
                 <label className="flex items-center gap-3 mt-2.5 cursor-pointer select-none">
-                  <span onClick={() => setForm({ ...form, is_available: !form.is_available })} className={`w-11 h-6 rounded-full relative transition-colors ${form.is_available ? "bg-red-500" : "bg-zinc-300"}`}>
+                  <span onClick={() => setForm({ ...form, is_available: !form.is_available })} className={`w-11 h-6 rounded-full relative transition-colors ${form.is_available ? "bg-orange-primary" : "bg-zinc-300"}`}>
                     <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${form.is_available ? "left-[22px]" : "left-0.5"}`} />
                   </span>
                   <input type="checkbox" name="is_available" checked={form.is_available} onChange={handleChange} className="sr-only" readOnly />
-                  <span className="text-sm text-zinc-600">{form.is_available ? "Available to order" : "Hidden from menu"}</span>
+                  <span className="text-sm text-text-muted">{form.is_available ? "Available to order" : "Hidden from menu"}</span>
                 </label>
               </div>
               <div className="sm:col-span-2">
@@ -192,7 +192,7 @@ export default function MenuManagement() {
                 <label className={labelCls}>Image</label>
                 <div className="flex items-center gap-4 mt-2.5">
                   {(imagePreview || imageUrl) && <img src={imagePreview || imageUrl} alt="Preview" className="w-20 h-20 rounded-2xl object-cover" />}
-                  <label className="inline-flex items-center gap-2 border-2 border-dashed border-zinc-300 hover:border-red-400 text-zinc-500 hover:text-red-500 text-sm font-semibold px-5 py-3 rounded-2xl cursor-pointer transition-colors">
+                  <label className="inline-flex items-center gap-2 border-2 border-dashed border-zinc-300 hover:border-orange-primary text-text-muted hover:text-orange-primary text-sm font-semibold px-5 py-3 rounded-2xl cursor-pointer transition-colors">
                     <ImageIcon size={15} /> {imagePreview || imageUrl ? "Replace image" : "Upload image"}
                     <input type="file" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" onChange={handleImageChange} className="hidden" />
                   </label>
@@ -200,7 +200,7 @@ export default function MenuManagement() {
 
                 <div className="flex items-center gap-3 mt-3">
                   <span className="h-px flex-1 bg-zinc-100" />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-300">or use a URL</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-text-light">or use a URL</span>
                   <span className="h-px flex-1 bg-zinc-100" />
                 </div>
 
@@ -211,7 +211,7 @@ export default function MenuManagement() {
                     value={imageUrl}
                     onChange={handleImageUrlChange}
                     placeholder="Paste image URL from Google..."
-                    className="flex-1 min-w-0 bg-transparent border-b border-zinc-200 focus:border-red-500 outline-none py-2 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors"
+                    className="flex-1 min-w-0 bg-transparent border-b border-zinc-200 focus:border-orange-500 outline-none py-2 text-sm text-text-primary placeholder:text-text-light transition-colors"
                   />
                   {(imagePreview || imageUrl) && (
                     <button type="button" onClick={handleRemoveImage} className="text-xs font-semibold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">
@@ -219,15 +219,15 @@ export default function MenuManagement() {
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-zinc-400 mt-1.5">Uploading a photo overrides the URL.</p>
+                <p className="text-xs text-text-light mt-1.5">Uploading a photo overrides the URL.</p>
               </div>
             </div>
 
             <div className="flex items-center gap-3 pt-2">
-              <button type="submit" disabled={saving} className="bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white text-sm font-bold px-7 py-3 rounded-full transition-all disabled:cursor-not-allowed">
+              <button type="submit" disabled={saving} className="bg-orange-primary hover:bg-orange-deep disabled:opacity-50 text-white text-sm font-bold px-7 py-3 rounded-lg transition-all disabled:cursor-not-allowed cursor-pointer font-outfit">
                 {saving ? "Saving..." : editingId ? "Update Item" : "Add Item"}
               </button>
-              <button type="button" onClick={() => setShowForm(false)} className="text-zinc-500 hover:text-zinc-900 text-sm font-medium px-5 py-3">
+              <button type="button" onClick={() => setShowForm(false)} className="text-text-muted hover:text-text-primary text-sm font-medium px-5 py-3 cursor-pointer">
                 Cancel
               </button>
             </div>
@@ -236,44 +236,44 @@ export default function MenuManagement() {
       )}
 
       {loading ? (
-        <p className="text-zinc-400 text-sm">Loading menu items...</p>
+        <p className="text-text-muted text-sm">Loading menu items...</p>
       ) : items.length === 0 && !showForm ? (
-        <div className="bg-white rounded-3xl py-20 px-6 text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
-          <div className="w-16 h-16 mx-auto rounded-3xl bg-zinc-50 flex items-center justify-center text-zinc-300 mb-4">
+        <div className="bg-card rounded-[13px] border border-border py-20 px-6 text-center">
+          <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-soft flex items-center justify-center text-orange-deep mb-4">
             <UtensilsCrossed size={26} />
           </div>
-          <p className="font-semibold text-zinc-700 mb-1">No menu items yet</p>
-          <p className="text-sm text-zinc-400">Click "Add Menu Item" to create one.</p>
+          <p className="font-semibold text-text-primary mb-1">No menu items yet</p>
+          <p className="text-sm text-text-muted">Click "Add Menu Item" to create one.</p>
         </div>
       ) : (
         <div className="grid gap-4">
           {items.map((item) => (
-            <div key={item.id} className="bg-white rounded-3xl p-5 flex justify-between items-center gap-4 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] transition-all duration-300 hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.18)]">
+            <div key={item.id} className="bg-card rounded-[13px] border border-border p-5 flex justify-between items-center gap-4 transition-all duration-300 hover:border-zinc-300">
               <div className="flex gap-5 items-center min-w-0">
                 {item.image_url ? (
                   <img src={item.image_url} alt={item.name} className="w-16 h-16 rounded-2xl object-cover shrink-0" />
                 ) : (
-                  <div className="w-16 h-16 bg-zinc-50 rounded-2xl shrink-0 flex items-center justify-center text-zinc-300">
+                  <div className="w-16 h-16 bg-surface rounded-2xl shrink-0 flex items-center justify-center text-text-light">
                     <UtensilsCrossed size={22} />
                   </div>
                 )}
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="font-bold text-zinc-900">{item.name}</span>
-                    <span className="font-extrabold text-red-500">{formatPrice(item.price)}</span>
+                    <span className="font-bold text-text-primary">{item.name}</span>
+                    <span className="font-bold text-orange-primary font-mono tracking-tight">{formatPrice(item.price)}</span>
                     {!item.is_available && (
                       <span className="text-[11px] bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Unavailable</span>
                     )}
                   </div>
-                  {item.description && <p className="text-sm text-zinc-400 truncate">{item.description}</p>}
-                  {item.category && <span className="text-xs text-zinc-400 bg-zinc-50 px-2.5 py-1 rounded-full inline-block mt-1.5">{item.category}</span>}
+                  {item.description && <p className="text-sm text-text-muted truncate">{item.description}</p>}
+                  {item.category && <span className="text-xs text-text-muted bg-surface px-2.5 py-1 rounded-full inline-block mt-1.5">{item.category}</span>}
                 </div>
               </div>
               <div className="flex gap-2 shrink-0">
-                <button onClick={() => openEdit(item)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-600 hover:text-zinc-900 border border-zinc-200 hover:border-zinc-400 px-4 py-2 rounded-full transition-colors">
+                <button onClick={() => openEdit(item)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-muted hover:text-text-primary border border-border hover:border-zinc-300 px-4 py-2 rounded-lg transition-colors cursor-pointer">
                   <Pencil size={13} /> Edit
                 </button>
-                <button onClick={() => handleDelete(item.id)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 hover:border-red-400 px-4 py-2 rounded-full transition-colors">
+                <button onClick={() => handleDelete(item.id)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 hover:border-red-400 px-4 py-2 rounded-lg transition-colors cursor-pointer">
                   <Trash2 size={13} /> Delete
                 </button>
               </div>

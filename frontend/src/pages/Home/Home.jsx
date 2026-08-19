@@ -10,7 +10,7 @@ import Footer from "../../components/Footer";
 const LandingPage = () => {
   return (
     <>
-      <Header />
+      <Header transparent />
       <Hero />
       <PopularCategories />
       <TrendingDishes />

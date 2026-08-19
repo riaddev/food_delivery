@@ -10,8 +10,17 @@ class Category extends Model
     protected $fillable = [
         'name',
         'icon',
+        'image',
+        'is_active',
         'sort_order',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
 
     public function menuItems(): HasMany
     {

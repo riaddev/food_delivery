@@ -87,24 +87,24 @@ export default function OwnerDashboard() {
   };
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-6xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
       <div className="mb-7">
-        <h1 className="text-2xl font-bold tracking-tight text-zinc-900">{greeting()}, {name}</h1>
-        <p className="text-sm text-zinc-500 mt-1">Here's what's happening at your restaurant today.</p>
+        <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px]">{greeting()}, {name}</h1>
+        <p className="text-[14px] text-text-muted mt-1">Here's what's happening at your restaurant today.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
-            <div key={s.title} className="bg-white rounded-xl border border-zinc-100 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
+            <div key={s.title} className="bg-card rounded-[13px] border border-border p-5">
               <div className="flex items-start gap-3">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${s.tint}`}>
                   <Icon size={18} strokeWidth={2} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-medium text-zinc-500 truncate">{s.title}</p>
-                  <p className="text-xl font-bold tracking-tight text-zinc-900 mt-0.5 leading-tight">{s.value}</p>
+                  <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-light truncate">{s.title}</p>
+                  <p className="text-xl font-bold font-mono tracking-tight text-text-primary mt-1 leading-tight">{s.value}</p>
                   <p className={`text-xs font-medium mt-1 ${s.delta.tone}`}>{s.delta.text}</p>
                 </div>
               </div>
@@ -113,30 +113,30 @@ export default function OwnerDashboard() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-3.5 items-start">
         {/* Live Orders */}
-        <section className="bg-white rounded-xl border border-zinc-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
-            <h2 className="text-sm font-semibold tracking-tight text-zinc-900">Live Orders</h2>
-            <Link to="/restaurant/dashboard/orders" className="inline-flex items-center gap-1 text-sm font-medium text-[#E03546] hover:text-[#C11F31]">
+        <section className="bg-card rounded-[13px] border border-border overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <h2 className="text-[15px] font-bold text-text-primary">Live Orders</h2>
+            <Link to="/restaurant/dashboard/orders" className="inline-flex items-center gap-1 text-[13px] font-semibold text-orange-primary no-underline">
               See all <ArrowRight size={13} />
             </Link>
           </div>
 
           {liveOrders.length === 0 ? (
             <div className="px-5 py-12 text-center">
-              <div className="w-11 h-11 mx-auto rounded-full bg-zinc-50 flex items-center justify-center text-zinc-300 mb-3">
+              <div className="w-11 h-11 mx-auto rounded-full bg-orange-soft flex items-center justify-center text-orange-deep mb-3">
                 <ClipboardList size={19} />
               </div>
-              <p className="text-sm font-medium text-zinc-700 mb-1">No pending orders</p>
-              <p className="text-xs text-zinc-500 mb-4">New orders will appear here as they come in.</p>
-              <Link to="/restaurant/dashboard/orders" className="text-sm font-medium text-[#E03546] hover:text-[#C11F31]">
+              <p className="text-sm font-medium text-text-primary mb-1">No pending orders</p>
+              <p className="text-xs text-text-muted mb-4">New orders will appear here as they come in.</p>
+              <Link to="/restaurant/dashboard/orders" className="text-sm font-medium text-orange-primary no-underline">
                 Open Live Orders
               </Link>
             </div>
           ) : (
             <div>
-              <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-2.5 border-b border-zinc-100 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">
+              <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-2.5 border-b border-border text-[11px] font-semibold uppercase tracking-[0.04em] text-text-light">
                 <span className="col-span-3">Order</span>
                 <span className="col-span-4">Items</span>
                 <span className="col-span-2">Status</span>
@@ -144,12 +144,12 @@ export default function OwnerDashboard() {
                 <span className="col-span-2 text-right">Actions</span>
               </div>
 
-              <div className="divide-y divide-zinc-50">
+              <div className="divide-y divide-[#F3F4F6]">
                 {liveOrders.map((order) => (
-                  <div key={order.id} className="grid grid-cols-2 md:grid-cols-12 gap-x-3 gap-y-2 items-center px-5 py-3.5 hover:bg-zinc-50 transition-colors">
+                  <div key={order.id} className="grid grid-cols-2 md:grid-cols-12 gap-x-3 gap-y-2 items-center px-5 py-3.5 hover:bg-[#FAFAFA] transition-colors">
                     <div className="col-span-1 md:col-span-3 min-w-0">
-                      <p className="text-sm font-semibold text-zinc-900">#{order.id}</p>
-                      <p className="text-xs text-zinc-500 truncate flex items-center gap-1.5">
+                      <p className="text-sm font-semibold font-mono text-orange-primary">#{order.id}</p>
+                      <p className="text-xs text-text-muted truncate flex items-center gap-1.5">
                         {order.customer_name || "Guest"}
                         {order.order_type === "dine_in" && (
                           <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
@@ -158,27 +158,27 @@ export default function OwnerDashboard() {
                         )}
                       </p>
                     </div>
-                    <p className="col-span-1 md:col-span-4 text-xs text-zinc-500 truncate">
+                    <p className="col-span-1 md:col-span-4 text-xs text-text-muted truncate">
                       {order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")}
                     </p>
                     <span className="hidden md:inline-block col-span-1 md:col-span-2 justify-self-start">
                       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Pending
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot" /> Pending
                       </span>
                     </span>
-                    <p className="col-span-1 md:col-span-1 text-sm font-semibold tracking-tight text-zinc-900 text-right justify-self-end">{formatPrice(order.total)}</p>
+                    <p className="col-span-1 md:col-span-1 text-sm font-bold font-mono tracking-tight text-text-primary text-right justify-self-end">{formatPrice(order.total)}</p>
                     <div className="col-span-2 md:col-span-2 flex justify-end gap-2 md:justify-self-end">
                       <button
                         onClick={() => handleStatus(order, "confirmed")}
                         disabled={actingId === order.id}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-primary hover:bg-orange-deep text-white transition-colors disabled:opacity-50 cursor-pointer font-outfit"
                       >
                         {actingId === order.id ? "…" : "Accept"}
                       </button>
                       <button
                         onClick={() => handleStatus(order, "cancelled")}
                         disabled={actingId === order.id}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-text-muted hover:border-zinc-300 hover:text-text-primary transition-colors disabled:opacity-50 cursor-pointer font-outfit"
                       >
                         Reject
                       </button>
@@ -191,32 +191,32 @@ export default function OwnerDashboard() {
         </section>
 
         {/* Top selling items */}
-        <section className="bg-white rounded-xl border border-zinc-100 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
-            <h2 className="text-sm font-semibold tracking-tight text-zinc-900">Top Selling Items</h2>
-            <Link to="/restaurant/dashboard/analytics" className="inline-flex items-center gap-1 text-sm font-medium text-[#E03546] hover:text-[#C11F31]">
+        <section className="bg-card rounded-[13px] border border-border overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <h2 className="text-[15px] font-bold text-text-primary">Top Selling Items</h2>
+            <Link to="/restaurant/dashboard/analytics" className="inline-flex items-center gap-1 text-[13px] font-semibold text-orange-primary no-underline">
               See all <ArrowRight size={13} />
             </Link>
           </div>
 
-          <div className="divide-y divide-zinc-50">
+          <div className="divide-y divide-[#F3F4F6]">
             {MOCK_TOP_ITEMS.map((item, idx) => (
-              <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-zinc-50 transition-colors">
+              <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[#FAFAFA] transition-colors">
                 <img src={item.img} alt={item.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-zinc-900 truncate">{item.name}</p>
-                  <p className="text-xs text-zinc-500">{item.sold} sold today</p>
+                  <p className="text-sm font-medium text-text-primary truncate">{item.name}</p>
+                  <p className="text-xs text-text-muted">{item.sold} sold today</p>
                 </div>
-                <span className="text-xs text-zinc-400 font-medium w-5 text-right">{idx + 1}</span>
-                <span className="text-sm font-semibold tracking-tight text-zinc-900">{formatPrice(item.price)}</span>
+                <span className={`text-xs font-bold font-mono w-5 text-right ${idx === 0 ? "text-orange-primary" : "text-text-light"}`}>{idx + 1}</span>
+                <span className="text-sm font-semibold font-mono tracking-tight text-text-primary">{formatPrice(item.price)}</span>
               </div>
             ))}
           </div>
 
-          <div className="p-4 border-t border-zinc-100">
+          <div className="p-4 border-t border-border">
             <button
               onClick={() => navigate("/restaurant/dashboard/menu")}
-              className="w-full border border-dashed border-zinc-200 hover:border-zinc-300 text-zinc-500 hover:text-zinc-700 text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors"
+              className="w-full border border-dashed border-border hover:border-orange-primary hover:text-orange-primary text-text-muted text-sm font-medium py-2.5 rounded-lg inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer font-outfit"
             >
               <Plus size={14} /> Add Menu Item
             </button>

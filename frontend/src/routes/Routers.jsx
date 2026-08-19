@@ -1,23 +1,21 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "../pages/Home/Home";
 import Login from "../pages/Login/Login";
 import Register from "../pages/Register/Register";
 import SignupRestaurant from "../pages/SignupRestaurant/SignupRestaurant";
+import SignupRider from "../pages/SignupRider/SignupRider";
+import RiderSetup from "../pages/RiderSetup/RiderSetup";
 import RestaurantSetup from "../pages/RestaurantSetup/RestaurantSetup";
 import CustomerDashboard from "../pages/CustomerDashboard/CustomerDashboard";
 import RestaurantDashboard from "../pages/RestaurantDashboard/RestaurantDashboard";
 import AdminDashboard from "../pages/AdminDashboard/AdminDashboard";
 import Restaurants from "../pages/Restaurants/Restaurants";
 import RestaurantMenu from "../pages/RestaurantMenu/RestaurantMenu";
+import RiderDashboard from "../pages/RiderDashboard/RiderDashboard";
 import Checkout from "../pages/Checkout/Checkout";
+import PaymentSuccess from "../pages/Payment/PaymentSuccess";
+import PaymentFailed from "../pages/Payment/PaymentFailed";
 import OrderTracking from "../pages/OrderTracking/OrderTracking";
-import AccountLayout from "../pages/CustomerAccount/AccountLayout";
-import AccountDashboard from "../pages/CustomerAccount/AccountDashboard";
-import MyOrders from "../pages/CustomerAccount/MyOrders";
-import Wishlist from "../pages/CustomerAccount/Wishlist";
-import SavedAddresses from "../pages/CustomerAccount/SavedAddresses";
-import Profile from "../pages/CustomerAccount/Profile";
-import ChangePassword from "../pages/CustomerAccount/ChangePassword";
 import ProtectedRoute from "../components/ProtectedRoute";
 import OwnerDashboard from "../pages/RestaurantDashboard/OwnerDashboard";
 import { Analytics } from "../pages/RestaurantDashboard/Analytics";
@@ -26,6 +24,11 @@ import OrdersManagement from "../pages/RestaurantDashboard/OrdersManagement";
 import MenuManagement from "../pages/RestaurantDashboard/MenuManagement";
 import EditProfile from "../pages/RestaurantDashboard/EditProfile";
 import Reservations from "../pages/RestaurantDashboard/Reservations";
+import {
+  AboutPage, CareersPage, PressPage, BlogPage, GiftCardsPage,
+  BecomeRiderPage, RiderAppPage, EarningsPage, CommunityPage,
+  SupportPage, PrivacyPage, TermsPage, CookiesPage,
+} from "../pages/StaticPages";
 
 export default function Routers() {
   return (
@@ -35,9 +38,26 @@ export default function Routers() {
       <Route path="/register" element={<Register />} />
       <Route path="/signup/customer" element={<Register />} />
       <Route path="/signup/restaurant" element={<SignupRestaurant />} />
+      <Route path="/signup/rider" element={<SignupRider />} />
       <Route path="/restaurant/setup" element={<RestaurantSetup />} />
+      <Route path="/rider/setup" element={<RiderSetup />} />
       <Route path="/restaurants" element={<Restaurants />} />
       <Route path="/restaurants/:id" element={<RestaurantMenu />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/careers" element={<CareersPage />} />
+      <Route path="/press" element={<PressPage />} />
+      <Route path="/blog" element={<BlogPage />} />
+      <Route path="/gift-cards" element={<GiftCardsPage />} />
+      <Route path="/become-a-rider" element={<BecomeRiderPage />} />
+      <Route path="/rider-app" element={<RiderAppPage />} />
+      <Route path="/earnings" element={<EarningsPage />} />
+      <Route path="/community" element={<CommunityPage />} />
+      <Route path="/support" element={<SupportPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/cookies" element={<CookiesPage />} />
+      <Route path="/payment/success" element={<PaymentSuccess />} />
+      <Route path="/payment/failed" element={<PaymentFailed />} />
       <Route
         path="/checkout"
         element={
@@ -55,6 +75,14 @@ export default function Routers() {
         }
       />
       <Route
+        path="/rider/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={["rider"]}>
+            <RiderDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/customer/dashboard"
         element={
           <ProtectedRoute allowedRoles={["customer"]}>
@@ -64,19 +92,12 @@ export default function Routers() {
       />
       <Route
         path="/customer/account"
-        element={
-          <ProtectedRoute allowedRoles={["customer"]}>
-            <AccountLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<AccountDashboard />} />
-        <Route path="orders" element={<MyOrders />} />
-        <Route path="wishlist" element={<Wishlist />} />
-        <Route path="addresses" element={<SavedAddresses />} />
-        <Route path="profile" element={<Profile />} />
-        <Route path="change-password" element={<ChangePassword />} />
-      </Route>
+        element={<Navigate to="/customer/dashboard" replace />}
+      />
+      <Route
+        path="/customer/account/*"
+        element={<Navigate to="/customer/dashboard" replace />}
+      />
       <Route
         path="/restaurant/dashboard"
         element={

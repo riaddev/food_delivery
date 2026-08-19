@@ -59,20 +59,20 @@ export default function EditProfile() {
     } finally { setSaving(false); }
   };
 
-  const inputCls = "w-full bg-transparent border-b border-zinc-200 focus:border-red-500 outline-none py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors";
-  const labelCls = "block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-0.5";
+  const inputCls = "w-full bg-transparent border-b border-zinc-200 focus:border-orange-500 outline-none py-2.5 text-sm text-text-primary placeholder:text-text-light transition-colors";
+  const labelCls = "block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-light mb-0.5";
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900 mb-2">Restaurant Profile</h1>
-      <p className="text-zinc-400 mb-8">Keep your storefront details fresh for customers.</p>
-
-      <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-8 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] space-y-7">
+    <div className="max-w-2xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
+      <form onSubmit={handleSubmit} className="bg-card rounded-[13px] border border-border p-8 space-y-7">
         <div className="flex items-center gap-4 pb-2">
-          <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-orange-soft text-orange-deep flex items-center justify-center">
             <Store size={22} />
           </div>
-          <p className="font-bold text-zinc-900">{form.restaurant_name || "Your restaurant"}</p>
+          <div>
+            <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px]">Restaurant Profile</h1>
+            <p className="text-[13px] text-text-muted">Keep your storefront details fresh for customers.</p>
+          </div>
         </div>
 
         {message && (
@@ -87,16 +87,16 @@ export default function EditProfile() {
             {cover.preview ? (
               <div className="relative mt-2">
                 <img src={cover.preview} alt="Cover preview" className="w-full h-32 sm:h-44 object-cover rounded-2xl" />
-                <button type="button" onClick={() => clearKind("cover")} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors" aria-label="Remove cover image">
+                <button type="button" onClick={() => clearKind("cover")} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer" aria-label="Remove cover image">
                   <X size={14} />
                 </button>
               </div>
             ) : null}
-            <button type="button" onClick={() => coverRef.current?.click()} className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
+            <button type="button" onClick={() => coverRef.current?.click()} className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-orange-primary hover:text-orange-deep transition-colors cursor-pointer">
               <ImagePlus size={16} /> {cover.preview ? "Replace cover" : "Upload cover image"}
             </button>
             <input ref={coverRef} type="file" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" onChange={(e) => handleFile("cover", e)} className="hidden" />
-            <p className="text-xs text-zinc-400 mt-1">Shown as the hero banner on your menu page.</p>
+            <p className="text-xs text-text-muted mt-1">Shown as the hero banner on your menu page.</p>
           </div>
 
           <div>
@@ -104,17 +104,17 @@ export default function EditProfile() {
             <div className="flex items-center gap-4 mt-2">
               {logo.preview ? (
                 <div className="relative shrink-0">
-                  <img src={logo.preview} alt="Logo preview" className="w-20 h-20 rounded-2xl object-cover ring-1 ring-zinc-200" />
-                  <button type="button" onClick={() => clearKind("logo")} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors" aria-label="Remove logo">
+                  <img src={logo.preview} alt="Logo preview" className="w-20 h-20 rounded-2xl object-cover ring-1 ring-border" />
+                  <button type="button" onClick={() => clearKind("logo")} className="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer" aria-label="Remove logo">
                     <X size={12} />
                   </button>
                 </div>
               ) : null}
               <div>
-                <button type="button" onClick={() => logoRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
+                <button type="button" onClick={() => logoRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-semibold text-orange-primary hover:text-orange-deep transition-colors cursor-pointer">
                   <ImagePlus size={16} /> {logo.preview ? "Replace logo" : "Upload logo"}
                 </button>
-                <p className="text-xs text-zinc-400 mt-1">Shown next to your restaurant name on the menu page.</p>
+                <p className="text-xs text-text-muted mt-1">Shown next to your restaurant name on the menu page.</p>
               </div>
             </div>
             <input ref={logoRef} type="file" accept="image/jpeg,image/png,image/jpg,image/gif,image/webp" onChange={(e) => handleFile("logo", e)} className="hidden" />
@@ -164,7 +164,7 @@ export default function EditProfile() {
           <textarea name="description" value={form.description} onChange={handleChange} rows={3} className={`${inputCls} resize-y`} placeholder="About your restaurant..." />
         </div>
 
-        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold px-7 py-3 rounded-full shadow-[0_12px_30px_-10px_rgba(239,68,68,0.7)] transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed">
+        <button type="submit" disabled={saving} className="inline-flex items-center gap-2 bg-orange-primary hover:bg-orange-deep disabled:opacity-50 text-white text-sm font-bold px-7 py-3 rounded-lg transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed cursor-pointer font-outfit">
           <Save size={15} /> {saving ? "Saving..." : "Save Changes"}
         </button>
       </form>

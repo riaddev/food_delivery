@@ -1,59 +1,289 @@
-const Hero = () => (
-  <section className="bg-[#0b0b0c] text-white relative overflow-hidden" id="home">
-    <div className="max-w-[1240px] mx-auto px-8 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] items-center gap-8 pt-20 pb-10 relative">
-      <div className="relative z-10">
-        <h1 className="text-[clamp(42px,5.4vw,68px)] leading-[1.02] font-extrabold tracking-tight mb-4">
-          Cravings<br /><span className="text-[#ff6a2b]">Delivered.</span>
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Store, Utensils, Search, X, MapPin, ChevronDown, Zap, ArrowRight } from "lucide-react";
+import api from "../../features/api/apiSlice";
+import { formatPrice } from "../../utils/foodImages";
+
+const BG = "https://images.unsplash.com/photo-1577308856961-8e9ec50d0c67?q=80&w=1920&auto=format&fit=crop";
+
+const STATS = [
+  { val: "500+", label: "Restaurants" },
+  { val: "10K+", label: "Happy Customers" },
+  { val: "4.9 ★", label: "Rating" },
+  { val: "28 min", label: "Avg. Delivery" },
+];
+
+const Hero = () => {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [restaurants, setRestaurants] = useState([]);
+  const navigate = useNavigate();
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.get("/restaurants")
+      .then((res) => { if (alive) setRestaurants(res.data.restaurants || []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const onDocDown = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const dishMatches = q
+    ? restaurants
+        .flatMap((r) =>
+          (r.menu_items || []).map((m) => ({ ...m, restaurant_id: r.id, restaurant_name: r.restaurant_name }))
+        )
+        .filter((m) => (m.name || "").toLowerCase().includes(q))
+        .slice(0, 6)
+    : [];
+  const restaurantMatches = q
+    ? restaurants
+        .filter(
+          (r) =>
+            (r.restaurant_name || "").toLowerCase().includes(q) ||
+            (r.cuisine_type || "").toLowerCase().includes(q)
+        )
+        .slice(0, 4)
+    : [];
+  const hasResults = restaurantMatches.length > 0 || dishMatches.length > 0;
+
+  const goRestaurant = (id) => {
+    setOpen(false);
+    setQuery("");
+    navigate(`/restaurants/${id}`);
+  };
+
+  const goDish = (name) => {
+    setOpen(false);
+    setQuery("");
+    navigate(`/restaurants?search=${encodeURIComponent(name)}`);
+  };
+
+  const goSearch = () => {
+    setOpen(false);
+    navigate(query.trim() ? `/restaurants?search=${encodeURIComponent(query.trim())}` : "/restaurants");
+  };
+
+  const submit = (e) => {
+    e.preventDefault();
+    goSearch();
+  };
+
+  return (
+    <section className="relative flex flex-col min-h-[80vh] lg:min-h-[85vh]" id="home">
+      <div
+        className="absolute inset-0 z-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${BG})` }}
+      />
+      <div
+        className="absolute inset-0 z-[1]"
+        style={{
+          background: "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 35%, rgba(0,0,0,0.26) 60%, rgba(0,0,0,0.5) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 z-[2]"
+        style={{
+          background: "linear-gradient(to right, rgba(0,0,0,0.48) 0%, transparent 38%, transparent 62%, rgba(0,0,0,0.48) 100%)",
+        }}
+      />
+      <div
+        className="absolute inset-0 z-[3]"
+        style={{
+          background: "radial-gradient(ellipse 52% 44% at 50% 44%, rgba(0,0,0,0.58) 0%, rgba(0,0,0,0.18) 60%, transparent 100%)",
+        }}
+      />
+      <div
+        className="absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2 z-[4] pointer-events-none w-[900px] max-w-full h-[70%]"
+        style={{
+          background: "radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.2) 55%, transparent 78%)",
+        }}
+      />
+
+      <div className="relative z-20 flex-1 flex flex-col items-center text-center pt-[168px] lg:pt-[195px] px-4 sm:px-6">
+        <div
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-9"
+          style={{
+            background: "rgba(255,107,0,0.12)",
+            border: "1px solid rgba(255,107,0,0.28)",
+            backdropFilter: "blur(8px)",
+          }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B00]" />
+          <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-[#FF9A3C]">
+            Now delivering in your city
+          </span>
+        </div>
+
+        <h1 className="text-white text-[clamp(38px,5.4vw,75px)] font-black leading-[1.08] tracking-[-2px] mb-[12px] max-w-[620px]">
+          Every craving,<br />
+          <span
+            style={{
+              background: "linear-gradient(90deg, #FF6B00, #FFB347)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+            }}
+          >
+            delivered.
+          </span>
         </h1>
 
-        <p className="text-lg leading-relaxed text-[#b8b8bb] max-w-[460px] mb-6">
-          Browse hundreds of restaurants, order your favorite food, and track delivery live.
+        <p className="text-white/60 text-base leading-[1.72] mb-[20px] max-w-[420px]">
+          Browse 500+ restaurants, order your favourites, and track delivery live — all in one place.
         </p>
 
-        <div className="flex items-stretch bg-white rounded-2xl p-[5px] max-w-[580px] shadow-[0_20px_40px_rgba(0,0,0,0.35)]">
-          <div className="flex items-center gap-2 px-4 text-gray-900 text-sm font-semibold whitespace-nowrap cursor-pointer hover:opacity-70">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff6a2b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-            </svg>
-            My Location
-          </div>
-          <div className="w-px bg-gray-200 my-2 shrink-0" />
-          <div className="flex-1 flex items-center gap-2.5 px-3.5 text-[#9a9a9a] text-sm">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9a9a9a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            Search restaurants or dishes...
-          </div>
-          <button className="w-[38px] h-[38px] rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-900 shrink-0 mr-1" title="Filters">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
-              <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
-              <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
-              <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/>
-              <line x1="17" y1="16" x2="23" y2="16"/>
-            </svg>
-          </button>
-          <button className="bg-gradient-to-br from-[#ff6a2b] to-[#d94a12] text-white px-5.5 py-2.5 rounded-xl font-semibold text-sm shadow-[0_3px_12px_rgba(255,106,43,0.3)] hover:from-[#f55d1f] hover:to-[#c94410] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(255,106,43,0.45)] transition inline-flex items-center gap-1.5">
-            Search
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
-            </svg>
-          </button>
+        <div ref={wrapRef} className="relative w-full max-w-[560px]">
+          <form
+            onSubmit={submit}
+            className="flex items-stretch bg-white rounded-[18px] p-[5px] pl-0 shadow-[0_20px_70px_rgba(0,0,0,0.45)]"
+          >
+            <div className="flex items-center gap-[5px] pl-3 pr-3 border-r-[1.5px] border-[#EFEFEF] shrink-0">
+              <MapPin size={14} strokeWidth={2.2} className="text-[#FF6B00] shrink-0" />
+              <span className="hidden sm:inline text-[13px] font-bold text-[#111] whitespace-nowrap">My Location</span>
+              <ChevronDown size={12} strokeWidth={2.5} className="text-[#BBB] shrink-0" />
+            </div>
+            <div className="flex-1 flex items-center gap-2 px-3 min-w-0 text-[#9a9a9a]">
+              <Search size={14} strokeWidth={2.2} className="text-[#CCC] shrink-0" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+                onFocus={() => setOpen(true)}
+                onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+                placeholder="Search restaurants or dishes..."
+                className="flex-1 min-w-0 bg-transparent outline-none text-[#111] text-sm placeholder:text-[#CCC]"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => { setQuery(""); setOpen(false); }}
+                  aria-label="Clear search"
+                  className="w-[22px] h-[22px] rounded-full bg-gray-200 hover:bg-gray-300 text-gray-500 flex items-center justify-center shrink-0 cursor-pointer transition"
+                >
+                  <X size={12} strokeWidth={2.5} />
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="px-5 py-3 rounded-[14px] bg-gradient-to-br from-[#FF6B00] to-[#E05500] text-white font-bold text-sm shadow-[0_4px_18px_rgba(255,107,0,0.38)] inline-flex items-center gap-1.5 hover:opacity-90 transition cursor-pointer shrink-0 whitespace-nowrap"
+            >
+              Find Food
+              <ArrowRight size={14} strokeWidth={2.4} />
+            </button>
+          </form>
+
+          {open && q && (
+            <div className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.25)] border border-gray-100 overflow-hidden z-20 text-left max-h-[420px] overflow-y-auto">
+              {restaurantMatches.length > 0 && (
+                <>
+                  <div className="px-4 pt-3 pb-1 text-[11px] font-bold tracking-widest uppercase text-gray-400">Restaurants</div>
+                  {restaurantMatches.map((r) => (
+                    <button
+                      key={`r-${r.id}`}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => goRestaurant(r.id)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-orange-50 text-left transition"
+                    >
+                      <span className="w-9 h-9 rounded-lg bg-[#fff0e8] flex items-center justify-center text-[#FF6B00] shrink-0">
+                        <Store size={16} />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-semibold text-gray-900 truncate">{r.restaurant_name}</span>
+                        <span className="block text-xs text-gray-500 truncate">{r.cuisine_type}</span>
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {dishMatches.length > 0 && (
+                <>
+                  <div className="px-4 pt-3 pb-1 text-[11px] font-bold tracking-widest uppercase text-gray-400">Dishes</div>
+                  {dishMatches.map((m, i) => (
+                    <button
+                      key={`d-${m.restaurant_id}-${m.id}-${i}`}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => goDish(m.name)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-orange-50 text-left transition"
+                    >
+                      <span className="w-9 h-9 rounded-lg bg-[#fff0e8] flex items-center justify-center text-[#FF6B00] shrink-0">
+                        <Utensils size={16} />
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-sm font-semibold text-gray-900 truncate">{m.name}</span>
+                        <span className="block text-xs text-gray-500 truncate">{m.restaurant_name}</span>
+                      </span>
+                      <span className="text-sm font-extrabold text-[#FF6B00] shrink-0">{formatPrice(m.price)}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {!hasResults && (
+                <div className="px-4 py-6 text-center text-sm text-gray-400">No matches for "{query.trim()}"</div>
+              )}
+
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={goSearch}
+                className="w-full flex items-center gap-2.5 px-4 py-3 border-t border-gray-100 text-sm font-semibold text-[#FF6B00] hover:bg-orange-50 transition"
+              >
+                <Search size={15} />
+                See all results{query.trim() ? ` for "${query.trim()}"` : ""} →
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="relative min-h-[420px]">
-        <div
-          className="absolute inset-0 rounded-[20px] bg-cover bg-[65%_center]"
-          style={{
-            backgroundImage: "url(https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=1200&auto=format&fit=crop)",
-            maskImage: "linear-gradient(to left, black 85%, transparent 100%)",
-            WebkitMaskImage: "linear-gradient(to left, black 85%, transparent 100%)",
-          }}
-        />
+      <div
+        className="relative z-10 w-full mt-[52px]"
+        style={{
+          background: "rgba(6,4,2,0.82)",
+          backdropFilter: "blur(20px)",
+          borderTop: "1px solid rgba(255,255,255,0.10)",
+        }}
+      >
+        <div className="max-w-[900px] mx-auto px-4 sm:px-8 py-[20px] flex items-center justify-between gap-6 flex-wrap">
+          <div className="flex items-center flex-wrap gap-0">
+            {STATS.map((s, i) => (
+              <div key={s.label} className="flex items-center">
+                {i > 0 && <div className="w-px h-[30px] bg-white/12 mx-[22px]" />}
+                <div className="flex flex-col items-start text-left">
+                  <span className="text-[16.8px] font-extrabold text-white tracking-[-0.3px] leading-[1.2]">
+                    {s.val}
+                  </span>
+                  <span className="text-[10.9px] text-white/45 font-medium leading-[1.3]">
+                    {s.label}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-[7px] pl-5 border-l border-white/10">
+            <Zap size={13} className="text-[#FF6B00]" />
+            <span className="text-[12px] font-medium text-white/50 whitespace-nowrap">
+              Live GPS tracking on every order
+            </span>
+          </div>
+        </div>
       </div>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 export default Hero;
