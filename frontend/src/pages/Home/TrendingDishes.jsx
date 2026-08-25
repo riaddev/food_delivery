@@ -74,10 +74,18 @@ const matchesTab = (r, tabId) => {
   return true;
 };
 
-const RestaurantCard = ({ restaurant, onAdd, canOrder, linkable }) => (
+const RestaurantCard = ({ restaurant, onAdd, canOrder, linkable }) => {
+  const imageStyle = { backgroundImage: `url(${restaurant.image || restaurantImage(restaurant.restaurant_name)})` };
+  return (
   <div className="border border-gray-200 rounded-[14px] overflow-hidden bg-white transition-transform duration-300 hover:-translate-y-2 hover:shadow-[0_16px_40px_rgba(0,0,0,0.1)]">
     <div className="relative aspect-[16/9] overflow-hidden">
-      <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 hover:scale-110" style={{ backgroundImage: `url(${restaurant.image || restaurantImage(restaurant.restaurant_name)})` }} />
+      {linkable ? (
+        <Link to={`/restaurants/${restaurant.id}`} aria-label={`View full menu of ${restaurant.restaurant_name}`} className="absolute inset-0 cursor-pointer">
+          <div className="absolute inset-0 bg-cover bg-center transition-transform duration-500 hover:scale-110" style={imageStyle} />
+        </Link>
+      ) : (
+        <div className="absolute inset-0 bg-cover bg-center" style={imageStyle} />
+      )}
       <span className="absolute top-3 right-3 bg-black/70 text-white text-xs font-bold px-2.5 py-1 rounded-full backdrop-blur-sm">★ {restaurant.rating}</span>
     </div>
     <div className="p-4">
@@ -120,7 +128,8 @@ const RestaurantCard = ({ restaurant, onAdd, canOrder, linkable }) => (
       </div>
     </div>
   </div>
-);
+  );
+};
 
 const TrendingDishes = () => {
   const { user, isCustomer } = useAuth();

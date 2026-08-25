@@ -29,12 +29,12 @@ const WhyUs = () => (
       </div>
 
       <div>
-        <span className="inline-block text-xs font-bold tracking-widest uppercase text-[#ff6a2b] mb-2.5">Why SwiftBite</span>
+        <span className="inline-block text-xs font-bold tracking-widest uppercase text-[#ff6a2b] mb-2.5">Why Swift Bite</span>
         <h2 className="text-4xl font-extrabold leading-tight tracking-tight mb-3">
           Not just another <span className="text-[#ff6a2b]">delivery app.</span>
         </h2>
         <p className="text-[15.5px] leading-relaxed text-gray-500 mb-6 max-w-[480px]">
-          SwiftBite is a full ecosystem — smart enough to know what you want before you do, fast enough to get it to you while it's still hot.
+          Swift Bite is a full ecosystem — smart enough to know what you want before you do, fast enough to get it to you while it's still hot.
         </p>
 
         {features.map((f) => (

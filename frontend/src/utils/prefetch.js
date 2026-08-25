@@ -1,4 +1,5 @@
 const cache = new Map();
+const restaurantsCache = new Map();
 const TTL = 5 * 60 * 1000;
 
 export function getCachedRestaurant(id) {
@@ -28,4 +29,28 @@ export function getRestaurantData(id) {
 export function prefetchRestaurant(id) {
   if (!id) return;
   getRestaurantData(id).catch(() => {});
+}
+
+export function getCachedRestaurants() {
+  return restaurantsCache.get("all")?.data ?? null;
+}
+
+export function getAllRestaurants() {
+  const hit = restaurantsCache.get("all");
+  if (hit && Date.now() - hit.ts < TTL) return hit.promise;
+  const promise = fetch("/api/restaurants", { headers: { Accept: "application/json" } })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((data) => {
+      restaurantsCache.set("all", { data, ts: Date.now(), promise });
+      return data.restaurants || [];
+    })
+    .catch((err) => {
+      restaurantsCache.delete("all");
+      throw err;
+    });
+  restaurantsCache.set("all", { ts: Date.now(), promise });
+  return promise;
 }

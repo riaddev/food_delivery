@@ -82,6 +82,12 @@ export const restaurantApi = {
   createMenuItem: (data) => api.post("/restaurant/menu-items", data),
   updateMenuItem: (id, data) => api.put(`/restaurant/menu-items/${id}`, data),
   deleteMenuItem: (id) => api.delete(`/restaurant/menu-items/${id}`),
+  getTables: () => api.get("/restaurant/tables"),
+  createTable: (data) => api.post("/restaurant/tables", data),
+  updateTable: (id, data) => api.put(`/restaurant/tables/${id}`, data),
+  updateTableStatus: (id, status) => api.put(`/restaurant/tables/${id}/status`, { status }),
+  assignReservationTable: (id, restaurantTableId) =>
+    api.put(`/restaurant/reservations/${id}/table`, { restaurant_table_id: restaurantTableId }),
 };
 
 export const adminApi = {
@@ -136,6 +142,13 @@ export const adminApi = {
 
 export const riderApi = {
   setAvailability: (isOnline) => api.put("/rider/availability", { is_online: isOnline }),
+  getOrders: () => api.get("/rider/orders"),
+  acceptOrder: (id) => api.post(`/rider/orders/${id}/accept`),
+  updateOrderStatus: (id, status) => api.put(`/rider/orders/${id}/status`, { status }),
+};
+
+export const chatApi = {
+  send: (message, history) => api.post("/chat", { message, history }, { skipAuthRedirect: true }),
 };
 
 export default api;

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActivityLog;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
+use App\Models\Reservation;
 use App\Models\Restaurant;
+use App\Models\RestaurantTable;
 use App\Models\Review;
 use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
@@ -153,6 +156,115 @@ class RestaurantController extends Controller
         $item->delete();
 
         return response()->json(['message' => 'Menu item deleted.']);
+    }
+
+    public function tables(Request $request): JsonResponse
+    {
+        $tables = $request->user()->restaurant->tables()
+            ->orderBy('name')
+            ->get()
+            ->map(fn ($t) => $this->formatTable($t));
+
+        return response()->json(['tables' => $tables]);
+    }
+
+    public function createTable(Request $request): JsonResponse
+    {
+        $restaurant = $request->user()->restaurant;
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:50',
+                "unique:restaurant_tables,name,NULL,id,restaurant_id,{$restaurant->id}",
+            ],
+            'seats' => 'required|integer|min:1|max:100',
+        ]);
+
+        $table = RestaurantTable::create([
+            'restaurant_id' => $restaurant->id,
+            'name' => $validated['name'],
+            'seats' => $validated['seats'],
+            'status' => RestaurantTable::STATUS_AVAILABLE,
+        ]);
+
+        ActivityLog::create([
+            'type' => 'table_created',
+            'description' => "Table \"{$table->name}\" ({$table->seats} seats) added to \"{$restaurant->restaurant_name}\".",
+        ]);
+
+        return response()->json(['table' => $this->formatTable($table)], 201);
+    }
+
+    public function updateTable(Request $request, $id): JsonResponse
+    {
+        $restaurant = $request->user()->restaurant;
+
+        $table = RestaurantTable::where('restaurant_id', $restaurant->id)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'max:50',
+                "unique:restaurant_tables,name,{$table->id},id,restaurant_id,{$restaurant->id}",
+            ],
+            'seats' => 'required|integer|min:1|max:100',
+        ]);
+
+        $table->update($validated);
+
+        ActivityLog::create([
+            'type' => 'table_updated',
+            'description' => "Table \"{$table->name}\" updated at \"{$restaurant->restaurant_name}\".",
+        ]);
+
+        return response()->json(['table' => $this->formatTable($table)]);
+    }
+
+    public function updateTableStatus(Request $request, $id): JsonResponse
+    {
+        $restaurant = $request->user()->restaurant;
+
+        $table = RestaurantTable::where('restaurant_id', $restaurant->id)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => 'required|string|in:available,disabled',
+        ]);
+
+        if (
+            $validated['status'] === RestaurantTable::STATUS_DISABLED
+            && $table->reservations()
+                ->where('status', 'confirmed')
+                ->whereDate('reservation_date', '>=', now()->toDateString())
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'status' => ['This table is assigned to upcoming confirmed reservations. Reassign them before disabling it.'],
+            ]);
+        }
+
+        $table->update(['status' => $validated['status']]);
+
+        ActivityLog::create([
+            'type' => 'table_status_changed',
+            'description' => "Table \"{$table->name}\" marked {$validated['status']} at \"{$restaurant->restaurant_name}\".",
+        ]);
+
+        return response()->json(['table' => $this->formatTable($table)]);
+    }
+
+    private function formatTable(RestaurantTable $table): array
+    {
+        return [
+            'id' => $table->id,
+            'name' => $table->name,
+            'seats' => (int) $table->seats,
+            'status' => $table->status,
+        ];
     }
 
     public function orders(Request $request): JsonResponse

@@ -1,77 +1,45 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { TrendingUp, ClipboardList, CheckCircle2, Star, Plus, ArrowRight } from "lucide-react";
-import { useAuth } from "../../features/auth/AuthContext";
-import { restaurantApi } from "../../features/api/apiSlice";
+import { TrendingUp, ClipboardList, CheckCircle2, CalendarClock, Plus, ArrowRight } from "lucide-react";
+import { restaurantApi, reservationApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
-const MOCK_TOP_ITEMS = [
-  { id: 1, name: "Morog Polao", sold: 24, price: 240, img: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=400&auto=format&fit=crop" },
-  { id: 2, name: "Beef Tehari", sold: 18, price: 210, img: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?q=80&w=400&auto=format&fit=crop" },
-  { id: 3, name: "Chicken Chap", sold: 16, price: 180, img: "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?q=80&w=400&auto=format&fit=crop" },
-  { id: 4, name: "Cold Lemonade", sold: 12, price: 90, img: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&auto=format&fit=crop" },
-];
+const COMPLETED_STATUSES = ["delivered", "served"];
+const ACTIVE_RESERVATION_STATUSES = ["pending", "confirmed"];
 
-const greeting = () => {
-  const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  if (h < 21) return "Good evening";
-  return "Good night";
-};
+const sameDay = (a, b) => a.toDateString() === b.toDateString();
 
 export default function OwnerDashboard() {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
+  const [reservations, setReservations] = useState([]);
   const [actingId, setActingId] = useState(null);
 
   useEffect(() => {
     restaurantApi.getOrders()
-      .then((r) => setOrders(r.data.orders))
+      .then((r) => setOrders(r.data.orders || []))
+      .catch(() => {});
+    reservationApi.getForRestaurant()
+      .then((r) => setReservations(r.data.reservations || []))
       .catch(() => {});
   }, []);
 
-  const restaurant = user?.restaurant || {};
-  const name = restaurant.restaurant_name || user?.name || "Restaurant";
+  const now = new Date();
 
   const liveOrders = orders.filter((o) => o.status === "pending");
-  const deliveredToday = orders.filter((o) => {
-    if (o.status !== "delivered") return false;
-    const d = new Date(o.created_at);
-    return d.toDateString() === new Date().toDateString();
-  });
-  const todayRevenue = deliveredToday.reduce((s, o) => s + parseFloat(o.total), 0);
+  const completedToday = orders.filter(
+    (o) => COMPLETED_STATUSES.includes(o.status) && sameDay(new Date(o.created_at), now)
+  );
+  const todayRevenue = completedToday.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+  const activeReservations = reservations.filter((r) =>
+    ACTIVE_RESERVATION_STATUSES.includes(r.status)
+  );
 
   const stats = [
-    {
-      title: "Today's Revenue",
-      value: todayRevenue > 0 ? formatPrice(todayRevenue) : "৳18,500",
-      icon: TrendingUp,
-      tint: "bg-emerald-50 text-emerald-600",
-      delta: { text: "+12% from yesterday", tone: "text-emerald-600" },
-    },
-    {
-      title: "Pending Orders",
-      value: String(orders.filter((o) => o.status === "pending").length || 4),
-      icon: ClipboardList,
-      tint: "bg-amber-50 text-amber-600",
-      delta: { text: "+3 from last hour", tone: "text-rose-600" },
-    },
-    {
-      title: "Completed Today",
-      value: String(deliveredToday.length || 32),
-      icon: CheckCircle2,
-      tint: "bg-sky-50 text-sky-600",
-      delta: { text: "+8% from yesterday", tone: "text-emerald-600" },
-    },
-    {
-      title: "Average Rating",
-      value: "4.8",
-      icon: Star,
-      tint: "bg-rose-50 text-rose-600",
-      delta: { text: "+0.1 this month", tone: "text-emerald-600" },
-    },
+    { title: "Today's Revenue", value: formatPrice(todayRevenue), icon: TrendingUp, tint: "bg-emerald-50 text-emerald-600" },
+    { title: "Pending Orders", value: String(liveOrders.length), icon: ClipboardList, tint: "bg-amber-50 text-amber-600" },
+    { title: "Completed Today", value: String(completedToday.length), icon: CheckCircle2, tint: "bg-sky-50 text-sky-600" },
+    { title: "Active Reservations", value: String(activeReservations.length), icon: CalendarClock, tint: "bg-orange-soft text-orange-deep" },
   ];
 
   const handleStatus = async (order, status) => {
@@ -79,20 +47,30 @@ export default function OwnerDashboard() {
     try {
       await restaurantApi.updateOrderStatus(order.id, status);
       const r = await restaurantApi.getOrders();
-      setOrders(r.data.orders);
+      setOrders(r.data.orders || []);
     } catch {
       // ignore; list refreshes next visit
     }
     setActingId(null);
   };
 
-  return (
-    <div className="max-w-6xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
-      <div className="mb-7">
-        <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px]">{greeting()}, {name}</h1>
-        <p className="text-[14px] text-text-muted mt-1">Here's what's happening at your restaurant today.</p>
-      </div>
+  const itemSales = {};
+  orders.forEach((o) => {
+    if (!COMPLETED_STATUSES.includes(o.status)) return;
+    (o.items || []).forEach((i) => {
+      const key = i.menu_item_id ?? i.name;
+      if (!key) return;
+      if (!itemSales[key]) itemSales[key] = { name: i.name, qty: 0 };
+      itemSales[key].qty += Number(i.quantity) || 0;
+    });
+  });
+  const topItems = Object.values(itemSales)
+    .filter((i) => i.qty > 0)
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, 5);
 
+  return (
+    <div className="max-w-6xl">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
         {stats.map((s) => {
           const Icon = s.icon;
@@ -105,7 +83,6 @@ export default function OwnerDashboard() {
                 <div className="min-w-0">
                   <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-light truncate">{s.title}</p>
                   <p className="text-xl font-bold font-mono tracking-tight text-text-primary mt-1 leading-tight">{s.value}</p>
-                  <p className={`text-xs font-medium mt-1 ${s.delta.tone}`}>{s.delta.text}</p>
                 </div>
               </div>
             </div>
@@ -159,7 +136,7 @@ export default function OwnerDashboard() {
                       </p>
                     </div>
                     <p className="col-span-1 md:col-span-4 text-xs text-text-muted truncate">
-                      {order.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")}
+                      {(order.items || []).map((i) => `${i.quantity}× ${i.name}`).join(", ")}
                     </p>
                     <span className="hidden md:inline-block col-span-1 md:col-span-2 justify-self-start">
                       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md">
@@ -199,19 +176,22 @@ export default function OwnerDashboard() {
             </Link>
           </div>
 
-          <div className="divide-y divide-[#F3F4F6]">
-            {MOCK_TOP_ITEMS.map((item, idx) => (
-              <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[#FAFAFA] transition-colors">
-                <img src={item.img} alt={item.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary truncate">{item.name}</p>
-                  <p className="text-xs text-text-muted">{item.sold} sold today</p>
+          {topItems.length === 0 ? (
+            <div className="px-5 py-10 text-center">
+              <p className="text-sm font-medium text-text-primary mb-1">No sales yet</p>
+              <p className="text-xs text-text-muted">Your best sellers will appear once orders are completed.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#F3F4F6]">
+              {topItems.map((item, idx) => (
+                <div key={item.name} className="flex items-center gap-3 px-5 py-3 hover:bg-[#FAFAFA] transition-colors">
+                  <span className={`text-xs font-bold font-mono w-5 ${idx === 0 ? "text-orange-primary" : "text-text-light"}`}>{idx + 1}</span>
+                  <p className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate m-0">{item.name}</p>
+                  <span className="text-xs font-semibold text-text-muted whitespace-nowrap">{item.qty} sold</span>
                 </div>
-                <span className={`text-xs font-bold font-mono w-5 text-right ${idx === 0 ? "text-orange-primary" : "text-text-light"}`}>{idx + 1}</span>
-                <span className="text-sm font-semibold font-mono tracking-tight text-text-primary">{formatPrice(item.price)}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           <div className="p-4 border-t border-border">
             <button

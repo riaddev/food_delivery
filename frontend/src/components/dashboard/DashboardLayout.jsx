@@ -1,7 +1,8 @@
 import { useState } from "react";
 import {
-  Bell, ChevronLeft, ChevronRight, LogOut, Menu, UtensilsCrossed, X,
+  Bell, ChevronLeft, ChevronRight, LogOut, Menu, X,
 } from "lucide-react";
+import Logo from "../Logo";
 
 const SIDEBAR_BG = "#0F1117";
 const ORANGE = "#F97316";
@@ -10,15 +11,10 @@ const Brand = ({ subtitle, collapsed }) => (
   <div
     className={`flex items-center gap-2.5 border-b border-[#1A1D27] ${collapsed ? "justify-center py-5" : "px-[18px] py-5"}`}
   >
-    <div
-      className="w-[34px] h-[34px] rounded-lg flex items-center justify-center shrink-0"
-      style={{ background: ORANGE }}
-    >
-      <UtensilsCrossed size={18} color="#fff" strokeWidth={2} />
-    </div>
+    <Logo size={34} variant="color" iconOnly />
     {!collapsed && (
       <div className="min-w-0">
-        <div className="text-white font-bold text-[16px] leading-tight">SwiftBite</div>
+        <div className="text-white font-bold text-[16px] leading-tight">Swift Bite</div>
         {subtitle && (
           <div className="text-[#4B5563] text-[11px] font-medium uppercase tracking-[0.07em] mt-0.5">
             {subtitle}

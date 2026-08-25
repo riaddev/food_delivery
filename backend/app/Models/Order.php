@@ -12,6 +12,7 @@ class Order extends Model
         'user_id',
         'restaurant_id',
         'rider_id',
+        'accepted_at',
         'status',
         'order_type',
         'total',
@@ -31,6 +32,7 @@ class Order extends Model
         return [
             'total' => 'decimal:2',
             'delivered_at' => 'datetime',
+            'accepted_at' => 'datetime',
         ];
     }
 

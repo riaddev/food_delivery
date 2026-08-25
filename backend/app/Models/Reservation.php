@@ -15,6 +15,7 @@ class Reservation extends Model
         'reservation_date',
         'reservation_time',
         'party_size',
+        'restaurant_table_id',
         'special_requests',
         'status',
     ];
@@ -29,6 +30,11 @@ class Reservation extends Model
     public function restaurant(): BelongsTo
     {
         return $this->belongsTo(Restaurant::class);
+    }
+
+    public function restaurantTable(): BelongsTo
+    {
+        return $this->belongsTo(RestaurantTable::class);
     }
 
     public function user(): BelongsTo

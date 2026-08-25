@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import BackToHome from "../../components/BackToHome";
+import Logo from "../../components/Logo";
 
 const RegisterPage = () => {
   const { registerCustomer } = useAuth();
@@ -33,8 +34,14 @@ const RegisterPage = () => {
       </div>
       <div className="w-full max-w-[420px] mx-5">
         <div className="text-center mb-8">
-          <Link to="/" className="text-[28px] font-extrabold text-[#ff6b35] no-underline">
-            Swift<span className="text-gray-900">Bite</span>
+          <Link to="/" className="no-underline inline-block">
+            <Logo
+              size={40}
+              variant="color"
+              swiftClassName="text-[#ff6b35]"
+              biteClassName="text-gray-900"
+              textClassName="text-[28px] font-extrabold tracking-tight"
+            />
           </Link>
           <p className="text-gray-500 mt-2 text-sm">Create your account and start ordering.</p>
         </div>

@@ -182,7 +182,7 @@ export default function Checkout() {
             <div className="bg-white rounded-2xl border border-zinc-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-extrabold text-lg text-zinc-900">Your Order</h2>
-                <span className="text-sm font-semibold text-[#F97316]">{cart.restaurantName || "SwiftBite"}</span>
+                <span className="text-sm font-semibold text-[#F97316]">{cart.restaurantName || "Swift Bite"}</span>
               </div>
               <div className="divide-y divide-zinc-100">
                 {cart.items.map((item) => (
@@ -229,7 +229,7 @@ export default function Checkout() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm text-zinc-900">{activeType.label}</p>
-                    <p className="text-sm text-zinc-500 truncate">{modeDesc(activeType.id, cart.restaurantName || "SwiftBite")}</p>
+                    <p className="text-sm text-zinc-500 truncate">{modeDesc(activeType.id, cart.restaurantName || "Swift Bite")}</p>
                   </div>
                   <button
                     onClick={() => setTypeEditorOpen(true)}
@@ -257,7 +257,7 @@ export default function Checkout() {
                       />
                       <span className="flex-1">
                         <span className="block font-semibold text-sm text-zinc-900">{type.label}</span>
-                        <span className="block text-xs text-zinc-400 mt-0.5">{modeDesc(type.id, cart.restaurantName || "SwiftBite")}</span>
+                        <span className="block text-xs text-zinc-400 mt-0.5">{modeDesc(type.id, cart.restaurantName || "Swift Bite")}</span>
                       </span>
                     </label>
                   ))}
@@ -336,7 +336,7 @@ export default function Checkout() {
                   <Store size={18} strokeWidth={2.2} className="text-[#F97316] shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-zinc-400">Pick up from</p>
-                    <p className="text-sm font-bold text-zinc-900 mt-0.5 truncate">{cart.restaurantName || "SwiftBite"}</p>
+                    <p className="text-sm font-bold text-zinc-900 mt-0.5 truncate">{cart.restaurantName || "Swift Bite"}</p>
                     <p className="text-xs text-zinc-400 mt-0.5">Order will be ready for pickup</p>
                   </div>
                 </div>
@@ -348,7 +348,7 @@ export default function Checkout() {
                   <Utensils size={18} strokeWidth={2.2} className="text-[#F97316] shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-zinc-400">Dining at</p>
-                    <p className="text-sm font-bold text-zinc-900 mt-0.5 truncate">{cart.restaurantName || "SwiftBite"}</p>
+                    <p className="text-sm font-bold text-zinc-900 mt-0.5 truncate">{cart.restaurantName || "Swift Bite"}</p>
                     <p className="text-xs text-zinc-400 mt-0.5">The restaurant will bring your order to your table.</p>
                   </div>
                 </div>
@@ -406,7 +406,7 @@ export default function Checkout() {
 
           <aside className="bg-white rounded-2xl border border-zinc-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6 md:sticky md:top-6">
             <h2 className="font-extrabold text-lg text-zinc-900">Order Summary</h2>
-            <p className="text-sm font-semibold text-zinc-900 mt-3 mb-3 truncate">{cart.restaurantName || "SwiftBite"}</p>
+            <p className="text-sm font-semibold text-zinc-900 mt-3 mb-3 truncate">{cart.restaurantName || "Swift Bite"}</p>
             <div className="space-y-2 max-h-44 overflow-y-auto pr-1 mb-4">
               {cart.items.map((item) => (
                 <div key={item.menu_item_id} className="flex justify-between text-sm">

@@ -9,19 +9,24 @@ import { authApi, riderApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 
-const bdt = (n) => `\u09F3${n.toLocaleString("en-US")}`;
-
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", path: "/rider/dashboard", icon: LayoutDashboard, exact: true },
 ];
 
-const MOCK_REQUESTS = [
-  { id: "REQ-2041", pickup: "Dhanmondi 27", dropoff: "Gulshan 2", distance: "3.5 km", payout: 60 },
-  { id: "REQ-2042", pickup: "Banani 11", dropoff: "Uttara Sector 7", distance: "5.2 km", payout: 85 },
-  { id: "REQ-2043", pickup: "Mirpur 10", dropoff: "Bashundhara R/A", distance: "4.1 km", payout: 70 },
-];
+const KITCHEN_STATUS_LABEL = {
+  confirmed: "Confirmed",
+  preparing: "Preparing",
+  ready: "Ready for pickup",
+};
 
-const MAPS_MOCK_URL = "https://www.google.com/maps/dir/?api=1&destination=23.8103,90.4125";
+const mapsUrl = (destination) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination || "")}`;
+
+const assignmentWhen = (o) => {
+  const start = new Date(`${String(o.created_at).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return "";
+  return start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
 
 export default function RiderDashboard() {
   const { user, logout } = useAuth();
@@ -29,13 +34,11 @@ export default function RiderDashboard() {
 
   const [online, setOnline] = useState(() => Boolean(user?.rider?.is_online));
   const [onlineBusy, setOnlineBusy] = useState(false);
-  const [pickedUp, setPickedUp] = useState(false);
-  const [activeOrder, setActiveOrder] = useState(null);
-  const [requests, setRequests] = useState(MOCK_REQUESTS);
-  const [earnings, setEarnings] = useState(1250);
-  const [completed, setCompleted] = useState(5);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionBusyId, setActionBusyId] = useState(null);
 
-  const name = user?.name || "Rafi Ahmed";
+  const name = user?.name || "Rider";
   const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
   const handleLogout = async () => { await logout(); navigate("/"); };
@@ -53,6 +56,15 @@ export default function RiderDashboard() {
     };
   }, []);
 
+  const loadOrders = () => {
+    riderApi.getOrders()
+      .then((res) => setOrders(res.data.orders || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadOrders(); }, []);
+
   const toggleOnline = async (value) => {
     if (onlineBusy || value === online) return;
     setOnlineBusy(true);
@@ -66,26 +78,43 @@ export default function RiderDashboard() {
     }
   };
 
-  const accept = (req) => {
-    setActiveOrder({ ...req, orderId: "ORD-1024", restaurant: "Chillox" });
-    setRequests((prev) => prev.filter((r) => r.id !== req.id));
-    setPickedUp(false);
+  const runAction = async (orderId, action) => {
+    setActionBusyId(orderId);
+    try {
+      await action();
+      await riderApi.getOrders().then((res) => setOrders(res.data.orders || []));
+    } catch {
+      /* keep previous state; error surfaces next reload */
+    } finally {
+      setActionBusyId(null);
+    }
   };
 
-  const reject = (req) => {
-    setRequests((prev) => prev.filter((r) => r.id !== req.id));
-  };
+  const accept = (order) => runAction(order.id, () => riderApi.acceptOrder(order.id));
+  const markPickedUp = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "picked_up"));
+  const startDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "on_the_way"));
+  const completeDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "delivered"));
 
-  const completeDelivery = () => {
-    setEarnings((e) => e + (activeOrder?.payout || 0));
-    setCompleted((c) => c + 1);
-    setActiveOrder(null);
-    setPickedUp(false);
-  };
+  const requests = orders.filter(
+    (o) => !o.accepted_at && ["confirmed", "preparing", "ready"].includes(o.status)
+  );
+  const activeOrder =
+    orders.find(
+      (o) => o.accepted_at && !["delivered", "cancelled"].includes(o.status)
+    ) || null;
+
+  const todayKey = new Date().toDateString();
+  const todaysDelivered = orders.filter(
+    (o) => o.delivered_at && new Date(o.delivered_at).toDateString() === todayKey
+  );
+  const earningsToday = todaysDelivered.reduce(
+    (sum, o) => sum + Number(o.delivery_fee || 0),
+    0
+  );
 
   const stats = [
-    { title: "Today's Earnings", value: bdt(earnings), icon: TrendingUp, tint: "bg-emerald-50 text-emerald-600" },
-    { title: "Completed Today", value: String(completed), icon: CheckCircle2, tint: "bg-sky-50 text-sky-600" },
+    { title: "Today's Earnings", value: formatPrice(earningsToday), icon: TrendingUp, tint: "bg-emerald-50 text-emerald-600" },
+    { title: "Completed Today", value: String(todaysDelivered.length), icon: CheckCircle2, tint: "bg-sky-50 text-sky-600" },
     { title: "Active Order", value: activeOrder ? "1" : "0", icon: Bike, tint: "bg-orange-soft text-orange-deep" },
   ];
 
@@ -128,8 +157,8 @@ export default function RiderDashboard() {
       title="Rider Dashboard"
       subtitle={
         online
-          ? "You're online — new delivery requests appear below."
-          : "You're offline. Go online to start receiving requests."
+          ? "You're online — new delivery assignments appear below."
+          : "You're offline. Go online to start receiving deliveries."
       }
       userName={name}
       userRole="Rider"
@@ -158,185 +187,258 @@ export default function RiderDashboard() {
         </div>
       }
     >
-      <div className="max-w-6xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-8">
-          {stats.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div key={s.title} className="bg-card rounded-[13px] border border-border p-5">
-                <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${s.tint}`}>
-                    <Icon size={18} strokeWidth={2} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-light truncate">{s.title}</p>
-                    <p className="text-xl font-bold font-mono tracking-tight text-text-primary mt-1 leading-tight">{s.value}</p>
-                  </div>
+      <div className="max-w-6xl">
+        {loading ? (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-card rounded-[13px] border border-border p-5 animate-pulse">
+                  <div className="h-10 w-10 rounded-full bg-zinc-100 mb-3" />
+                  <div className="h-3 bg-zinc-100 rounded w-24 mb-2" />
+                  <div className="h-5 bg-zinc-100 rounded w-16" />
                 </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {!online ? (
-          <section className="bg-card rounded-[13px] border border-border">
-            <div className="px-5 py-16 text-center">
-              <div className="w-11 h-11 mx-auto rounded-full bg-orange-soft flex items-center justify-center text-orange-deep mb-3">
-                <Zap size={19} />
-              </div>
-              <p className="text-sm font-medium text-text-primary mb-1">You're offline</p>
-              <p className="text-xs text-text-muted mb-4">Toggle Online to start receiving delivery requests.</p>
-              <button
-                onClick={() => toggleOnline(true)}
-                disabled={onlineBusy}
-                className="inline-flex items-center gap-1.5 bg-orange-primary hover:bg-orange-deep text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors cursor-pointer font-outfit disabled:opacity-50"
-              >
-                Go Online
-              </button>
+              ))}
             </div>
-          </section>
-        ) : activeOrder ? (
-          <section className="bg-card rounded-[13px] border border-border overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
-              <div>
-                <p className="text-[11px] font-bold tracking-widest uppercase text-text-light">Active Delivery</p>
-                <p className="text-sm font-bold text-text-primary mt-0.5">
-                  #{activeOrder.orderId} <span className="text-text-light font-medium">·</span>{" "}
-                  <span className="text-orange-primary">{activeOrder.restaurant}</span>
-                </p>
-              </div>
-              <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md ${pickedUp ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${pickedUp ? "bg-emerald-500" : "bg-amber-500"}`} />
-                {pickedUp ? "On the way" : "Awaiting pickup"}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
-              <div className="bg-surface rounded-[13px] p-4 border border-border">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <span className="w-8 h-8 rounded-full bg-orange-soft text-orange-deep flex items-center justify-center shrink-0">
-                    <MapPin size={15} />
-                  </span>
-                  <div>
-                    <p className="text-xs font-semibold text-text-primary">Step 1 · Pickup</p>
-                    <p className="text-[11px] text-text-muted">{activeOrder.restaurant}</p>
-                  </div>
-                </div>
-                <p className="text-xs text-text-muted mb-3">{activeOrder.pickup}</p>
-                <button
-                  onClick={() => setPickedUp(true)}
-                  disabled={pickedUp}
-                  className="w-full bg-text-primary hover:bg-black disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
-                >
-                  {pickedUp ? "Picked Up" : "Mark as Picked Up"}
-                </button>
-              </div>
-
-              <div className="bg-surface rounded-[13px] p-4 border border-border">
-                <div className="flex items-center gap-2.5 mb-2">
-                  <span className="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
-                    <Home size={15} />
-                  </span>
-                  <div>
-                    <p className="text-xs font-semibold text-text-primary">Step 2 · Drop-off</p>
-                    <p className="text-[11px] text-text-muted">Customer</p>
-                  </div>
-                </div>
-                <p className="text-xs text-text-muted mb-3">{activeOrder.dropoff}</p>
-                <button
-                  onClick={completeDelivery}
-                  disabled={!pickedUp}
-                  className="w-full bg-zinc-300 text-zinc-500 disabled:cursor-not-allowed enabled:bg-text-primary enabled:hover:bg-black enabled:text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
-                >
-                  Mark as Delivered
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-border bg-surface/60">
-              <div className="flex items-center gap-4 text-xs">
-                <span className="text-text-muted">Distance <b className="text-text-primary">{activeOrder.distance}</b></span>
-                <span className="text-text-muted">Payout <b className="text-emerald-600 font-mono">{formatPrice(activeOrder.payout)}</b></span>
-              </div>
-              <a
-                href={MAPS_MOCK_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 bg-orange-primary hover:bg-orange-deep text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors font-outfit"
-              >
-                <Navigation size={14} />
-                Navigate
-              </a>
-            </div>
-          </section>
+            <div className="bg-card rounded-[13px] border border-border h-40 animate-pulse" />
+          </div>
         ) : (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[15px] font-bold text-text-primary">New Delivery Requests</h2>
-              {requests.length > 0 && (
-                <span className="text-xs font-semibold text-text-muted">{requests.length} available</span>
-              )}
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-8">
+              {stats.map((s) => {
+                const Icon = s.icon;
+                return (
+                  <div key={s.title} className="bg-card rounded-[13px] border border-border p-5">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${s.tint}`}>
+                        <Icon size={18} strokeWidth={2} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-light truncate">{s.title}</p>
+                        <p className="text-xl font-bold font-mono tracking-tight text-text-primary mt-1 leading-tight">{s.value}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {requests.length === 0 ? (
-              <div className="bg-card rounded-[13px] border border-border">
+            {!online ? (
+              <section className="bg-card rounded-[13px] border border-border">
                 <div className="px-5 py-16 text-center">
                   <div className="w-11 h-11 mx-auto rounded-full bg-orange-soft flex items-center justify-center text-orange-deep mb-3">
-                    <Bike size={19} />
+                    <Zap size={19} />
                   </div>
-                  <p className="text-sm font-medium text-text-primary mb-1">No delivery requests</p>
-                  <p className="text-xs text-text-muted">New requests will appear here as restaurants confirm orders.</p>
+                  <p className="text-sm font-medium text-text-primary mb-1">You're offline</p>
+                  <p className="text-xs text-text-muted mb-4">Toggle Online to start receiving delivery assignments.</p>
+                  <button
+                    onClick={() => toggleOnline(true)}
+                    disabled={onlineBusy}
+                    className="inline-flex items-center gap-1.5 bg-orange-primary hover:bg-orange-deep text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors cursor-pointer font-outfit disabled:opacity-50"
+                  >
+                    Go Online
+                  </button>
                 </div>
-              </div>
+              </section>
+            ) : activeOrder ? (
+              <section className="bg-card rounded-[13px] border border-border overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-border">
+                  <div>
+                    <p className="text-[11px] font-bold tracking-widest uppercase text-text-light">Active Delivery</p>
+                    <p className="text-sm font-bold text-text-primary mt-0.5">
+                      #{activeOrder.id} <span className="text-text-light font-medium">·</span>{" "}
+                      <span className="text-orange-primary">{activeOrder.restaurant?.name || "Restaurant"}</span>
+                    </p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md ${
+                    activeOrder.status === "picked_up" ? "bg-sky-50 text-sky-700"
+                      : activeOrder.status === "on_the_way" ? "bg-indigo-50 text-indigo-700"
+                        : "bg-amber-50 text-amber-700"
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      activeOrder.status === "picked_up" ? "bg-sky-500"
+                        : activeOrder.status === "on_the_way" ? "bg-indigo-500"
+                          : "bg-amber-500"
+                    }`} />
+                    {activeOrder.status === "picked_up" ? "Picked up"
+                      : activeOrder.status === "on_the_way" ? "On the way"
+                        : "Awaiting pickup"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
+                  <div className="bg-surface rounded-[13px] p-4 border border-border">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <span className="w-8 h-8 rounded-full bg-orange-soft text-orange-deep flex items-center justify-center shrink-0">
+                        <MapPin size={15} />
+                      </span>
+                      <div>
+                        <p className="text-xs font-semibold text-text-primary">Pickup</p>
+                        <p className="text-[11px] text-text-muted truncate">{activeOrder.restaurant?.name}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-text-muted mb-3">{activeOrder.restaurant?.address || "—"}</p>
+
+                    {activeOrder.status !== "ready" && activeOrder.status !== "picked_up" && activeOrder.status !== "on_the_way" ? (
+                      <>
+                        <button
+                          disabled
+                          className="w-full bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg cursor-not-allowed font-outfit"
+                        >
+                          Mark as Picked Up
+                        </button>
+                        <p className="text-[11px] text-text-muted text-center mt-2 m-0">
+                          Waiting for {activeOrder.restaurant?.name} — kitchen status:{" "}
+                          <b className="text-text-primary">{KITCHEN_STATUS_LABEL[activeOrder.status] || activeOrder.status}</b>
+                        </p>
+                      </>
+                    ) : activeOrder.status === "ready" ? (
+                      <button
+                        onClick={() => markPickedUp(activeOrder)}
+                        disabled={actionBusyId === activeOrder.id}
+                        className="w-full bg-text-primary hover:bg-black disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
+                      >
+                        {actionBusyId === activeOrder.id ? "Updating..." : "Mark as Picked Up"}
+                      </button>
+                    ) : null}
+
+                    {activeOrder.items?.length > 0 && (
+                      <p className="text-[11px] text-text-muted mt-3 mb-0 truncate">
+                        {activeOrder.items.map((i) => `${i.quantity}× ${i.name}`).join(", ")}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="bg-surface rounded-[13px] p-4 border border-border">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <span className="w-8 h-8 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center shrink-0">
+                        <Home size={15} />
+                      </span>
+                      <div>
+                        <p className="text-xs font-semibold text-text-primary">Drop-off</p>
+                        <p className="text-[11px] text-text-muted truncate">{activeOrder.customer_name || "Customer"}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-text-muted mb-3">{activeOrder.delivery_address || "—"}</p>
+
+                    {activeOrder.status === "picked_up" ? (
+                      <button
+                        onClick={() => startDelivery(activeOrder)}
+                        disabled={actionBusyId === activeOrder.id}
+                        className="w-full bg-text-primary hover:bg-black disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
+                      >
+                        {actionBusyId === activeOrder.id ? "Updating..." : "Start Delivery"}
+                      </button>
+                    ) : activeOrder.status === "on_the_way" ? (
+                      <button
+                        onClick={() => completeDelivery(activeOrder)}
+                        disabled={actionBusyId === activeOrder.id}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
+                      >
+                        {actionBusyId === activeOrder.id ? "Updating..." : "Mark as Delivered"}
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="w-full bg-zinc-300 text-zinc-500 disabled:cursor-not-allowed text-xs font-bold py-2.5 rounded-lg cursor-not-allowed font-outfit"
+                      >
+                        Mark as Delivered
+                      </button>
+                    )}
+
+                    {activeOrder.delivery_instructions && (
+                      <p className="text-[11px] text-text-muted mt-3 mb-0 italic">"{activeOrder.delivery_instructions}"</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-t border-border bg-surface/60">
+                  <span className="text-xs text-text-muted">
+                    Payout <b className="text-emerald-600 font-mono">{formatPrice(Number(activeOrder.delivery_fee || 0))}</b>
+                  </span>
+                  <a
+                    href={mapsUrl(activeOrder.restaurant?.address || activeOrder.delivery_address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 bg-orange-primary hover:bg-orange-deep text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-colors font-outfit no-underline"
+                  >
+                    <Navigation size={14} />
+                    Navigate
+                  </a>
+                </div>
+              </section>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-                {requests.map((req) => (
-                  <div key={req.id} className="bg-card rounded-[13px] border border-border p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-xs font-bold tracking-widest uppercase text-text-light font-mono">{req.id}</p>
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-mono">
-                        <TrendingUp size={12} />
-                        {formatPrice(req.payout)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-4">
-                      <div className="bg-surface rounded-xl p-3 border border-border">
-                        <p className="text-[11px] font-semibold text-text-light mb-1 flex items-center gap-1">
-                          <MapPin size={11} className="text-orange-primary" /> Pickup
-                        </p>
-                        <p className="text-xs font-medium text-text-primary">{req.pickup}</p>
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-[15px] font-bold text-text-primary">New Delivery Assignments</h2>
+                  {requests.length > 0 && (
+                    <span className="text-xs font-semibold text-text-muted">{requests.length} waiting</span>
+                  )}
+                </div>
+
+                {requests.length === 0 ? (
+                  <div className="bg-card rounded-[13px] border border-border">
+                    <div className="px-5 py-16 text-center">
+                      <div className="w-11 h-11 mx-auto rounded-full bg-orange-soft flex items-center justify-center text-orange-deep mb-3">
+                        <Bike size={19} />
                       </div>
-                      <div className="bg-surface rounded-xl p-3 border border-border">
-                        <p className="text-[11px] font-semibold text-text-light mb-1 flex items-center gap-1">
-                          <Home size={11} className="text-sky-600" /> Drop-off
-                        </p>
-                        <p className="text-xs font-medium text-text-primary">{req.dropoff}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-muted">
-                        <Navigation size={12} className="text-text-light" /> {req.distance}
-                      </span>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => reject(req)}
-                          className="px-4 py-2 rounded-lg text-xs font-semibold border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer font-outfit"
-                        >
-                          Reject
-                        </button>
-                        <button
-                          onClick={() => accept(req)}
-                          className="px-4 py-2 rounded-lg text-xs font-semibold bg-orange-primary hover:bg-orange-deep text-white transition-colors cursor-pointer font-outfit"
-                        >
-                          Accept
-                        </button>
-                      </div>
+                      <p className="text-sm font-medium text-text-primary mb-1">No delivery assignments</p>
+                      <p className="text-xs text-text-muted">New assignments will appear here once an admin assigns you.</p>
                     </div>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+                    {requests.map((order) => (
+                      <div key={order.id} className="bg-card rounded-[13px] border border-border p-5">
+                        <div className="flex items-center justify-between mb-4">
+                          <p className="text-xs font-bold tracking-widest uppercase text-text-light font-mono">
+                            #{order.id}{assignmentWhen(order) ? ` · ${assignmentWhen(order)}` : ""}
+                          </p>
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md font-mono">
+                            <TrendingUp size={12} />
+                            {formatPrice(Number(order.delivery_fee || 0))}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          <div className="bg-surface rounded-xl p-3 border border-border min-w-0">
+                            <p className="text-[11px] font-semibold text-text-light mb-1 flex items-center gap-1">
+                              <MapPin size={11} className="text-orange-primary" /> Pickup ·{" "}
+                              <span className="truncate normal-case">{KITCHEN_STATUS_LABEL[order.status] || order.status}</span>
+                            </p>
+                            <p className="text-xs font-medium text-text-primary truncate">{order.restaurant?.name}</p>
+                            <p className="text-[11px] text-text-muted truncate">{order.restaurant?.address}</p>
+                          </div>
+                          <div className="bg-surface rounded-xl p-3 border border-border min-w-0">
+                            <p className="text-[11px] font-semibold text-text-light mb-1 flex items-center gap-1">
+                              <Home size={11} className="text-sky-600" /> Drop-off
+                            </p>
+                            <p className="text-xs font-medium text-text-primary truncate">{order.customer_name || "Customer"}</p>
+                            <p className="text-[11px] text-text-muted truncate">{order.delivery_address}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-3">
+                          <a
+                            href={mapsUrl(order.restaurant?.address)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-muted hover:text-orange-primary transition-colors no-underline"
+                          >
+                            <Navigation size={12} /> Map
+                          </a>
+                          <button
+                            onClick={() => accept(order)}
+                            disabled={actionBusyId === order.id}
+                            className="px-4 py-2 rounded-lg text-xs font-semibold bg-orange-primary hover:bg-orange-deep text-white transition-colors cursor-pointer font-outfit disabled:opacity-50"
+                          >
+                            {actionBusyId === order.id ? "Accepting..." : "Accept Delivery"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             )}
-          </section>
+          </>
         )}
       </div>
     </DashboardLayout>

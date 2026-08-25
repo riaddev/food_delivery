@@ -38,7 +38,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <div className="max-w-2xl">
       <div className="space-y-5">
         <div className="bg-card rounded-[13px] border border-border p-7">
           <h2 className="text-[15px] font-bold text-text-primary mb-6">Notifications</h2>

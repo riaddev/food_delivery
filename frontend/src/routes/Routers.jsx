@@ -24,15 +24,18 @@ import OrdersManagement from "../pages/RestaurantDashboard/OrdersManagement";
 import MenuManagement from "../pages/RestaurantDashboard/MenuManagement";
 import EditProfile from "../pages/RestaurantDashboard/EditProfile";
 import Reservations from "../pages/RestaurantDashboard/Reservations";
+import TableManagement from "../pages/RestaurantDashboard/TableManagement";
 import {
   AboutPage, CareersPage, PressPage, BlogPage, GiftCardsPage,
   BecomeRiderPage, RiderAppPage, EarningsPage, CommunityPage,
   SupportPage, PrivacyPage, TermsPage, CookiesPage,
 } from "../pages/StaticPages";
+import ChatWidget from "../components/ChatWidget";
 
 export default function Routers() {
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -109,6 +112,7 @@ export default function Routers() {
         <Route index element={<OwnerDashboard />} />
         <Route path="orders" element={<OrdersManagement />} />
         <Route path="reservations" element={<Reservations />} />
+        <Route path="tables" element={<TableManagement />} />
         <Route path="menu" element={<MenuManagement />} />
         <Route path="profile" element={<EditProfile />} />
         <Route path="analytics" element={<Analytics />} />
@@ -122,6 +126,8 @@ export default function Routers() {
           </ProtectedRoute>
         }
       />
-    </Routes>
+      </Routes>
+      <ChatWidget />
+    </>
   );
 }

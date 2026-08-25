@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Store, Save, ImagePlus, X } from "lucide-react";
+import { Save, ImagePlus, X } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import api from "../../features/api/apiSlice";
 
@@ -63,18 +63,8 @@ export default function EditProfile() {
   const labelCls = "block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-light mb-0.5";
 
   return (
-    <div className="max-w-2xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <div className="max-w-2xl">
       <form onSubmit={handleSubmit} className="bg-card rounded-[13px] border border-border p-8 space-y-7">
-        <div className="flex items-center gap-4 pb-2">
-          <div className="w-12 h-12 rounded-2xl bg-orange-soft text-orange-deep flex items-center justify-center">
-            <Store size={22} />
-          </div>
-          <div>
-            <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px]">Restaurant Profile</h1>
-            <p className="text-[13px] text-text-muted">Keep your storefront details fresh for customers.</p>
-          </div>
-        </div>
-
         {message && (
           <div className={`text-sm px-4 py-3 rounded-2xl ${message.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
             {message.text}

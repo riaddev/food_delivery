@@ -85,18 +85,13 @@ export default function OrdersManagement() {
   }
 
   return (
-    <div className="max-w-5xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
-      <div className="mb-7">
-        <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px]">Live Orders</h1>
-        <p className="text-[14px] text-text-muted mt-1">Track and update every order coming in.</p>
-      </div>
-
+    <div className="max-w-5xl">
       <div className="flex gap-2.5 mb-8 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${filter === "all" ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
+        <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${filter === "all" ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
           All ({orders.length})
         </button>
         {filters.filter((f) => f !== "all").map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap capitalize transition-all cursor-pointer ${filter === f ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
+          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap capitalize transition-all cursor-pointer ${filter === f ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
             {f.replace(/_/g, " ")}
           </button>
         ))}

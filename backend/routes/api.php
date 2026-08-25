@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RestaurantController;
@@ -27,6 +28,7 @@ Route::get('/restaurants/{id}', [RestaurantController::class, 'publicShow']);
 Route::get('/restaurants/{id}/reviews', [RestaurantController::class, 'publicReviews']);
 Route::get('/categories', [RestaurantController::class, 'publicCategories']);
 Route::post('/reservations', [ReservationController::class, 'store']);
+Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:15,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/owner/set-password', [AuthController::class, 'setSetupPassword']);
@@ -89,6 +91,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/orders/{id}/status', [RestaurantController::class, 'updateOrderStatus']);
         Route::get('/reservations', [ReservationController::class, 'restaurantIndex']);
         Route::put('/reservations/{id}/status', [ReservationController::class, 'updateStatus']);
+        Route::put('/reservations/{id}/table', [ReservationController::class, 'assignTable']);
+        Route::get('/tables', [RestaurantController::class, 'tables']);
+        Route::post('/tables', [RestaurantController::class, 'createTable']);
+        Route::put('/tables/{id}', [RestaurantController::class, 'updateTable']);
+        Route::put('/tables/{id}/status', [RestaurantController::class, 'updateTableStatus']);
         Route::get('/menu-items', [RestaurantController::class, 'menuItems']);
         Route::post('/menu-items', [RestaurantController::class, 'createMenuItem']);
         Route::put('/menu-items/{id}', [RestaurantController::class, 'updateMenuItem']);
@@ -97,6 +104,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('role:rider')->prefix('/rider')->group(function () {
         Route::put('/availability', [RiderController::class, 'setAvailability']);
+        Route::get('/orders', [RiderController::class, 'orders']);
+        Route::post('/orders/{id}/accept', [RiderController::class, 'acceptOrder']);
+        Route::put('/orders/{id}/status', [RiderController::class, 'updateStatus']);
     });
 
     Route::middleware('role:admin')->prefix('/admin')->group(function () {

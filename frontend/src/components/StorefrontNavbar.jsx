@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, UtensilsCrossed } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
+import Logo from "./Logo";
 
 const NAV_LINKS = [
   { to: "/", label: "Home" },
@@ -34,12 +35,13 @@ export default function StorefrontNavbar() {
   return (
     <header className="sticky top-0 z-[1000] py-3 bg-white border-b border-zinc-100 shadow-[0_4px_24px_rgba(0,0,0,0.06)]">
       <div className="max-w-[1240px] mx-auto px-4 md:px-8 flex items-center justify-between gap-5">
-        <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 font-extrabold text-[19px] tracking-tight shrink-0">
-          <span className="w-[34px] h-[34px] rounded-[10px] bg-gradient-to-br from-[#FF8C00] to-[#FF6B00] flex items-center justify-center text-white shadow-[0_4px_16px_rgba(255,107,0,0.4)]">
-            <UtensilsCrossed size={16} strokeWidth={2.2} />
-          </span>
-          <span className="text-gray-900">Swift</span>
-          <span className="text-[#FF6B00]">Bite</span>
+        <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 shrink-0 outline-none focus:outline-none">
+          <Logo
+            size={34}
+            variant="color"
+            swiftClassName="text-gray-900"
+            biteClassName="text-[#FF6B00]"
+          />
         </Link>
 
         <nav className="hidden lg:flex items-center gap-8">

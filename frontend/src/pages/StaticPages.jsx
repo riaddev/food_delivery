@@ -1,12 +1,19 @@
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import Logo from "../components/Logo";
 
 const StaticPage = ({ title, eyebrow, intro, sections = [], cta, meta }) => (
   <div className="min-h-screen bg-[#F8F9FA] flex flex-col">
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-zinc-100">
       <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-extrabold text-lg tracking-tight text-[#ff6a2b]">
-          Swift<span className="text-zinc-900">Bite</span>
+        <Link to="/" className="flex items-center gap-2 shrink-0 outline-none focus:outline-none">
+          <Logo
+            size={32}
+            variant="color"
+            swiftClassName="text-[#ff6a2b]"
+            biteClassName="text-zinc-900"
+            textClassName="text-lg font-extrabold tracking-tight"
+          />
         </Link>
         <div className="flex items-center gap-3">
           <Link to="/restaurants" className="hidden sm:inline text-sm font-semibold text-zinc-600 hover:text-[#ff6a2b] transition">
@@ -67,7 +74,7 @@ const StaticPage = ({ title, eyebrow, intro, sections = [], cta, meta }) => (
 
     <footer className="border-t border-zinc-200 bg-white">
       <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-6 text-center text-xs text-zinc-500">
-        © 2026 SwiftBite Technologies. All rights reserved.
+        © 2026 Swift Bite Technologies. All rights reserved.
       </div>
     </footer>
   </div>
@@ -75,14 +82,14 @@ const StaticPage = ({ title, eyebrow, intro, sections = [], cta, meta }) => (
 
 const about = {
   eyebrow: "Our Story",
-  title: "About SwiftBite",
+  title: "About Swift Bite",
   intro:
-    "SwiftBite is a food delivery platform built for Dhaka — connecting hungry customers, local restaurants, and riders on a single smart platform.",
+    "Swift Bite is a food delivery platform built for Dhaka — connecting hungry customers, local restaurants, and riders on a single smart platform.",
   sections: [
     {
       heading: "Who we are",
       body: [
-        "SwiftBite started with a simple frustration: ordering food in the city meant juggling phone calls, paper menus, and hour-long waits. We set out to fix that with a platform that is fast, transparent, and built for how Bangladesh actually eats.",
+        "Swift Bite started with a simple frustration: ordering food in the city meant juggling phone calls, paper menus, and hour-long waits. We set out to fix that with a platform that is fast, transparent, and built for how Bangladesh actually eats.",
       ],
     },
     {
@@ -105,7 +112,7 @@ const about = {
 
 const careers = {
   eyebrow: "Join Us",
-  title: "Careers at SwiftBite",
+  title: "Careers at Swift Bite",
   intro: "We're a small, fast-moving team shipping a product millions of people will use. If you like ownership, speed, and good food, we want to meet you.",
   sections: [
     {
@@ -138,14 +145,14 @@ const careers = {
 const press = {
   eyebrow: "Media",
   title: "Press & Media",
-  intro: "News, announcements, and resources for journalists covering SwiftBite.",
+  intro: "News, announcements, and resources for journalists covering Swift Bite.",
   sections: [
     {
       heading: "Recent announcements",
       list: [
-        "Aug 2026 — SwiftBite launches live order tracking across all partner restaurants.",
+        "Aug 2026 — Swift Bite launches live order tracking across all partner restaurants.",
         "Jun 2026 — New rider app with earnings dashboard ships to 400+ riders in Dhaka.",
-        "Apr 2026 — SwiftBite crosses 1,000 partner restaurants and 12,000 weekly orders.",
+        "Apr 2026 — Swift Bite crosses 1,000 partner restaurants and 12,000 weekly orders.",
       ],
     },
     {
@@ -160,7 +167,7 @@ const press = {
 
 const blog = {
   eyebrow: "Blog",
-  title: "The SwiftBite Blog",
+  title: "The Swift Bite Blog",
   intro: "Stories from the kitchen, the road, and the office.",
   sections: [
     {
@@ -169,7 +176,7 @@ const blog = {
         "Behind the scenes: how our riders beat Dhaka traffic (Aug 2026)",
         "5 restaurants in Old Dhaka serving legendary kacchi (Jul 2026)",
         "What 12,000 weekly orders taught us about delivery (Jun 2026)",
-        "A day in the life of a SwiftBite rider (May 2026)",
+        "A day in the life of a Swift Bite rider (May 2026)",
       ],
     },
     {
@@ -179,13 +186,13 @@ const blog = {
       ],
     },
   ],
-  cta: { title: "Get the full story", sub: "Learn how SwiftBite became Dhaka's favorite delivery app.", label: "Read Our Story", to: "/about" },
+  cta: { title: "Get the full story", sub: "Learn how Swift Bite became Dhaka's favorite delivery app.", label: "Read Our Story", to: "/about" },
 };
 
 const giftCards = {
   eyebrow: "Gifts",
   title: "Gift Cards",
-  intro: "Give the gift of great food. SwiftBite gift cards work on any restaurant in the app — no expiry, no hassle.",
+  intro: "Give the gift of great food. Swift Bite gift cards work on any restaurant in the app — no expiry, no hassle.",
   sections: [
     {
       heading: "How it works",
@@ -213,7 +220,7 @@ const becomeRider = {
   intro: "Earn on your own schedule with transparent payouts, live order routing, and a team that actually answers when you call.",
   sections: [
     {
-      heading: "Why ride with SwiftBite",
+      heading: "Why ride with Swift Bite",
       list: [
         "Earn per delivery plus peak-hour bonuses.",
         "Flexible hours — dash when you want.",
@@ -260,7 +267,7 @@ const riderApp = {
       ],
     },
   ],
-  cta: { title: "Get on the road", sub: "Apply to become a SwiftBite rider today.", label: "Apply as a Rider", to: "/signup/rider" },
+  cta: { title: "Get on the road", sub: "Apply to become a Swift Bite rider today.", label: "Apply as a Rider", to: "/signup/rider" },
 };
 
 const earnings = {
@@ -310,7 +317,7 @@ const community = {
       ],
     },
   ],
-  cta: { title: "Become part of the family", sub: "Ride with SwiftBite and join the community.", label: "Apply as a Rider", to: "/signup/rider" },
+  cta: { title: "Become part of the family", sub: "Ride with Swift Bite and join the community.", label: "Apply as a Rider", to: "/signup/rider" },
 };
 
 const support = {
@@ -340,7 +347,7 @@ const support = {
 const privacy = {
   eyebrow: "Legal",
   title: "Privacy Policy",
-  intro: "This policy explains what information SwiftBite collects, why we collect it, and how you stay in control.",
+  intro: "This policy explains what information Swift Bite collects, why we collect it, and how you stay in control.",
   meta: "Last updated: August 2026",
   sections: [
     {
@@ -373,13 +380,13 @@ const privacy = {
 const terms = {
   eyebrow: "Legal",
   title: "Terms of Service",
-  intro: "These terms govern your use of the SwiftBite platform — as a customer, restaurant partner, or rider.",
+  intro: "These terms govern your use of the Swift Bite platform — as a customer, restaurant partner, or rider.",
   meta: "Last updated: August 2026",
   sections: [
     {
       heading: "Using the service",
       body: [
-        "You must be at least 13 years old to use SwiftBite, and orders placed on your account are your responsibility. You agree to provide accurate delivery details.",
+        "You must be at least 13 years old to use Swift Bite, and orders placed on your account are your responsibility. You agree to provide accurate delivery details.",
       ],
     },
     {
@@ -391,13 +398,13 @@ const terms = {
     {
       heading: "Restaurant partners",
       body: [
-        "Partners commit to accurate menus, availability, and food safety. SwiftBite may suspend accounts that repeatedly fail delivery commitments.",
+        "Partners commit to accurate menus, availability, and food safety. Swift Bite may suspend accounts that repeatedly fail delivery commitments.",
       ],
     },
     {
       heading: "Liability",
       body: [
-        "SwiftBite is a platform connecting customers, restaurants, and riders. We work to resolve every issue fairly but are not the seller of the food itself.",
+        "Swift Bite is a platform connecting customers, restaurants, and riders. We work to resolve every issue fairly but are not the seller of the food itself.",
       ],
     },
   ],
@@ -406,7 +413,7 @@ const terms = {
 const cookies = {
   eyebrow: "Legal",
   title: "Cookie Policy",
-  intro: "Cookies help SwiftBite remember your cart, keep you signed in, and make the app faster for everyone.",
+  intro: "Cookies help Swift Bite remember your cart, keep you signed in, and make the app faster for everyone.",
   meta: "Last updated: August 2026",
   sections: [
     {

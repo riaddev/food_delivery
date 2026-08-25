@@ -1,11 +1,16 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  User, Mail, Phone, Store, MapPin, UtensilsCrossed, CheckCircle,
+  User, Mail, Phone, Store, MapPin, CheckCircle,
   TrendingUp, Bike, Users, ArrowLeft, Clock, ImagePlus, X,
   FileText, ClipboardCheck, BadgeCheck, LockKeyhole,
 } from "lucide-react";
 import { authApi } from "../../features/api/apiSlice";
+import Logo from "../../components/Logo";
+
+const BG = "https://images.unsplash.com/photo-1577308856961-8e9ec50d0c67?q=80&w=1920&auto=format&fit=crop";
+
+const FOOD_ICONS = ["🍔", "🍕", "🍜", "🌮", "🥗", "🍰"];
 
 const CUISINE_OPTIONS = [
   "Bangladeshi", "Biryani", "Chinese", "Indian", "Fast Food",
@@ -23,10 +28,10 @@ const TERMS = [
 ];
 
 const inputClasses =
-  "w-full pl-10 pr-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400";
+  "w-full pl-10 pr-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/15 transition-colors bg-white placeholder:text-zinc-400";
 
 const inputErrorClasses =
-  "w-full pl-10 pr-3.5 py-2.5 border border-red-400 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400";
+  "w-full pl-10 pr-3.5 py-2.5 border border-red-400 rounded-xl text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/15 transition-colors bg-white placeholder:text-zinc-400";
 
 const fieldLabel = "block text-sm font-semibold text-zinc-700 mb-1.5";
 
@@ -36,8 +41,8 @@ const sectionTitle =
 const chipClasses = (active) =>
   `px-4 py-2 rounded-full text-sm font-medium border transition-colors cursor-pointer ${
     active
-      ? "bg-[#E03546] text-white border-[#E03546]"
-      : "bg-white text-zinc-600 border-zinc-200 hover:border-[#E03546] hover:text-[#E03546]"
+      ? "bg-[#FF6B00] text-white border-[#FF6B00] shadow-[0_4px_14px_rgba(255,106,43,0.35)]"
+      : "bg-white text-zinc-600 border-zinc-200 hover:border-[#FF6B00] hover:text-[#FF6B00]"
   }`;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -172,27 +177,77 @@ export default function SignupRestaurant() {
     errors[key] ? <p className="text-xs text-red-600 mt-1.5">{errors[key]}</p> : null;
 
   return (
-    <div className="min-h-screen flex bg-[#F8F9FA]">
+    <div className="min-h-screen flex bg-[#f6f2ec]">
       <aside className="hidden lg:flex w-[42%] xl:w-[38%] bg-zinc-900 text-white px-12 py-8 flex-col justify-between min-h-screen sticky top-0 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(224,53,70,0.15),transparent_50%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${BG})` }} />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.72) 35%, rgba(0,0,0,0.45) 60%, rgba(0,0,0,0.72) 100%)",
+          }}
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,107,0,0.3),transparent_55%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:28px_28px] pointer-events-none" />
+        <div className="absolute inset-0 pointer-events-none">
+          {FOOD_ICONS.map((icon, i) => (
+            <span
+              key={i}
+              className="absolute animate-float-cta opacity-25"
+              style={{
+                left: `${8 + (i * 17) % 84}%`,
+                top: `${12 + (i * 19) % 76}%`,
+                animationDelay: `${i * 0.5}s`,
+                animationDuration: `${3 + (i % 3)}s`,
+                fontSize: `${20 + (i % 3) * 6}px`,
+              }}
+            >
+              {icon}
+            </span>
+          ))}
+        </div>
 
         <div className="relative z-10">
-          <Link to="/" className="flex items-center gap-2.5 text-xl tracking-tight font-bold text-[#E03546]">
-            <span className="w-10 h-10 rounded-lg bg-[#E03546] flex items-center justify-center text-white">
-              <UtensilsCrossed size={19} strokeWidth={2.2} />
-            </span>
-            Swift<span className="text-white">Bite</span>
+          <Link to="/" className="flex items-center gap-2.5 shrink-0 outline-none focus:outline-none">
+            <Logo
+              size={40}
+              variant="color"
+              swiftClassName="text-[#FF6B00]"
+              biteClassName="text-white"
+              textClassName="text-xl tracking-tight font-bold"
+            />
           </Link>
         </div>
 
         <div className="relative z-10">
+          <div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5"
+            style={{
+              background: "rgba(255,107,0,0.12)",
+              border: "1px solid rgba(255,107,0,0.28)",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B00]" />
+            <span className="text-[11.5px] font-bold uppercase tracking-[0.12em] text-[#FF9A3C]">
+              Restaurant partner program
+            </span>
+          </div>
           <h2 className="text-4xl font-bold tracking-tight text-white leading-tight">
-            Partner with Swift Bite
+            Partner with{" "}
+            <span
+              style={{
+                background: "linear-gradient(90deg, #FF6B00, #FFB347)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
+              Swift Bite
+            </span>
           </h2>
           <ul className="mt-10 space-y-6">
             <li className="flex items-start gap-4">
-              <span className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+              <span className="w-10 h-10 rounded-full bg-[#FF6B00]/15 flex items-center justify-center shrink-0 text-[#FF6B00]">
                 <TrendingUp size={18} strokeWidth={2.2} />
               </span>
               <span>
@@ -201,7 +256,7 @@ export default function SignupRestaurant() {
               </span>
             </li>
             <li className="flex items-start gap-4">
-              <span className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+              <span className="w-10 h-10 rounded-full bg-[#FF6B00]/15 flex items-center justify-center shrink-0 text-[#FF6B00]">
                 <Bike size={18} strokeWidth={2.2} />
               </span>
               <span>
@@ -210,7 +265,7 @@ export default function SignupRestaurant() {
               </span>
             </li>
             <li className="flex items-start gap-4">
-              <span className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+              <span className="w-10 h-10 rounded-full bg-[#FF6B00]/15 flex items-center justify-center shrink-0 text-[#FF6B00]">
                 <Users size={18} strokeWidth={2.2} />
               </span>
               <span>
@@ -221,10 +276,10 @@ export default function SignupRestaurant() {
           </ul>
 
           <div className="mt-12">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">How it works</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#FF9A3C]">How it works</p>
             <div className="mt-5 space-y-4">
               <div className="flex items-center gap-3.5">
-                <span className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+                <span className="w-9 h-9 rounded-lg bg-[#FF6B00]/15 flex items-center justify-center shrink-0 text-[#FF6B00]">
                   <FileText size={16} strokeWidth={2.2} />
                 </span>
                 <div>
@@ -233,7 +288,7 @@ export default function SignupRestaurant() {
                 </div>
               </div>
               <div className="flex items-center gap-3.5">
-                <span className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+                <span className="w-9 h-9 rounded-lg bg-[#FF6B00]/15 flex items-center justify-center shrink-0 text-[#FF6B00]">
                   <ClipboardCheck size={16} strokeWidth={2.2} />
                 </span>
                 <div>
@@ -242,7 +297,7 @@ export default function SignupRestaurant() {
                 </div>
               </div>
               <div className="flex items-center gap-3.5">
-                <span className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+                <span className="w-9 h-9 rounded-lg bg-[#FF6B00]/15 flex items-center justify-center shrink-0 text-[#FF6B00]">
                   <BadgeCheck size={16} strokeWidth={2.2} />
                 </span>
                 <div>
@@ -251,7 +306,7 @@ export default function SignupRestaurant() {
                 </div>
               </div>
               <div className="flex items-center gap-3.5">
-                <span className="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center shrink-0 text-[#E03546]">
+                <span className="w-9 h-9 rounded-lg bg-[#FF6B00]/15 flex items-center justify-center shrink-0 text-[#FF6B00]">
                   <LockKeyhole size={16} strokeWidth={2.2} />
                 </span>
                 <div>
@@ -282,7 +337,7 @@ export default function SignupRestaurant() {
         <div className="px-12 py-8">
           <Link
             to="/"
-            className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-zinc-600 hover:text-zinc-900 transition-colors"
+            className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-[#FF6B00] hover:text-[#E05500] transition-colors"
           >
             <ArrowLeft size={16} />
             Back to Home
@@ -291,13 +346,19 @@ export default function SignupRestaurant() {
 
         <div className="max-w-2xl mx-auto mt-10 mb-16 px-5">
           <div className="lg:hidden mb-8 text-center">
-            <Link to="/" className="text-3xl font-extrabold text-[#E03546]">
-              Swift<span className="text-zinc-900">Bite</span>
+            <Link to="/" className="inline-block outline-none focus:outline-none">
+              <Logo
+                size={44}
+                variant="color"
+                swiftClassName="text-[#FF6B00]"
+                biteClassName="text-zinc-900"
+                textClassName="text-3xl font-extrabold tracking-tight"
+              />
             </Link>
             <h2 className="text-xl font-bold text-zinc-900 mt-4">Partner with Swift Bite</h2>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm p-8">
+          <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-8">
             {submitted ? (
               <div className="text-center py-6">
                 <span className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto">
@@ -310,7 +371,7 @@ export default function SignupRestaurant() {
                 <div className="mt-8 flex flex-col gap-3">
                   <Link
                     to="/restaurant/setup"
-                    className="w-full py-3 rounded-xl font-medium text-white bg-[#E03546] hover:bg-[#c72e3e] transition-colors text-center"
+                    className="w-full py-3 rounded-full font-bold text-white bg-gradient-to-br from-[#FF6B00] to-[#E05500] shadow-[0_4px_18px_rgba(255,107,0,0.38)] hover:opacity-90 transition text-center"
                   >
                     Check setup status
                   </Link>
@@ -342,7 +403,7 @@ export default function SignupRestaurant() {
                 <form onSubmit={handleSubmit} className="mt-6 space-y-8" noValidate>
                   <div className="space-y-4">
                     <h2 className={sectionTitle}>
-                      <span className="w-8 h-8 rounded-lg bg-[#E03546]/10 text-[#E03546] flex items-center justify-center">
+                      <span className="w-8 h-8 rounded-lg bg-[#fff0e8] text-[#FF6B00] flex items-center justify-center">
                         <User size={15} strokeWidth={2.2} />
                       </span>
                       Owner Information
@@ -402,7 +463,7 @@ export default function SignupRestaurant() {
 
                   <div className="space-y-4">
                     <h2 className={sectionTitle}>
-                      <span className="w-8 h-8 rounded-lg bg-[#E03546]/10 text-[#E03546] flex items-center justify-center">
+                      <span className="w-8 h-8 rounded-lg bg-[#fff0e8] text-[#FF6B00] flex items-center justify-center">
                         <Store size={15} strokeWidth={2.2} />
                       </span>
                       Restaurant Information
@@ -453,7 +514,7 @@ export default function SignupRestaurant() {
                               setErrors((prev) => ({ ...prev, custom_cuisine: "" }));
                             }}
                             placeholder="Specify your cuisine"
-                            className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400"
+                            className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/15 transition-colors bg-white placeholder:text-zinc-400"
                           />
                           {fieldError("custom_cuisine")}
                         </div>
@@ -492,7 +553,7 @@ export default function SignupRestaurant() {
                           <button
                             type="button"
                             onClick={() => logoRef.current?.click()}
-                            className="inline-flex items-center gap-2 text-sm font-semibold text-[#E03546] hover:text-[#c72e3e] transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-2 text-sm font-semibold text-[#FF6B00] hover:text-[#E05500] transition-colors cursor-pointer"
                           >
                             <ImagePlus size={16} /> {logo.preview ? "Replace logo" : "Upload logo"}
                           </button>
@@ -512,7 +573,7 @@ export default function SignupRestaurant() {
 
                   <div className="space-y-4">
                     <h2 className={sectionTitle}>
-                      <span className="w-8 h-8 rounded-lg bg-[#E03546]/10 text-[#E03546] flex items-center justify-center">
+                      <span className="w-8 h-8 rounded-lg bg-[#fff0e8] text-[#FF6B00] flex items-center justify-center">
                         <MapPin size={15} strokeWidth={2.2} />
                       </span>
                       Location
@@ -564,7 +625,7 @@ export default function SignupRestaurant() {
 
                   <div className="space-y-4">
                     <h2 className={sectionTitle}>
-                      <span className="w-8 h-8 rounded-lg bg-[#E03546]/10 text-[#E03546] flex items-center justify-center">
+                      <span className="w-8 h-8 rounded-lg bg-[#fff0e8] text-[#FF6B00] flex items-center justify-center">
                         <Clock size={15} strokeWidth={2.2} />
                       </span>
                       Operating Information
@@ -623,7 +684,7 @@ export default function SignupRestaurant() {
                     </div>
                   </div>
 
-                  <div className="border border-zinc-200 bg-zinc-50 rounded-lg p-4 text-xs text-zinc-600">
+                  <div className="border border-orange-100 bg-[#fafafa] rounded-lg p-4 text-xs text-zinc-600">
                     <p className="font-semibold text-zinc-800 mb-2">Terms &amp; Conditions</p>
                     <ul className="space-y-1.5 list-disc pl-4">
                       {TERMS.map((t) => (
@@ -640,7 +701,7 @@ export default function SignupRestaurant() {
                         setTerms(e.target.checked);
                         setErrors((prev) => ({ ...prev, terms: "" }));
                       }}
-                      className="mt-0.5 w-4 h-4 accent-[#E03546] cursor-pointer"
+                      className="mt-0.5 w-4 h-4 accent-[#FF6B00] cursor-pointer"
                     />
                     <span className="text-sm text-zinc-600">
                       I have read and agree to the <span className="font-semibold text-zinc-900">Terms &amp; Conditions</span>.
@@ -651,7 +712,7 @@ export default function SignupRestaurant() {
                   <button
                     type="submit"
                     disabled={!formValid || submitting}
-                    className="w-full py-3 rounded-xl font-medium text-white transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed bg-[#E03546] hover:bg-[#c72e3e] cursor-pointer"
+                    className="w-full py-3 rounded-full font-bold text-white transition disabled:bg-gray-300 disabled:bg-none disabled:cursor-not-allowed bg-gradient-to-br from-[#FF6B00] to-[#E05500] shadow-[0_4px_18px_rgba(255,107,0,0.38)] hover:opacity-90 cursor-pointer"
                   >
                     {submitting ? "Submitting..." : "Submit Application"}
                   </button>

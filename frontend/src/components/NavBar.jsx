@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  ShoppingBag, Utensils, UtensilsCrossed, Tag, Info, User, Store, Bike,
+  ShoppingBag, Utensils, Tag, Info, User, Store, Bike,
   ClipboardList, MapPin, Heart, LogOut, Menu, X,
 } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { useCart } from "../context/CartContext";
 import CartDrawer from "./CartDrawer";
+import Logo from "./Logo";
 
 const Header = ({ transparent = false }) => {
   const { user, logout } = useAuth();
@@ -95,12 +96,13 @@ const Header = ({ transparent = false }) => {
       : "bg-transparent"
     }`}>
       <div className="max-w-[1240px] mx-auto px-4 md:px-8 flex items-center justify-between gap-5">
-        <Link to="/" onClick={closeMobile} className="flex items-center gap-2 font-extrabold text-[19px] tracking-tight">
-          <span className="w-[34px] h-[34px] rounded-[10px] bg-gradient-to-br from-[#FF8C00] to-[#FF6B00] flex items-center justify-center text-white shadow-[0_4px_16px_rgba(255,107,0,0.4)]">
-            <UtensilsCrossed size={16} strokeWidth={2.2} />
-          </span>
-          <span className={overHero ? "text-white" : "text-gray-900"}>Swift</span>
-          <span className="text-[#FF6B00]">Bite</span>
+        <Link to="/" onClick={closeMobile} className="flex items-center gap-2 shrink-0 outline-none focus:outline-none">
+          <Logo
+            size={35}
+            variant="color"
+            swiftClassName={overHero ? "text-white" : "text-gray-900"}
+            biteClassName="text-[#FF6B00]"
+          />
         </Link>
 
         {!user && (

@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  BarChart3, CalendarClock, ClipboardList, ExternalLink, LayoutDashboard,
+  Armchair, BarChart3, CalendarClock, ClipboardList, ExternalLink, LayoutDashboard,
   Settings, Store, UtensilsCrossed,
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { key: "overview", label: "Dashboard", path: "/restaurant/dashboard", icon: LayoutDashboard, exact: true },
   { key: "orders", label: "Live Orders", path: "/restaurant/dashboard/orders", icon: ClipboardList },
   { key: "reservations", label: "Reservations", path: "/restaurant/dashboard/reservations", icon: CalendarClock },
+  { key: "tables", label: "Tables", path: "/restaurant/dashboard/tables", icon: Armchair },
   { key: "menu", label: "Food Menu", path: "/restaurant/dashboard/menu", icon: UtensilsCrossed },
   { key: "profile", label: "Restaurant Profile", path: "/restaurant/dashboard/profile", icon: Store },
   { key: "analytics", label: "Analytics", path: "/restaurant/dashboard/analytics", icon: BarChart3 },
@@ -21,6 +22,7 @@ const TITLES = {
   overview: { title: "Dashboard", subtitle: "Here's what's happening at your restaurant today." },
   orders: { title: "Live Orders", subtitle: "Track and update every order coming in." },
   reservations: { title: "Reservations", subtitle: "Manage table bookings for your restaurant." },
+  tables: { title: "Tables", subtitle: "Manage your restaurant tables and seating capacity." },
   menu: { title: "Food Menu", subtitle: "Curate your dishes, prices and availability." },
   profile: { title: "Restaurant Profile", subtitle: "Keep your store details up to date." },
   analytics: { title: "Analytics", subtitle: "A snapshot of how your restaurant is performing." },

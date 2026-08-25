@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Star, Clock, Truck, ArrowLeft, Calendar, UtensilsCrossed,
@@ -8,8 +8,9 @@ import { customerApi } from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../features/auth/AuthContext";
 import ReservationModal from "../../components/ReservationModal";
+import DishDetailModal from "../../components/DishDetailModal";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
-import { getCachedRestaurant, getRestaurantData } from "../../utils/prefetch";
+import { getCachedRestaurant, getRestaurantData, getAllRestaurants } from "../../utils/prefetch";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop";
 
@@ -75,6 +76,8 @@ export default function RestaurantMenu() {
   const [ratingBusy, setRatingBusy] = useState(false);
   const [ratingMsg, setRatingMsg] = useState("");
   const [reserveOpen, setReserveOpen] = useState(false);
+  const [selectedDishId, setSelectedDishId] = useState(() => searchParams.get("dish"));
+  const [allRestaurants, setAllRestaurants] = useState([]);
 
   useEffect(() => {
     let active = true;
@@ -94,6 +97,15 @@ export default function RestaurantMenu() {
       .catch(() => {});
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!selectedDishId) return undefined;
+    let active = true;
+    getAllRestaurants()
+      .then((list) => { if (active) setAllRestaurants(list); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [selectedDishId]);
 
   useEffect(() => {
     if (!highlightId || !payload) return;
@@ -119,6 +131,42 @@ export default function RestaurantMenu() {
   const menuItems = demoTarget
     ? MOCK_MENU_ITEMS
     : payload.menu_items.filter((i) => i.is_available !== false);
+
+  const selectedDish = menuItems.find((i) => String(i.id) === String(selectedDishId)) || null;
+
+  const relatedDishes = selectedDish
+    ? menuItems
+        .filter((i) => i.id !== selectedDish.id && (i.category || "Recommended") === (selectedDish.category || "Recommended"))
+        .slice(0, 6)
+    : [];
+
+  const crossRestaurantDishes = (() => {
+    if (!selectedDish || demoTarget || allRestaurants.length === 0) return [];
+    const LIMIT = 6;
+    const tag = (m, r) => ({ ...m, restaurant_id: r.id, restaurant_name: r.restaurant_name });
+    const others = allRestaurants
+      .filter((r) => r.id !== restaurant.id)
+      .map((r) => ({ r, items: r.menu_items || [] }));
+    if (others.length === 0) return [];
+    const interleave = (lists) => {
+      const out = [];
+      const maxLen = Math.max(0, ...lists.map((l) => l.length));
+      for (let i = 0; i < maxLen; i += 1) {
+        lists.forEach((l) => { if (l[i]) out.push(l[i]); });
+      }
+      return out;
+    };
+    const sameCat = interleave(
+      others.map(({ r, items }) =>
+        items.filter((m) => m.category && m.category === selectedDish.category).map((m) => tag(m, r))
+      )
+    );
+    const usedIds = new Set(sameCat.map((m) => m.id));
+    const fill = interleave(
+      others.map(({ r, items }) => items.filter((m) => !usedIds.has(m.id)).map((m) => tag(m, r)))
+    );
+    return [...sameCat, ...fill].slice(0, LIMIT);
+  })();
 
   const displayRating = demoTarget
     ? MOCK_RESTAURANT.rating
@@ -162,7 +210,7 @@ export default function RestaurantMenu() {
     setRatingBusy(false);
   };
 
-  const categories = useMemo(() => {
+  const categories = (() => {
     const seen = [];
     menuItems.forEach((i) => {
       const cat = i.category || "Recommended";
@@ -170,7 +218,7 @@ export default function RestaurantMenu() {
       if (!seen.some((c) => c.toLowerCase() === key)) seen.push(cat);
     });
     return seen;
-  }, [menuItems]);
+  })();
 
   const qtyOf = (item) =>
     cart.items.find((i) => i.menu_item_id === item.id)?.quantity || 0;
@@ -183,6 +231,12 @@ export default function RestaurantMenu() {
       if (!ok) return;
     }
     addItem(restaurant.id, restaurant.restaurant_name, item);
+  };
+
+  const handleDishConfirm = (item, qty) => {
+    const before = qtyOf(item);
+    handleAdd(item);
+    if (qty > 1) updateQuantity(item.id, before + qty);
   };
 
   const toggleWishlist = async (item) => {
@@ -383,7 +437,8 @@ export default function RestaurantMenu() {
                       <div
                         key={item.id}
                         id={`dish-${item.id}`}
-                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col scroll-mt-24 transition-shadow ${
+                        onClick={() => setSelectedDishId(item.id)}
+                        className={`bg-white rounded-2xl shadow-sm border overflow-hidden flex flex-col scroll-mt-24 transition-shadow cursor-pointer ${
                           highlightId === String(item.id)
                             ? "border-[#F97316] ring-2 ring-[#F97316]/40 shadow-[0_10px_30px_-12px_rgba(249,115,22,0.45)]"
                             : "border-zinc-100"
@@ -400,7 +455,10 @@ export default function RestaurantMenu() {
                           />
                           {!useMock && (
                             <button
-                              onClick={() => toggleWishlist(item)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleWishlist(item);
+                              }}
                               disabled={wishlistBusy.has(item.id)}
                               aria-label={wishlist.has(item.id) ? `Remove ${item.name} from wishlist` : `Save ${item.name} to wishlist`}
                               className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/95 shadow-[0_4px_12px_rgba(0,0,0,0.15)] flex items-center justify-center transition-colors disabled:opacity-50 cursor-pointer ${
@@ -424,7 +482,10 @@ export default function RestaurantMenu() {
                             <span className="font-bold text-zinc-900">{formatPrice(item.price)}</span>
                             {canOrder && !useMock && (qty === 0 ? (
                               <button
-                                onClick={() => handleAdd(item)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAdd(item);
+                                }}
                                 aria-label={`Add ${item.name} to cart`}
                                 className="border border-zinc-200 rounded-lg px-3 py-1 text-sm font-bold text-[#F97316] hover:bg-orange-50 hover:border-[#F97316] transition flex items-center gap-1 cursor-pointer"
                               >
@@ -432,11 +493,11 @@ export default function RestaurantMenu() {
                               </button>
                             ) : (
                               <div className="flex items-center gap-1 border border-zinc-200 rounded-lg px-1 py-1">
-                                <button onClick={() => (qty === 1 ? removeItem(item.id) : updateQuantity(item.id, qty - 1))} className="w-6 h-6 rounded-md text-zinc-700 hover:bg-zinc-100 flex items-center justify-center transition-colors cursor-pointer" aria-label="Decrease">
+                                <button onClick={(e) => { e.stopPropagation(); qty === 1 ? removeItem(item.id) : updateQuantity(item.id, qty - 1); }} className="w-6 h-6 rounded-md text-zinc-700 hover:bg-zinc-100 flex items-center justify-center transition-colors cursor-pointer" aria-label="Decrease">
                                   <Minus size={13} strokeWidth={2.5} />
                                 </button>
                                 <span className="w-6 text-center text-sm font-bold text-zinc-900">{qty}</span>
-                                <button onClick={() => updateQuantity(item.id, qty + 1)} className="w-6 h-6 rounded-md text-[#F97316] hover:bg-orange-50 flex items-center justify-center transition-colors cursor-pointer" aria-label="Increase">
+                                <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, qty + 1); }} className="w-6 h-6 rounded-md text-[#F97316] hover:bg-orange-50 flex items-center justify-center transition-colors cursor-pointer" aria-label="Increase">
                                   <Plus size={13} strokeWidth={2.5} />
                                 </button>
                               </div>
@@ -507,6 +568,27 @@ export default function RestaurantMenu() {
         onClose={() => setReserveOpen(false)}
         restaurant={restaurant}
         user={user}
+      />
+
+      {/* Dish detail modal */}
+      <DishDetailModal
+        key={selectedDish?.id ?? "closed"}
+        item={selectedDish}
+        restaurantName={restaurant.restaurant_name}
+        restaurantInfo={restaurant}
+        canOrder={canOrder && !useMock}
+        isSaved={selectedDish ? wishlist.has(selectedDish.id) : false}
+        favBusy={selectedDish ? wishlistBusy.has(selectedDish.id) : false}
+        onToggleFav={!useMock ? toggleWishlist : undefined}
+        relatedItems={relatedDishes}
+        onSelectRelated={(dish) => setSelectedDishId(dish.id)}
+        crossRestaurantItems={crossRestaurantDishes}
+        onSelectCrossRestaurant={(dish) => {
+          setSelectedDishId(null);
+          navigate(`/restaurants/${dish.restaurant_id}?dish=${dish.id}`);
+        }}
+        onClose={() => setSelectedDishId(null)}
+        onConfirm={handleDishConfirm}
       />
 
       {/* Review modal */}

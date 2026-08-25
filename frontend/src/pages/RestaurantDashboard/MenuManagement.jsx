@@ -129,12 +129,8 @@ export default function MenuManagement() {
   const labelCls = "block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-light mb-0.5";
 
   return (
-    <div className="max-w-5xl" style={{ fontFamily: "'Outfit', sans-serif" }}>
-      <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-[22px] font-bold text-text-primary tracking-[-0.4px] mb-1">Food Menu</h1>
-          <p className="text-[14px] text-text-muted">Manage the dishes customers see on your store.</p>
-        </div>
+    <div className="max-w-5xl">
+      <div className="flex flex-wrap items-center justify-end gap-4 mb-8">
         <button onClick={openCreate} className="inline-flex items-center gap-2 bg-orange-primary hover:bg-orange-deep text-white text-sm font-bold px-6 py-3 rounded-lg transition-all hover:-translate-y-0.5 cursor-pointer font-outfit">
           <Plus size={16} /> Add Menu Item
         </button>

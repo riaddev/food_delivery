@@ -4,6 +4,7 @@ import { Mail, KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { authApi } from "../../features/api/apiSlice";
 import { useAuth } from "../../features/auth/AuthContext";
 import BackToHome from "../../components/BackToHome";
+import Logo from "../../components/Logo";
 
 const fieldLabel = "block text-sm font-semibold text-zinc-700 mb-1.5";
 
@@ -79,26 +80,32 @@ export default function RestaurantSetup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA] px-5">
+    <div className="min-h-screen flex items-center justify-center bg-[#f6f2ec] px-5">
       <div className="fixed top-5 left-5 z-10">
         <BackToHome />
       </div>
 
       <div className="w-full max-w-[440px]">
         <div className="text-center mb-8">
-          <Link to="/" className="text-[28px] font-extrabold text-[#E03546] no-underline">
-            Swift<span className="text-zinc-900">Bite</span>
+          <Link to="/" className="no-underline inline-block">
+            <Logo
+              size={40}
+              variant="color"
+              swiftClassName="text-[#ff6b35]"
+              biteClassName="text-gray-900"
+              textClassName="text-[28px] font-extrabold tracking-tight"
+            />
           </Link>
           <p className="text-zinc-500 mt-2 text-sm">
             {step === 1 ? "Approved? Enter the code sent to your email." : "Last step — choose your password."}
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm p-8">
+        <div className="bg-white rounded-[20px] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
           {step === 1 ? (
             <>
               <div className="flex items-center gap-2.5 mb-6">
-                <span className="w-9 h-9 rounded-full bg-[#E03546]/10 text-[#E03546] flex items-center justify-center">
+                <span className="w-9 h-9 rounded-full bg-[#fff0e8] text-[#FF6B00] flex items-center justify-center">
                   <Mail size={17} strokeWidth={2.2} />
                 </span>
                 <h1 className="text-lg font-bold text-zinc-900">Account Setup</h1>
@@ -116,7 +123,7 @@ export default function RestaurantSetup() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
-                    className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400"
+                    className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/15 transition-colors bg-white placeholder:text-zinc-400"
                   />
                 </div>
                 <div>
@@ -130,14 +137,14 @@ export default function RestaurantSetup() {
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                       placeholder="6-digit code"
-                      className="w-full pl-10 pr-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400"
+                      className="w-full pl-10 pr-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/15 transition-colors bg-white placeholder:text-zinc-400"
                     />
                   </div>
                 </div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3 rounded-xl font-medium text-white transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed bg-[#E03546] hover:bg-[#c72e3e] cursor-pointer"
+                  className="w-full py-3 rounded-full font-bold text-white transition disabled:bg-gray-300 disabled:bg-none disabled:cursor-not-allowed bg-gradient-to-br from-[#FF6B00] to-[#E05500] shadow-[0_4px_18px_rgba(255,107,0,0.38)] hover:opacity-90 cursor-pointer"
                 >
                   {submitting ? "Verifying..." : "Verify Code"}
                 </button>
@@ -147,13 +154,13 @@ export default function RestaurantSetup() {
                 type="button"
                 onClick={handleResend}
                 disabled={submitting}
-                className="mt-4 w-full text-center text-sm font-semibold text-[#E03546] hover:text-[#c72e3e] cursor-pointer disabled:opacity-50"
+                className="mt-4 w-full text-center text-sm font-semibold text-[#FF6B00] hover:text-[#E05500] cursor-pointer disabled:opacity-50"
               >
                 Resend code
               </button>
 
-              <div className="mt-6 flex items-start gap-2.5 bg-zinc-50 border border-zinc-100 rounded-xl p-3.5 text-xs text-zinc-500">
-                <ShieldCheck size={15} className="text-zinc-400 shrink-0 mt-0.5" />
+              <div className="mt-6 flex items-start gap-2.5 bg-[#fafafa] border border-orange-100 rounded-xl p-3.5 text-xs text-zinc-500">
+                <ShieldCheck size={15} className="text-[#FF6B00] shrink-0 mt-0.5" />
                 <span>The code is valid for 15 minutes. Didn't get it? Make sure the admin approved your application, then resend.</span>
               </div>
             </>
@@ -178,7 +185,7 @@ export default function RestaurantSetup() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 8 characters"
-                    className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400"
+                    className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/15 transition-colors bg-white placeholder:text-zinc-400"
                   />
                 </div>
                 <div>
@@ -190,13 +197,13 @@ export default function RestaurantSetup() {
                     value={passwordConfirmation}
                     onChange={(e) => setPasswordConfirmation(e.target.value)}
                     placeholder="Re-enter your password"
-                    className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#E03546] focus:ring-2 focus:ring-[#E03546]/15 transition-colors bg-white placeholder:text-zinc-400"
+                    className="w-full px-3.5 py-2.5 border border-zinc-200 rounded-xl text-sm outline-none focus:border-[#FF6B00] focus:ring-2 focus:ring-[#FF6B00]/15 transition-colors bg-white placeholder:text-zinc-400"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3 rounded-xl font-medium text-white transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed bg-[#E03546] hover:bg-[#c72e3e] cursor-pointer"
+                  className="w-full py-3 rounded-full font-bold text-white transition disabled:bg-gray-300 disabled:bg-none disabled:cursor-not-allowed bg-gradient-to-br from-[#FF6B00] to-[#E05500] shadow-[0_4px_18px_rgba(255,107,0,0.38)] hover:opacity-90 cursor-pointer"
                 >
                   {submitting ? "Setting up..." : "Set Password & Enter Dashboard"}
                 </button>

@@ -137,7 +137,7 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                 <div>
                   <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">Your Cart</h2>
                   <p className="text-sm text-zinc-400 mt-0.5">
-                    {cart.restaurantName || "SwiftBite"} ·{" "}
+                    {cart.restaurantName || "Swift Bite"} ·{" "}
                     {effectiveMode === "takeout" ? "Takeout" : effectiveMode === "dine_in" ? "Dine-in" : "Delivery"}
                   </p>
                 </div>
@@ -241,7 +241,7 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                           <Store size={18} strokeWidth={2.2} className="text-[#F97316] shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-zinc-400">Pick up from</p>
-                            <p className="text-sm text-zinc-900 font-medium mt-0.5 truncate">{cart.restaurantName || "SwiftBite"}</p>
+                            <p className="text-sm text-zinc-900 font-medium mt-0.5 truncate">{cart.restaurantName || "Swift Bite"}</p>
                             <p className="text-xs text-zinc-400 mt-0.5">Order will be ready for pickup</p>
                           </div>
                         </div>
@@ -252,7 +252,7 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                           <Utensils size={18} strokeWidth={2.2} className="text-[#F97316] shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-zinc-400">Dining at</p>
-                            <p className="text-sm text-zinc-900 font-medium mt-0.5 truncate">{cart.restaurantName || "SwiftBite"}</p>
+                            <p className="text-sm text-zinc-900 font-medium mt-0.5 truncate">{cart.restaurantName || "Swift Bite"}</p>
                             <p className="text-xs text-zinc-400 mt-0.5">The restaurant will bring your order to your table.</p>
                           </div>
                         </div>

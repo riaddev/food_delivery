@@ -1438,19 +1438,40 @@ function PasswordView() {
 /* ------------------------------------------------------------------ */
 
 const RES_STATUS_COLOR = {
-  pending: "#D97706",
-  confirmed: "#2563EB",
-  completed: "#16A34A",
+  pending: "#F97316",
+  confirmed: "#16A34A",
   cancelled: "#DC2626",
-  no_show: "#9CA3AF",
+  rejected: "#DC2626",
+  completed: "#6B7280",
+  no_show: "#374151",
 };
 
 const RES_STATUS_LABEL = {
   pending: "Pending",
   confirmed: "Confirmed",
-  completed: "Completed",
   cancelled: "Cancelled",
+  rejected: "Rejected",
+  completed: "Completed",
   no_show: "No Show",
+};
+
+const RES_FILTERS = [
+  { key: "all", label: "All" },
+  { key: "upcoming", label: "Upcoming" },
+  { key: "past", label: "Past" },
+  { key: "cancelled", label: "Cancelled" },
+];
+
+const RES_EMPTY_MESSAGE = {
+  all: "Your reservations will appear here.",
+  upcoming: "No upcoming reservations.",
+  past: "No past reservations.",
+  cancelled: "No cancelled reservations.",
+};
+
+const RES_STATUS_NOTE = {
+  pending: "Your reservation request is awaiting restaurant confirmation.",
+  confirmed: "Your reservation has been confirmed.",
 };
 
 const reservationDateLabel = (d) => {
@@ -1460,61 +1481,295 @@ const reservationDateLabel = (d) => {
   });
 };
 
+const formatReservationTime = (value) => {
+  if (!value) return "—";
+  const m = String(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return String(value);
+  let h = Number(m[1]);
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${m[2]} ${ampm}`;
+};
+
+const partySizeLabel = (size) => {
+  const s = String(size ?? "");
+  if (!s) return "—";
+  return s === "8+ Guests" ? s : `${s} Guests`;
+};
+
+const reservationDateTime = (r) => {
+  if (!r?.reservation_date || !r?.reservation_time) return null;
+  const time = String(r.reservation_time).slice(0, 5);
+  const d = new Date(`${r.reservation_date}T${time}:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const filterReservations = (list, filter) => {
+  if (filter === "cancelled") return list.filter((r) => r.status === "cancelled");
+  const now = Date.now();
+  const when = (r) => reservationDateTime(r)?.getTime() ?? 0;
+  if (filter === "upcoming") {
+    return list.filter((r) => ["pending", "confirmed"].includes(r.status) && when(r) > now);
+  }
+  if (filter === "past") {
+    return list.filter((r) => {
+      if (r.status === "cancelled") return false;
+      if (["completed", "no_show", "rejected"].includes(r.status)) return true;
+      const t = when(r);
+      return t > 0 && t <= now;
+    });
+  }
+  return list;
+};
+
+function ResStatusBadge({ status }) {
+  const color = RES_STATUS_COLOR[status] || "#9CA3AF";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[11.5px] font-bold px-2.5 py-[3px] rounded-full whitespace-nowrap"
+      style={{ color, background: `${color}14`, border: `1px solid ${color}30` }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: color }} />
+      {RES_STATUS_LABEL[status] || status}
+    </span>
+  );
+}
+
+function ResDetailRow({ label, children }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2">
+      <span className="text-[13px] text-text-muted shrink-0">{label}</span>
+      <span className="text-[13px] font-semibold text-text-primary text-right">{children}</span>
+    </div>
+  );
+}
+
+function ReservationDetailsModal({ reservation, onClose }) {
+  if (!reservation) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-card rounded-[16px] border border-border p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between mb-1">
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h3 className="text-[17px] font-bold text-text-primary m-0">
+                Reservation #{reservation.id}
+              </h3>
+              <ResStatusBadge status={reservation.status} />
+            </div>
+            <p className="text-[13px] text-text-muted mt-0.5 mb-0">
+              {reservation.restaurant_name || "Restaurant"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close details"
+            className="text-text-light hover:text-text-primary cursor-pointer border-none bg-none shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="bg-surface rounded-[13px] border border-border p-3.5 mt-4 divide-y divide-border">
+          <ResDetailRow label="Restaurant">{reservation.restaurant_name || "Restaurant"}</ResDetailRow>
+          <ResDetailRow label="Reservation ID">#{reservation.id}</ResDetailRow>
+          <ResDetailRow label="Date">{reservationDateLabel(reservation.reservation_date)}</ResDetailRow>
+          <ResDetailRow label="Time">{formatReservationTime(reservation.reservation_time)}</ResDetailRow>
+          <ResDetailRow label="Guests">{partySizeLabel(reservation.party_size)}</ResDetailRow>
+          {reservation.table_number != null && reservation.table_number !== "" && (
+            <ResDetailRow label="Table">
+              <span className="text-orange-deep">Table {reservation.table_number}</span>
+            </ResDetailRow>
+          )}
+          <ResDetailRow label="Status">
+            <ResStatusBadge status={reservation.status} />
+          </ResDetailRow>
+        </div>
+
+        {reservation.special_requests && (
+          <div className="mt-3.5">
+            <p className="text-[12.5px] font-semibold text-text-muted m-0 mb-1">Special Requests</p>
+            <p className="text-[13px] text-text-primary bg-surface border border-border rounded-[10px] px-3.5 py-2.5 m-0 leading-relaxed">
+              "{reservation.special_requests}"
+            </p>
+          </div>
+        )}
+
+        {reservation.status === "pending" && (
+          <p className="text-[12.5px] text-text-muted bg-orange-soft text-orange-deep rounded-[10px] px-3.5 py-2.5 leading-relaxed mt-3.5 mb-0">
+            This request is still awaiting review by the restaurant. Your table will appear here once the
+            restaurant confirms and assigns one.
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 w-full py-2.5 rounded-lg text-sm font-semibold border border-border text-text-muted hover:text-text-primary hover:border-zinc-300 transition-colors cursor-pointer font-outfit bg-none"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CancelReservationModal({ reservation, onClose, onConfirm }) {
+  const [busy, setBusy] = useState(false);
+
+  if (!reservation) return null;
+
+  const confirm = async () => {
+    setBusy(true);
+    try {
+      await onConfirm(reservation.id);
+      onClose();
+    } catch {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-card rounded-[16px] border border-border p-6 w-full max-w-sm shadow-2xl">
+        <div className="w-11 h-11 rounded-full bg-red-50 text-danger flex items-center justify-center mb-3">
+          <XCircle size={20} strokeWidth={2} />
+        </div>
+        <h3 className="text-[16px] font-bold text-text-primary mb-1">Cancel this reservation?</h3>
+        <p className="text-[13px] text-text-muted mb-5">
+          Are you sure you want to cancel your reservation at{" "}
+          {reservation.restaurant_name || "this restaurant"}? This can't be undone.
+        </p>
+        <div className="flex gap-2.5">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="flex-1 text-text-muted hover:text-text-primary text-sm font-semibold px-4 py-2.5 rounded-lg border border-border hover:border-zinc-300 cursor-pointer font-outfit disabled:opacity-50"
+          >
+            Keep Reservation
+          </button>
+          <button
+            onClick={confirm}
+            disabled={busy}
+            className="flex-1 bg-danger hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold px-4 py-2.5 rounded-lg cursor-pointer font-outfit"
+          >
+            {busy ? "Cancelling..." : "Cancel Reservation"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReservationsView({ reservations, onCancel }) {
+  const navigate = useNavigate();
+  const [filter, setFilter] = useState("all");
+  const [detailsReservation, setDetailsReservation] = useState(null);
+  const [cancelReservation, setCancelReservation] = useState(null);
+
   const cancellable = (r) => r.status === "pending" || r.status === "confirmed";
+  const filtered = filterReservations(reservations, filter);
 
   return (
     <div>
-      <div className="flex flex-col gap-2.5 mb-5">
-        {reservations.length === 0 && (
-          <EmptyState message="No reservations yet — book a table at a restaurant" />
-        )}
-        {reservations.map((r) => {
-          const color = RES_STATUS_COLOR[r.status] || "#9CA3AF";
-          return (
-            <div
-              key={r.id}
-              className="bg-card rounded-[12px] px-4 py-3.5 border border-border flex items-center gap-3.5"
-            >
-              <div className="w-[54px] h-[54px] rounded-[10px] bg-orange-soft text-orange-deep flex items-center justify-center shrink-0">
-                <CalendarClock size={22} strokeWidth={1.8} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2.5 mb-1">
-                  <span className="text-[14.5px] font-bold text-text-primary truncate">
-                    {r.restaurant_name || "Restaurant"}
-                  </span>
-                  <span
-                    className="inline-flex items-center gap-1.5 text-[12px] font-semibold whitespace-nowrap"
-                    style={{ color }}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: color }} />
-                    {RES_STATUS_LABEL[r.status] || r.status}
-                  </span>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {RES_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            aria-pressed={filter === f.key}
+            className={`px-4 py-2 rounded-lg text-[13px] font-semibold border transition-colors cursor-pointer font-outfit ${
+              filter === f.key
+                ? "bg-orange-primary text-white border-orange-primary"
+                : "bg-card text-text-muted border-border hover:text-text-primary hover:border-zinc-300"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-10">
+          <div className="w-12 h-12 rounded-full bg-orange-soft text-orange-deep flex items-center justify-center mx-auto mb-3">
+            <CalendarClock size={22} strokeWidth={1.8} />
+          </div>
+          <p className="text-text-light text-[14px] mt-0 mb-4">{RES_EMPTY_MESSAGE[filter]}</p>
+          <button
+            onClick={() => navigate("/restaurants")}
+            className="bg-orange-primary hover:bg-orange-deep text-white text-sm font-bold px-4 py-2.5 rounded-lg cursor-pointer font-outfit transition-colors border-none"
+          >
+            Browse Restaurants
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {filtered.map((r) => (
+            <div key={r.id} className="bg-card rounded-[12px] px-4 py-3 border border-border">
+              <div className="flex items-start gap-3">
+                <div className="w-[46px] h-[46px] rounded-[9px] bg-orange-soft text-orange-deep flex items-center justify-center shrink-0">
+                  <CalendarClock size={19} strokeWidth={1.8} />
                 </div>
-                <div className="text-[13px] text-text-muted mb-0.5">
-                  {reservationDateLabel(r.reservation_date)} · {r.reservation_time} · {r.party_size}{r.party_size === "8+ Guests" ? "" : " Guests"}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2.5 mb-1 flex-wrap">
+                    <span className="text-[14.5px] font-bold text-text-primary truncate">
+                      {r.restaurant_name || "Restaurant"}
+                    </span>
+                    <ResStatusBadge status={r.status} />
+                  </div>
+                  <div className="text-[13px] text-text-muted mb-0.5">
+                    {reservationDateLabel(r.reservation_date)} · {formatReservationTime(r.reservation_time)} ·{" "}
+                    {partySizeLabel(r.party_size)}
+                  </div>
+                  {r.special_requests && (
+                    <div className="text-[12px] text-text-light truncate">"{r.special_requests}"</div>
+                  )}
+                  {RES_STATUS_NOTE[r.status] && (
+                    <div className="text-[12px] text-text-light mt-0.5">{RES_STATUS_NOTE[r.status]}</div>
+                  )}
+                  <div className="text-[11.5px] text-text-light mt-1 flex items-center gap-2 flex-wrap">
+                    <span>Reservation #{r.id}</span>
+                    {r.table_number != null && r.table_number !== "" && (
+                      <span className="inline-flex items-center text-[11px] font-semibold text-orange-deep bg-orange-soft rounded-full px-2 py-[1px]">
+                        Table {r.table_number}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2 -mb-0.5">
+                    <button
+                      onClick={() => setDetailsReservation(r)}
+                      className="text-[12px] font-semibold border border-border rounded-md px-2.5 py-1 cursor-pointer font-outfit text-text-muted hover:text-text-primary hover:border-zinc-300 transition-colors bg-none"
+                    >
+                      View Details
+                    </button>
+                    {cancellable(r) && (
+                      <button
+                        onClick={() => setCancelReservation(r)}
+                        className="text-[12px] font-semibold border border-red-200 rounded-md px-2.5 py-1 cursor-pointer font-outfit text-danger hover:bg-rose-50 transition-colors bg-none"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </div>
-                {r.special_requests && (
-                  <div className="text-[12px] text-text-light truncate">"{r.special_requests}"</div>
-                )}
-              </div>
-              <div className="text-right shrink-0">
-                {cancellable(r) ? (
-                  <button
-                    onClick={() => onCancel(r.id)}
-                    className="text-[12px] text-danger font-semibold bg-none border border-red-200 rounded-md px-2.5 py-1 cursor-pointer font-outfit hover:bg-rose-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                ) : (
-                  <span className="text-[12px] text-text-light">#{r.id}</span>
-                )}
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
+
+      <ReservationDetailsModal
+        reservation={detailsReservation}
+        onClose={() => setDetailsReservation(null)}
+      />
+      <CancelReservationModal
+        reservation={cancelReservation}
+        onClose={() => setCancelReservation(null)}
+        onConfirm={onCancel}
+      />
     </div>
   );
 }
@@ -1533,6 +1788,9 @@ const NOTIF_ICON = {
   delivered: CheckCircle2,
   served: CheckCircle2,
   cancelled: XCircle,
+  rejected: XCircle,
+  no_show: Clock,
+  completed: CheckCircle2,
 };
 
 function timeAgo(date) {
@@ -1547,8 +1805,8 @@ function timeAgo(date) {
   return `${days}d ago`;
 }
 
-function buildNotifications(orders) {
-  return orders
+function buildNotifications(orders, reservations = []) {
+  const orderNotifs = orders
     .filter((o) => o.status !== "cancelled")
     .map((o) => ({
       id: o.id,
@@ -1557,8 +1815,28 @@ function buildNotifications(orders) {
       message: `Order #${o.id} ${STATUS_LABEL[o.status]?.toLowerCase() || o.status}`,
       restaurant: o.restaurant?.restaurant_name,
       time: o.updated_at || o.created_at,
-    }))
-    .sort((a, b) => new Date(b.time) - new Date(a.time));
+    }));
+
+  const resNotifs = reservations
+    .filter((r) => ["confirmed", "rejected", "no_show", "completed"].includes(r.status))
+    .map((r) => {
+      const label = RES_STATUS_LABEL[r.status]?.toLowerCase() || r.status;
+      const tableBit = r.status === "confirmed" && r.table_number ? ` — Table ${r.table_number} assigned` : "";
+      return {
+        id: r.id,
+        type: "reservation",
+        key:
+          r.status === "confirmed"
+            ? `res-${r.id}:confirmed:t${r.table_number ?? 0}`
+            : `res-${r.id}:${r.status}`,
+        status: r.status,
+        message: `Reservation at ${r.restaurant_name || "restaurant"} ${label}${tableBit}`,
+        restaurant: r.restaurant_name,
+        time: r.updated_at || r.created_at,
+      };
+    });
+
+  return [...orderNotifs, ...resNotifs].sort((a, b) => new Date(b.time) - new Date(a.time));
 }
 
 const READ_NOTIFS_KEY = "swiftbite_read_notifs";
@@ -1965,7 +2243,6 @@ export default function CustomerDashboard() {
   };
 
   const handleCancelReservation = async (id) => {
-    if (!confirm("Cancel this reservation?")) return;
     try {
       await reservationApi.cancel(id);
       showToast("Reservation cancelled");
@@ -1981,7 +2258,7 @@ export default function CustomerDashboard() {
   };
 
   const activeOrders = orders.filter((o) => ACTIVE_STATUSES.includes(o.status));
-  const notifications = buildNotifications(orders);
+  const notifications = buildNotifications(orders, reservations);
   const [readSet, setReadSet] = useState(() => loadReadNotifs());
 
   const unreadSet = new Set(
@@ -2020,6 +2297,10 @@ export default function CustomerDashboard() {
 
   const handleOpenNotification = (n) => {
     markRead(n.key);
+    if (n.type === "reservation") {
+      setActive("reservations");
+      return;
+    }
     navigate(`/order/tracking/${n.id}`);
   };
 
@@ -2039,7 +2320,7 @@ export default function CustomerDashboard() {
   const sections = {
     orders: { title: "My Orders", subtitle: "Track active deliveries and view your order history." },
     favorites: { title: "Favorites", subtitle: "Restaurants and dishes you love." },
-    reservations: { title: "My Reservations", subtitle: "Your table bookings across restaurants." },
+    reservations: { title: "My Reservations", subtitle: "Manage your dine-in reservations across restaurants." },
     addresses: { title: "Saved Addresses", subtitle: "Your delivery spots, one tap away." },
     profile: { title: "Profile", subtitle: "Manage your account details." },
     password: { title: "Change Password", subtitle: "Keep your account secure." },

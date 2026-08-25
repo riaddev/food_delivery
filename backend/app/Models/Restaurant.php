@@ -85,4 +85,14 @@ class Restaurant extends Model
     {
         return $this->hasMany(Review::class);
     }
+
+    public function reservations(): HasMany
+    {
+        return $this->hasMany(Reservation::class);
+    }
+
+    public function tables(): HasMany
+    {
+        return $this->hasMany(RestaurantTable::class);
+    }
 }
