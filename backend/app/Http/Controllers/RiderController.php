@@ -69,12 +69,9 @@ class RiderController extends Controller
             ]);
         }
 
-        if (
-            in_array($order->status, OrderStatuses::TERMINAL_STATUSES, true)
-            || !in_array($order->status, ['confirmed', 'preparing', 'ready'], true)
-        ) {
+        if ($order->status !== 'assigned') {
             throw ValidationException::withMessages([
-                'status' => ["This order can no longer be accepted (current status: {$order->status})."],
+                'status' => ["This order cannot be accepted (current status: {$order->status})."],
             ]);
         }
 
@@ -130,7 +127,7 @@ class RiderController extends Controller
     {
         $rider = Rider::where('user_id', $request->user()->id)->firstOrFail();
 
-        return Order::with(['restaurant:id,restaurant_name,address', 'user', 'items'])
+        return Order::with(['restaurant:id,restaurant_name,address', 'user', 'items', 'statusHistories'])
             ->where('rider_id', $rider->id)
             ->findOrFail($id);
     }
@@ -140,6 +137,7 @@ class RiderController extends Controller
         return [
             'id' => $o->id,
             'status' => $o->status,
+            'tracking_code' => $o->tracking_code,
             'accepted_at' => $o->accepted_at?->toISOString(),
             'delivered_at' => $o->delivered_at?->toISOString(),
             'created_at' => $o->created_at,
@@ -157,6 +155,14 @@ class RiderController extends Controller
                 'name' => $o->restaurant->restaurant_name,
                 'address' => $o->restaurant->address,
             ] : null,
+            'status_histories' => $o->statusHistories
+                ->sortByDesc('created_at')
+                ->values()
+                ->map(fn ($h) => [
+                    'status' => $h->status,
+                    'changed_by' => $h->changed_by,
+                    'created_at' => $h->created_at->toISOString(),
+                ]),
         ];
     }
 }

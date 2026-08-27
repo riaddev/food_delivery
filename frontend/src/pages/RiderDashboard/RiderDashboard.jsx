@@ -14,6 +14,7 @@ const NAV_ITEMS = [
 ];
 
 const KITCHEN_STATUS_LABEL = {
+  assigned: "Rider Assigned",
   confirmed: "Confirmed",
   preparing: "Preparing",
   ready: "Ready for pickup",
@@ -96,7 +97,7 @@ export default function RiderDashboard() {
   const completeDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "delivered"));
 
   const requests = orders.filter(
-    (o) => !o.accepted_at && ["confirmed", "preparing", "ready"].includes(o.status)
+    (o) => !o.accepted_at && ["assigned"].includes(o.status)
   );
   const activeOrder =
     orders.find(
@@ -252,16 +253,19 @@ export default function RiderDashboard() {
                   <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md ${
                     activeOrder.status === "picked_up" ? "bg-sky-50 text-sky-700"
                       : activeOrder.status === "on_the_way" ? "bg-indigo-50 text-indigo-700"
-                        : "bg-amber-50 text-amber-700"
+                        : activeOrder.status === "assigned" ? "bg-violet-50 text-violet-700"
+                          : "bg-amber-50 text-amber-700"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
                       activeOrder.status === "picked_up" ? "bg-sky-500"
                         : activeOrder.status === "on_the_way" ? "bg-indigo-500"
-                          : "bg-amber-500"
+                          : activeOrder.status === "assigned" ? "bg-violet-500"
+                            : "bg-amber-500"
                     }`} />
                     {activeOrder.status === "picked_up" ? "Picked up"
                       : activeOrder.status === "on_the_way" ? "On the way"
-                        : "Awaiting pickup"}
+                        : activeOrder.status === "assigned" ? "Assigned"
+                          : "Awaiting pickup"}
                   </span>
                 </div>
 
@@ -278,7 +282,7 @@ export default function RiderDashboard() {
                     </div>
                     <p className="text-xs text-text-muted mb-3">{activeOrder.restaurant?.address || "—"}</p>
 
-                    {activeOrder.status !== "ready" && activeOrder.status !== "picked_up" && activeOrder.status !== "on_the_way" ? (
+                    {activeOrder.status !== "ready" && activeOrder.status !== "picked_up" && activeOrder.status !== "on_the_way" && activeOrder.status !== "assigned" ? (
                       <>
                         <button
                           disabled
@@ -291,7 +295,7 @@ export default function RiderDashboard() {
                           <b className="text-text-primary">{KITCHEN_STATUS_LABEL[activeOrder.status] || activeOrder.status}</b>
                         </p>
                       </>
-                    ) : activeOrder.status === "ready" ? (
+                    ) : activeOrder.status === "assigned" || activeOrder.status === "ready" ? (
                       <button
                         onClick={() => markPickedUp(activeOrder)}
                         disabled={actionBusyId === activeOrder.id}

@@ -24,6 +24,7 @@ const STATUS_COLOR = {
   confirmed: "#2563EB",
   preparing: "#D97706",
   ready: "#0E7490",
+  assigned: "#7C3AED",
   picked_up: "#2563EB",
   on_the_way: "#2563EB",
   delivered: "#16A34A",
@@ -36,6 +37,7 @@ const STATUS_LABEL = {
   confirmed: "Confirmed",
   preparing: "Preparing",
   ready: "Ready",
+  assigned: "Rider Assigned",
   picked_up: "Picked up",
   on_the_way: "On the way",
   delivered: "Delivered",
@@ -43,12 +45,13 @@ const STATUS_LABEL = {
   cancelled: "Cancelled",
 };
 
-const ACTIVE_STATUSES = ["pending", "confirmed", "preparing", "ready", "picked_up", "on_the_way"];
+const ACTIVE_STATUSES = ["pending", "confirmed", "preparing", "ready", "assigned", "picked_up", "on_the_way"];
 
 const STEPS = [
   { label: "Placed", status: "pending" },
   { label: "Confirmed", status: "confirmed" },
   { label: "Preparing", status: "preparing" },
+  { label: "Ready", status: "ready" },
   { label: "On the way", status: "on_the_way" },
   { label: "Delivered", status: "delivered" },
 ];
@@ -636,7 +639,7 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
   const list = tab === "active" ? activeOrders : historyOrders;
 
   const isCancellable = (o) => ["pending", "confirmed"].includes(o.status);
-  const canTrack = (o) => ["preparing", "ready", "picked_up", "on_the_way"].includes(o.status);
+  const canTrack = (o) => ["preparing", "ready", "assigned", "picked_up", "on_the_way"].includes(o.status);
 
   const selectOrder = (o) => {
     if (tab === "active" && ACTIVE_STATUSES.includes(o.status)) setSelectedId(o.id);

@@ -9,6 +9,9 @@ const DELIVERY_STEPS = [
   { key: "pending", label: "Order Placed", icon: Package },
   { key: "confirmed", label: "Order Confirmed", icon: CheckCircle },
   { key: "preparing", label: "Preparing Food", icon: Utensils },
+  { key: "ready", label: "Ready for Pickup", icon: Package },
+  { key: "assigned", label: "Rider Assigned", icon: Bike },
+  { key: "picked_up", label: "Picked Up", icon: Bike },
   { key: "on_the_way", label: "On the Way", icon: Bike },
   { key: "delivered", label: "Delivered", icon: Home },
 ];
@@ -25,9 +28,10 @@ const STEP_INDEX = {
   confirmed: 1,
   preparing: 2,
   ready: 3,
-  picked_up: 3,
-  on_the_way: 3,
-  delivered: 4,
+  assigned: 4,
+  picked_up: 5,
+  on_the_way: 6,
+  delivered: 7,
   served: 3,
 };
 
@@ -35,7 +39,8 @@ const STATUS_TEXT = {
   pending: "Waiting for the restaurant to confirm your order.",
   confirmed: "The restaurant has confirmed your order.",
   preparing: "The restaurant is preparing your food.",
-  ready: "Your order is ready.",
+  ready: "Your order is ready for pickup.",
+  assigned: "A rider has been assigned to your order.",
   picked_up: "Your order has been picked up by the rider.",
   on_the_way: "Your order is on the way!",
   delivered: "Your order has been delivered. Enjoy!",

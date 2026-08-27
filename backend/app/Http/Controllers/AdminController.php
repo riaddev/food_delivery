@@ -353,7 +353,13 @@ class AdminController extends Controller
         $previousRider = $order->rider;
 
         if (empty($validated['rider_id'])) {
-            $order->update(['rider_id' => null]);
+            $order->update(['rider_id' => null, 'status' => 'ready']);
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'status' => 'ready',
+                'changed_by' => 'admin',
+            ]);
 
             ActivityLog::create([
                 'type' => 'rider_unassigned',
@@ -392,7 +398,13 @@ class AdminController extends Controller
             ]);
         }
 
-        $order->update(['rider_id' => $rider->id]);
+        $order->update(['rider_id' => $rider->id, 'status' => 'assigned']);
+
+        OrderStatusHistory::create([
+            'order_id' => $order->id,
+            'status' => 'assigned',
+            'changed_by' => 'admin',
+        ]);
 
         ActivityLog::create([
             'type' => 'rider_assigned',

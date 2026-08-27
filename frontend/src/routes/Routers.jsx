@@ -16,6 +16,7 @@ import Checkout from "../pages/Checkout/Checkout";
 import PaymentSuccess from "../pages/Payment/PaymentSuccess";
 import PaymentFailed from "../pages/Payment/PaymentFailed";
 import OrderTracking from "../pages/OrderTracking/OrderTracking";
+import PublicTracking from "../pages/PublicTracking/PublicTracking";
 import ProtectedRoute from "../components/ProtectedRoute";
 import OwnerDashboard from "../pages/RestaurantDashboard/OwnerDashboard";
 import { Analytics } from "../pages/RestaurantDashboard/Analytics";
@@ -61,6 +62,7 @@ export default function Routers() {
       <Route path="/cookies" element={<CookiesPage />} />
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/failed" element={<PaymentFailed />} />
+      <Route path="/track/:trackingCode" element={<PublicTracking />} />
       <Route
         path="/checkout"
         element={

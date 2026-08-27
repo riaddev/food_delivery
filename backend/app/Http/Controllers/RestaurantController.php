@@ -10,6 +10,7 @@ use App\Models\Reservation;
 use App\Models\Restaurant;
 use App\Models\RestaurantTable;
 use App\Models\Review;
+use App\Models\Rider;
 use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -269,7 +270,7 @@ class RestaurantController extends Controller
 
     public function orders(Request $request): JsonResponse
     {
-        $orders = Order::with('user', 'items')
+        $orders = Order::with(['user', 'items', 'rider.user'])
             ->where('restaurant_id', $request->user()->restaurant->id)
             ->orderBy('created_at', 'desc')
             ->get()
@@ -288,12 +289,110 @@ class RestaurantController extends Controller
                     'delivery_instructions' => $o->delivery_instructions,
                     'order_type' => $o->order_type,
                     'table_number' => $o->table_number,
+                    'tracking_code' => $o->tracking_code,
                     'items' => $o->items,
+                    'rider' => $o->rider ? [
+                        'id' => $o->rider->id,
+                        'name' => optional($o->rider->user)->name ?? 'Unknown',
+                        'phone' => $o->rider->phone,
+                    ] : null,
                     'created_at' => $o->created_at,
                 ];
             });
 
         return response()->json(['orders' => $orders]);
+    }
+
+    public function availableRiders(Request $request): JsonResponse
+    {
+        $restaurant = $request->user()->restaurant;
+
+        $riders = Rider::where('status', 'approved')
+            ->where('is_online', true)
+            ->with('user:id,name')
+            ->get()
+            ->filter(fn (Rider $rider) => !Order::where('rider_id', $rider->id)
+                ->whereIn('status', OrderStatuses::ACTIVE_STATUSES)
+                ->exists())
+            ->values();
+
+        return response()->json(['riders' => $riders]);
+    }
+
+    public function assignRider(Request $request, $id): JsonResponse
+    {
+        $validated = $request->validate([
+            'rider_id' => 'required|integer|exists:riders,id',
+        ]);
+
+        $restaurant = $request->user()->restaurant;
+        $order = Order::where('restaurant_id', $restaurant->id)->findOrFail($id);
+
+        if ($order->status !== 'ready') {
+            throw ValidationException::withMessages([
+                'status' => ['Riders can only be assigned to orders that are ready for pickup.'],
+            ]);
+        }
+
+        $rider = Rider::findOrFail($validated['rider_id']);
+
+        if ($rider->status !== 'approved' || !$rider->is_online) {
+            throw ValidationException::withMessages([
+                'rider_id' => ['Selected rider is not available.'],
+            ]);
+        }
+
+        $hasActive = Order::where('rider_id', $rider->id)
+            ->whereIn('status', OrderStatuses::ACTIVE_STATUSES)
+            ->exists();
+
+        if ($hasActive) {
+            throw ValidationException::withMessages([
+                'rider_id' => ['Selected rider already has an active delivery.'],
+            ]);
+        }
+
+        $order->update(['rider_id' => $rider->id, 'status' => 'assigned']);
+
+        OrderStatusHistory::create([
+            'order_id' => $order->id,
+            'status' => 'assigned',
+            'changed_by' => 'restaurant',
+        ]);
+
+        ActivityLog::create([
+            'type' => 'rider_assigned',
+            'description' => "Rider assigned to Order #{$order->id} at \"{$restaurant->restaurant_name}\".",
+        ]);
+
+        return response()->json([
+            'order' => $this->formatOrder($order->fresh(['user', 'items', 'rider.user'])),
+            'message' => "Rider assigned to Order #{$order->id}.",
+        ]);
+    }
+
+    private function formatOrder(Order $o): array
+    {
+        return [
+            'id' => $o->id,
+            'status' => $o->status,
+            'tracking_code' => $o->tracking_code,
+            'customer_name' => $o->user?->name,
+            'customer_phone' => $o->user?->phone,
+            'total' => (float) $o->total,
+            'delivery_fee' => (float) $o->delivery_fee,
+            'payment_method' => $o->payment_method,
+            'payment_status' => $o->payment_status,
+            'order_type' => $o->order_type,
+            'delivery_address' => $o->delivery_address,
+            'items' => $o->items,
+            'created_at' => $o->created_at,
+            'rider' => $o->rider ? [
+                'id' => $o->rider->id,
+                'name' => optional($o->rider->user)->name ?? 'Unknown',
+                'phone' => $o->rider->phone,
+            ] : null,
+        ];
     }
 
     public function updateOrderStatus(Request $request, $id): JsonResponse

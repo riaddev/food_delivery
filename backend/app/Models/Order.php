@@ -14,6 +14,7 @@ class Order extends Model
         'rider_id',
         'accepted_at',
         'status',
+        'tracking_code',
         'order_type',
         'total',
         'delivery_address',
@@ -26,6 +27,17 @@ class Order extends Model
         'delivery_fee',
         'delivered_at',
     ];
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::created(function (Order $order) {
+            if (!$order->tracking_code) {
+                $order->update(['tracking_code' => 'SB-' . date('Y') . '-' . str_pad($order->id, 5, '0', STR_PAD_LEFT)]);
+            }
+        });
+    }
 
     protected function casts(): array
     {

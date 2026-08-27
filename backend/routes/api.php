@@ -7,6 +7,7 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RestaurantController;
 use App\Http\Controllers\RiderController;
 use App\Http\Controllers\SslCommerzController;
+use App\Http\Controllers\TrackingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -29,6 +30,7 @@ Route::get('/restaurants/{id}/reviews', [RestaurantController::class, 'publicRev
 Route::get('/categories', [RestaurantController::class, 'publicCategories']);
 Route::post('/reservations', [ReservationController::class, 'store']);
 Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:15,1');
+Route::get('/track/{trackingCode}', [TrackingController::class, 'track']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/owner/set-password', [AuthController::class, 'setSetupPassword']);
@@ -89,6 +91,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/profile', [RestaurantController::class, 'updateProfile']);
         Route::get('/orders', [RestaurantController::class, 'orders']);
         Route::put('/orders/{id}/status', [RestaurantController::class, 'updateOrderStatus']);
+        Route::get('/riders', [RestaurantController::class, 'availableRiders']);
+        Route::post('/orders/{id}/assign-rider', [RestaurantController::class, 'assignRider']);
         Route::get('/reservations', [ReservationController::class, 'restaurantIndex']);
         Route::put('/reservations/{id}/status', [ReservationController::class, 'updateStatus']);
         Route::put('/reservations/{id}/table', [ReservationController::class, 'assignTable']);

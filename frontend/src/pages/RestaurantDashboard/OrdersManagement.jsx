@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ClipboardList, MapPin, RefreshCw, UtensilsCrossed } from "lucide-react";
+import { ClipboardList, MapPin, RefreshCw, UtensilsCrossed, Bike, X } from "lucide-react";
 import { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
@@ -8,6 +8,8 @@ const STATUS_FLOW = [
   { value: "confirmed", label: "Confirmed", color: "bg-blue-50 text-blue-600" },
   { value: "preparing", label: "Preparing", color: "bg-purple-50 text-purple-600" },
   { value: "ready", label: "Ready", color: "bg-cyan-50 text-cyan-600" },
+  { value: "assigned", label: "Rider Assigned", color: "bg-indigo-50 text-indigo-600" },
+  { value: "picked_up", label: "Picked Up", color: "bg-violet-50 text-violet-600" },
   { value: "on_the_way", label: "On the Way", color: "bg-indigo-50 text-indigo-600" },
   { value: "served", label: "Served", color: "bg-emerald-50 text-emerald-600" },
   { value: "delivered", label: "Delivered", color: "bg-emerald-50 text-emerald-600" },
@@ -30,10 +32,10 @@ const formatDate = (date) => new Date(date).toLocaleString("en-US", {
   minute: "2-digit",
 });
 
-const AppliedOrders = (order) =>
+const appliedStatuses = (order) =>
   order.order_type === "dine_in"
     ? ["confirmed", "preparing", "ready", "served"]
-    : ["confirmed", "preparing", "ready", "on_the_way"];
+    : ["confirmed", "preparing", "ready"];
 
 export default function OrdersManagement() {
   const [orders, setOrders] = useState([]);
@@ -41,6 +43,11 @@ export default function OrdersManagement() {
   const [error, setError] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
   const [filter, setFilter] = useState("all");
+
+  const [assignModal, setAssignModal] = useState(null);
+  const [riders, setRiders] = useState([]);
+  const [ridersLoading, setRidersLoading] = useState(false);
+  const [assigning, setAssigning] = useState(false);
 
   const load = () => {
     restaurantApi.getOrders()
@@ -64,11 +71,39 @@ export default function OrdersManagement() {
     }
   };
 
+  const openAssignModal = async (order) => {
+    setAssignModal(order);
+    setRidersLoading(true);
+    try {
+      const res = await restaurantApi.getAvailableRiders();
+      setRiders(res.data.riders);
+    } catch {
+      setError("Failed to load available riders");
+    } finally {
+      setRidersLoading(false);
+    }
+  };
+
+  const handleAssignRider = async (riderId) => {
+    if (!assignModal) return;
+    setAssigning(true);
+    try {
+      await restaurantApi.assignRider(assignModal.id, riderId);
+      setAssignModal(null);
+      setRiders([]);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to assign rider");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   const filtered = filter === "all"
     ? orders
     : orders.filter((o) => o.status === filter);
 
-  const filters = ["all", "pending", "confirmed", "preparing", "ready", "on_the_way", "served", "delivered", "cancelled"];
+  const filters = ["all", "pending", "confirmed", "preparing", "ready", "assigned", "on_the_way", "served", "delivered", "cancelled"];
 
   if (loading) {
     return (
@@ -133,6 +168,11 @@ export default function OrdersManagement() {
                         <UtensilsCrossed size={12} /> Dine-In{order.table_number ? ` · Table ${order.table_number}` : ""}
                       </span>
                     )}
+                    {order.tracking_code && (
+                      <span className="text-xs font-mono text-text-light bg-zinc-50 px-2 py-0.5 rounded">
+                        {order.tracking_code}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-text-muted">
                     {order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ""} · {formatDate(order.created_at)}
@@ -140,6 +180,11 @@ export default function OrdersManagement() {
                   {order.payment_method && (
                     <p className="text-xs text-text-light mt-1.5">
                       {paymentMethodLabel(order.payment_method)} · {order.payment_status === "paid" ? "Paid" : order.order_type === "dine_in" ? "Pay at table" : "Pay on delivery"} · {order.order_type === "dine_in" ? "No delivery fee" : `Delivery ${order.delivery_fee > 0 ? formatPrice(order.delivery_fee) : "Free"}`}
+                    </p>
+                  )}
+                  {order.rider && (
+                    <p className="text-xs text-indigo-600 mt-1.5 flex items-center gap-1">
+                      <Bike size={11} /> Rider: {order.rider.name} · {order.rider.phone}
                     </p>
                   )}
                 </div>
@@ -162,7 +207,15 @@ export default function OrdersManagement() {
 
               {order.status !== "delivered" && order.status !== "served" && order.status !== "cancelled" && (
                 <div className="flex flex-wrap gap-2.5">
-                  {AppliedOrders(order).map((s) => (
+                  {order.status === "ready" && order.order_type !== "dine_in" && !order.rider && (
+                    <button
+                      onClick={() => openAssignModal(order)}
+                      className="text-sm font-semibold px-4 py-2 rounded-full bg-indigo-500 text-white border border-indigo-500 hover:bg-indigo-600 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Bike size={14} /> Assign Rider
+                    </button>
+                  )}
+                  {appliedStatuses(order).map((s) => (
                     <button
                       key={s}
                       onClick={() => handleStatus(order, s)}
@@ -189,6 +242,47 @@ export default function OrdersManagement() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {assignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setAssignModal(null); setRiders([]); }}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div className="relative bg-card rounded-2xl border border-border shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-text-primary text-lg">Assign Rider · Order #{assignModal.id}</h3>
+              <button onClick={() => { setAssignModal(null); setRiders([]); }} className="text-text-light hover:text-text-primary cursor-pointer"><X size={20} /></button>
+            </div>
+
+            {ridersLoading ? (
+              <div className="py-8 text-center text-sm text-text-muted">Loading available riders...</div>
+            ) : riders.length === 0 ? (
+              <div className="py-8 text-center">
+                <Bike size={32} className="text-text-light mx-auto mb-2" />
+                <p className="text-sm font-semibold text-text-primary mb-0.5">No riders available</p>
+                <p className="text-xs text-text-muted">All riders are currently on delivery or offline.</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {riders.map((rider) => (
+                  <button
+                    key={rider.id}
+                    onClick={() => handleAssignRider(rider.id)}
+                    disabled={assigning}
+                    className="w-full flex items-center justify-between p-3 rounded-xl border border-border hover:border-indigo-300 hover:bg-indigo-50/50 transition disabled:opacity-50 cursor-pointer"
+                  >
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-text-primary">{rider.user?.name || "Unknown"}</p>
+                      <p className="text-xs text-text-muted">{rider.phone}</p>
+                    </div>
+                    <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
+                      {assigning ? "Assigning..." : "Assign"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -66,7 +66,7 @@ class CustomerController extends Controller
     public function orders(Request $request): JsonResponse
     {
         $orders = $request->user()->orders()
-            ->with('restaurant', 'items')
+            ->with(['restaurant', 'items', 'rider.user'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -76,7 +76,7 @@ class CustomerController extends Controller
     public function orderShow(Request $request, $id): JsonResponse
     {
         $order = $request->user()->orders()
-            ->with('restaurant', 'items')
+            ->with(['restaurant', 'items', 'rider.user', 'statusHistories'])
             ->findOrFail($id);
 
         return response()->json(['order' => $order]);

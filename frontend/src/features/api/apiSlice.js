@@ -78,6 +78,9 @@ export const restaurantApi = {
   updateProfile: (data) => api.put("/restaurant/profile", data),
   getOrders: () => api.get("/restaurant/orders"),
   updateOrderStatus: (id, status) => api.put(`/restaurant/orders/${id}/status`, { status }),
+  getAvailableRiders: () => api.get("/restaurant/riders"),
+  assignRider: (orderId, riderId) =>
+    api.post(`/restaurant/orders/${orderId}/assign-rider`, { rider_id: riderId }),
   getMenuItems: () => api.get("/restaurant/menu-items"),
   createMenuItem: (data) => api.post("/restaurant/menu-items", data),
   updateMenuItem: (id, data) => api.put(`/restaurant/menu-items/${id}`, data),
@@ -149,6 +152,10 @@ export const riderApi = {
 
 export const chatApi = {
   send: (message, history) => api.post("/chat", { message, history }, { skipAuthRedirect: true }),
+};
+
+export const trackingApi = {
+  track: (trackingCode) => api.get(`/track/${trackingCode}`, { skipAuthRedirect: true }),
 };
 
 export default api;
