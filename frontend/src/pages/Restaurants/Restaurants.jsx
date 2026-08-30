@@ -138,7 +138,7 @@ const enrich = (r, idx) => {
   const eta = 28 + (h % 6);
   const readyIn = 10 + (h % 11);
   const distance = Math.round((0.5 + (h % 28) / 10) * 10) / 10;
-  const fee = r.delivery_fee !== undefined && Number(r.delivery_fee) > 0 ? Number(r.delivery_fee) : 60;
+  const fee = Number(r.delivery_fee) || 0;
   const offers = h % 3 === 0;
   const tableFor = h % 2 === 0 ? "2-4" : "4-6";
   const tablesAvailable = h % 4 !== 0;
@@ -185,7 +185,7 @@ export default function Restaurants() {
   const toastTimer = useRef(null);
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) return;
+    if (!sessionStorage.getItem("currentRole")) return;
     let active = true;
     customerApi.getWishlistItems()
       .then((res) => {
@@ -337,7 +337,7 @@ export default function Restaurants() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-    if (!localStorage.getItem("token")) return;
+    if (!sessionStorage.getItem("currentRole")) return;
     try {
       if (isSaved) await customerApi.removeWishlistItem(id);
       else await customerApi.addWishlistItem(id);

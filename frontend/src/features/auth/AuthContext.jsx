@@ -1,14 +1,29 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { authApi } from "../api/apiSlice";
+import { useNavigate } from "react-router-dom";
+import { authApi, setNavigate } from "../api/apiSlice";
 
 const AuthContext = createContext(null);
 
+const getTokenKey = (role) => `token_${role}`;
+const getCurrentRole = () => sessionStorage.getItem("currentRole");
+
 export const AuthProvider = ({ children }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    setNavigate(navigate);
+    localStorage.removeItem("token");
+  }, [navigate]);
+
   const fetchUser = useCallback(async () => {
-    const token = localStorage.getItem("token");
+    const role = getCurrentRole();
+    if (!role) {
+      setLoading(false);
+      return;
+    }
+    const token = localStorage.getItem(getTokenKey(role));
     if (!token) {
       setLoading(false);
       return;
@@ -17,7 +32,8 @@ export const AuthProvider = ({ children }) => {
       const res = await authApi.user();
       setUser(res.data);
     } catch {
-      localStorage.removeItem("token");
+      localStorage.removeItem(getTokenKey(role));
+      sessionStorage.removeItem("currentRole");
       setUser(null);
     } finally {
       setLoading(false);
@@ -30,25 +46,33 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const res = await authApi.login({ email, password });
-    localStorage.setItem("token", res.data.token);
+    const role = res.data.user.role;
+    localStorage.setItem(getTokenKey(role), res.data.token);
+    sessionStorage.setItem("currentRole", role);
     setUser(res.data.user);
     return res.data;
   };
 
   const registerCustomer = async (name, email, password, phone) => {
     const res = await authApi.registerCustomer({ name, email, password, phone });
-    localStorage.setItem("token", res.data.token);
+    const role = res.data.user.role;
+    localStorage.setItem(getTokenKey(role), res.data.token);
+    sessionStorage.setItem("currentRole", role);
     setUser(res.data.user);
     return res.data;
   };
 
   const logout = async () => {
+    const role = getCurrentRole();
     try {
       await authApi.logout();
     } catch {
       // ignore
     }
-    localStorage.removeItem("token");
+    if (role) {
+      localStorage.removeItem(getTokenKey(role));
+    }
+    sessionStorage.removeItem("currentRole");
     setUser(null);
   };
 

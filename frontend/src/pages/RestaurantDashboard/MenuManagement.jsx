@@ -101,13 +101,18 @@ export default function MenuManagement() {
     setError("");
     try {
       if (editingId) {
-        if (imageFile) {
-          const fd = buildFormData();
-          fd.append("_method", "PUT");
-          await api.post(`/restaurant/menu-items/${editingId}`, fd);
-        } else {
-          await restaurantApi.updateMenuItem(editingId, form);
-        }
+        const fd = new FormData();
+        fd.append("name", form.name);
+        fd.append("price", form.price);
+        if (form.description) fd.append("description", form.description);
+        if (form.category) fd.append("category", form.category);
+        if (form.category_id) fd.append("category_id", form.category_id);
+        fd.append("is_available", form.is_available ? "1" : "0");
+        if (imageFile) fd.append("image", imageFile);
+        if (!imageFile && imageUrl.trim()) fd.append("image_url", imageUrl.trim());
+        if (removeImage) fd.append("remove_image", "1");
+        fd.append("_method", "PUT");
+        await api.post(`/restaurant/menu-items/${editingId}`, fd);
       } else {
         const fd = buildFormData();
         await restaurantApi.createMenuItem(fd);
@@ -242,39 +247,53 @@ export default function MenuManagement() {
           <p className="text-sm text-text-muted">Click "Add Menu Item" to create one.</p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {items.map((item) => (
-            <div key={item.id} className="bg-card rounded-[13px] border border-border p-5 flex justify-between items-center gap-4 transition-all duration-300 hover:border-zinc-300">
-              <div className="flex gap-5 items-center min-w-0">
-                {item.image_url ? (
-                  <img src={item.image_url} alt={item.name} className="w-16 h-16 rounded-2xl object-cover shrink-0" />
-                ) : (
-                  <div className="w-16 h-16 bg-surface rounded-2xl shrink-0 flex items-center justify-center text-text-light">
-                    <UtensilsCrossed size={22} />
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="font-bold text-text-primary">{item.name}</span>
-                    <span className="font-bold text-orange-primary font-mono tracking-tight">{formatPrice(item.price)}</span>
-                    {!item.is_available && (
-                      <span className="text-[11px] bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Unavailable</span>
-                    )}
-                  </div>
-                  {item.description && <p className="text-sm text-text-muted truncate">{item.description}</p>}
-                  {item.category && <span className="text-xs text-text-muted bg-surface px-2.5 py-1 rounded-full inline-block mt-1.5">{item.category}</span>}
+        <div className="grid gap-6">
+          {(() => {
+            const grouped = {};
+            items.forEach((item) => {
+              const cat = item.category || "Uncategorized";
+              if (!grouped[cat]) grouped[cat] = [];
+              grouped[cat].push(item);
+            });
+            return Object.entries(grouped).map(([cat, catItems]) => (
+              <div key={cat}>
+                <h3 className="text-sm font-bold text-text-primary uppercase tracking-wider mb-3">{cat}</h3>
+                <div className="grid gap-4">
+                  {catItems.map((item) => (
+                    <div key={item.id} className="bg-card rounded-[13px] border border-border p-5 flex justify-between items-center gap-4 transition-all duration-300 hover:border-zinc-300">
+                      <div className="flex gap-5 items-center min-w-0">
+                        {item.image_url ? (
+                          <img src={item.image_url} alt={item.name} className="w-16 h-16 rounded-2xl object-cover shrink-0" />
+                        ) : (
+                          <div className="w-16 h-16 bg-surface rounded-2xl shrink-0 flex items-center justify-center text-text-light">
+                            <UtensilsCrossed size={22} />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-1">
+                            <span className="font-bold text-text-primary">{item.name}</span>
+                            <span className="font-bold text-orange-primary font-mono tracking-tight">{formatPrice(item.price)}</span>
+                            {!item.is_available && (
+                              <span className="text-[11px] bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Unavailable</span>
+                            )}
+                          </div>
+                          {item.description && <p className="text-sm text-text-muted truncate">{item.description}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button onClick={() => openEdit(item)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-muted hover:text-text-primary border border-border hover:border-zinc-300 px-4 py-2 rounded-lg transition-colors cursor-pointer">
+                          <Pencil size={13} /> Edit
+                        </button>
+                        <button onClick={() => handleDelete(item.id)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 hover:border-red-400 px-4 py-2 rounded-lg transition-colors cursor-pointer">
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0">
-                <button onClick={() => openEdit(item)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-muted hover:text-text-primary border border-border hover:border-zinc-300 px-4 py-2 rounded-lg transition-colors cursor-pointer">
-                  <Pencil size={13} /> Edit
-                </button>
-                <button onClick={() => handleDelete(item.id)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 hover:border-red-400 px-4 py-2 rounded-lg transition-colors cursor-pointer">
-                  <Trash2 size={13} /> Delete
-                </button>
-              </div>
-            </div>
-          ))}
+            ));
+          })()}
         </div>
       )}
     </div>

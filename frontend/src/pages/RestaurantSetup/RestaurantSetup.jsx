@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { authApi } from "../../features/api/apiSlice";
@@ -20,6 +20,26 @@ export default function RestaurantSetup() {
   const [info, setInfo] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    const token = sessionStorage.getItem("setup_token");
+    if (!token) return;
+    authApi.user()
+      .then((res) => {
+        if (res.data.setup_otp === null) {
+          sessionStorage.removeItem("setup_token");
+          localStorage.removeItem("token_restaurant");
+          sessionStorage.removeItem("currentRole");
+          setStep(1);
+        }
+      })
+      .catch(() => {
+        sessionStorage.removeItem("setup_token");
+        localStorage.removeItem("token_restaurant");
+        sessionStorage.removeItem("currentRole");
+        setStep(1);
+      });
+  }, []);
+
   const handleVerify = async (e) => {
     e.preventDefault();
     setError("");
@@ -27,8 +47,9 @@ export default function RestaurantSetup() {
     setSubmitting(true);
     try {
       const res = await authApi.verifySetupOtp({ email, otp });
-      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("token_restaurant", res.data.token);
       sessionStorage.setItem("setup_token", res.data.token);
+      sessionStorage.setItem("currentRole", "restaurant");
       setOtp("");
       setStep(2);
     } catch (err) {
@@ -68,10 +89,15 @@ export default function RestaurantSetup() {
         password_confirmation: passwordConfirmation,
       });
       sessionStorage.removeItem("setup_token");
-      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("token_restaurant", res.data.token);
+      sessionStorage.setItem("currentRole", "restaurant");
       await refreshUser();
       navigate("/restaurant/dashboard", { replace: true });
     } catch (err) {
+      sessionStorage.removeItem("setup_token");
+      localStorage.removeItem("token_restaurant");
+      sessionStorage.removeItem("currentRole");
+      setStep(1);
       const errors = err.response?.data?.errors;
       setError(errors ? Object.values(errors)[0]?.[0] : err.response?.data?.message || "Something went wrong. Please try again.");
     } finally {

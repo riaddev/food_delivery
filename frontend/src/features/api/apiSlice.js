@@ -1,12 +1,20 @@
 import axios from "axios";
 
+let navigateFn = null;
+let isRedirectingToLogin = false;
+
+export const setNavigate = (fn) => {
+  navigateFn = fn;
+};
+
 const api = axios.create({
   baseURL: "/api",
   headers: { Accept: "application/json" },
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const role = sessionStorage.getItem("currentRole");
+  const token = role ? localStorage.getItem(`token_${role}`) : null;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -14,11 +22,23 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    isRedirectingToLogin = false;
+    return response;
+  },
   (error) => {
-    if (error.response?.status === 401 && !error.config?.skipAuthRedirect && window.location.pathname !== "/login") {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
+    if (error.response?.status === 401 && !error.config?.skipAuthRedirect && window.location.pathname !== "/login" && !isRedirectingToLogin) {
+      isRedirectingToLogin = true;
+      const role = sessionStorage.getItem("currentRole");
+      if (role) {
+        localStorage.removeItem(`token_${role}`);
+      }
+      sessionStorage.removeItem("currentRole");
+      if (navigateFn) {
+        navigateFn("/login", { replace: true });
+      } else {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

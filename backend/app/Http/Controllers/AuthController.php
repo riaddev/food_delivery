@@ -328,6 +328,12 @@ class AuthController extends Controller
             ]);
         }
 
+        if ($user->setup_otp === null) {
+            throw ValidationException::withMessages([
+                'email' => ['Your account is already set up. Please login.'],
+            ]);
+        }
+
         $otp = (string) random_int(100000, 999999);
 
         $user->update([

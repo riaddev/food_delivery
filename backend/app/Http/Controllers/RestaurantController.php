@@ -87,7 +87,7 @@ class RestaurantController extends Controller
             'category' => 'nullable|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'image' => 'nullable',
             'image_url' => 'nullable|string|url|max:2048',
         ]);
 
@@ -117,7 +117,7 @@ class RestaurantController extends Controller
             'category' => 'nullable|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'image' => 'nullable',
             'image_url' => 'nullable|string|url|max:2048',
             'remove_image' => 'boolean',
         ]);

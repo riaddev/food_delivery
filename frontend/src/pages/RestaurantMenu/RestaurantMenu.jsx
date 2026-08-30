@@ -88,7 +88,7 @@ export default function RestaurantMenu() {
   }, [id]);
 
   useEffect(() => {
-    if (!localStorage.getItem("token")) return;
+    if (!sessionStorage.getItem("currentRole")) return;
     let active = true;
     customerApi.getWishlistItems()
       .then((res) => {
@@ -517,7 +517,7 @@ export default function RestaurantMenu() {
         <section className="mt-4 mb-8">
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">What people are saying</h2>
-            {!useMock && localStorage.getItem("token") && (
+            {!useMock && sessionStorage.getItem("currentRole") && (
               <button
                 onClick={() => setRatingOpen(true)}
                 className="inline-flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-colors ml-auto cursor-pointer"

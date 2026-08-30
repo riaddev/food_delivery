@@ -27,12 +27,14 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $defaultCategories = [
-            'Biryani & Kacchi',
+            'Biryani',
+            'Pizza',
+            'Burgers',
+            'Chicken',
+            'Kabab',
             'Fast Food',
-            'Sweets & Desserts',
-            'Chinese',
-            'Beverages',
-            'Bakery & Cafe',
+            'Desserts',
+            'Drinks',
         ];
 
         foreach ($defaultCategories as $index => $name) {

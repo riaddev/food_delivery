@@ -205,8 +205,10 @@ export default function SignupRider() {
     }
   };
 
+  const displayErrors = { ...validate(), ...errors };
+
   const fieldError = (key) =>
-    errors[key] ? <p className="text-xs text-red-600 mt-1.5">{errors[key]}</p> : null;
+    displayErrors[key] ? <p className="text-xs text-red-600 mt-1.5">{displayErrors[key]}</p> : null;
 
   return (
     <div className="min-h-screen flex bg-[#f6f2ec]">
@@ -452,7 +454,7 @@ export default function SignupRider() {
                             value={form.name}
                             onChange={handleChange}
                             placeholder="Enter your full name"
-                            className={errors.name ? inputErrorClasses : inputClasses}
+                            className={displayErrors.name ? inputErrorClasses : inputClasses}
                           />
                         </div>
                         {fieldError("name")}
@@ -467,7 +469,7 @@ export default function SignupRider() {
                             value={form.email}
                             onChange={handleChange}
                             placeholder="rider@example.com"
-                            className={errors.email ? inputErrorClasses : inputClasses}
+                            className={displayErrors.email ? inputErrorClasses : inputClasses}
                           />
                         </div>
                         <p className="text-xs text-zinc-400 mt-1.5">
@@ -488,7 +490,7 @@ export default function SignupRider() {
                             value={form.phone}
                             onChange={handleChange}
                             placeholder="01XXXXXXXXX"
-                            className={errors.phone ? inputErrorClasses : inputClasses}
+                            className={displayErrors.phone ? inputErrorClasses : inputClasses}
                           />
                         </div>
                         {fieldError("phone")}
@@ -503,7 +505,7 @@ export default function SignupRider() {
                             value={form.date_of_birth}
                             onChange={handleChange}
                             max={new Date().toISOString().split("T")[0]}
-                            className={errors.date_of_birth ? inputErrorClasses : inputClasses}
+                            className={displayErrors.date_of_birth ? inputErrorClasses : inputClasses}
                           />
                         </div>
                         {fieldError("date_of_birth")}
@@ -566,7 +568,7 @@ export default function SignupRider() {
                           value={form.nid_number}
                           onChange={handleChange}
                           placeholder="10 or 17 digit NID number"
-                          className={errors.nid_number ? inputErrorClasses : inputClasses}
+                          className={displayErrors.nid_number ? inputErrorClasses : inputClasses}
                         />
                       </div>
                       {fieldError("nid_number")}
@@ -614,7 +616,7 @@ export default function SignupRider() {
                             value={form.emergency_contact_name}
                             onChange={handleChange}
                             placeholder="Emergency contact name"
-                            className={errors.emergency_contact_name ? inputErrorClasses : inputClasses}
+                            className={displayErrors.emergency_contact_name ? inputErrorClasses : inputClasses}
                           />
                         </div>
                         {fieldError("emergency_contact_name")}
@@ -629,7 +631,7 @@ export default function SignupRider() {
                             value={form.emergency_contact_number}
                             onChange={handleChange}
                             placeholder="01XXXXXXXXX"
-                            className={errors.emergency_contact_number ? inputErrorClasses : inputClasses}
+                            className={displayErrors.emergency_contact_number ? inputErrorClasses : inputClasses}
                           />
                         </div>
                         {fieldError("emergency_contact_number")}
@@ -679,7 +681,7 @@ export default function SignupRider() {
                                 value={form.license_number}
                                 onChange={handleChange}
                                 placeholder="Driving license number"
-                                className={errors.license_number ? inputErrorClasses : inputClasses}
+                                className={displayErrors.license_number ? inputErrorClasses : inputClasses}
                               />
                             </div>
                             {fieldError("license_number")}
@@ -694,7 +696,7 @@ export default function SignupRider() {
                                 value={form.vehicle_registration}
                                 onChange={handleChange}
                                 placeholder="e.g. Dhaka Metro-11-1234"
-                                className={errors.vehicle_registration ? inputErrorClasses : inputClasses}
+                                className={displayErrors.vehicle_registration ? inputErrorClasses : inputClasses}
                               />
                             </div>
                             {fieldError("vehicle_registration")}
@@ -742,7 +744,7 @@ export default function SignupRider() {
                           value={form.vehicle_description}
                           onChange={handleChange}
                           placeholder="Describe your vehicle (type, condition, etc.)"
-                          className={`${errors.vehicle_description ? inputErrorClasses : inputClasses} resize-none`}
+                          className={`${displayErrors.vehicle_description ? inputErrorClasses : inputClasses} resize-none`}
                         />
                         {fieldError("vehicle_description")}
                       </div>
@@ -767,7 +769,7 @@ export default function SignupRider() {
                           value={form.address}
                           onChange={handleChange}
                           placeholder="Enter your current address"
-                          className={`${errors.address ? inputErrorClasses : inputClasses} resize-none`}
+                          className={`${displayErrors.address ? inputErrorClasses : inputClasses} resize-none`}
                         />
                       </div>
                       {fieldError("address")}
@@ -817,7 +819,7 @@ export default function SignupRider() {
                             value={form.city}
                             onChange={handleChange}
                             placeholder="Dhaka"
-                            className={errors.city ? inputErrorClasses : inputClasses}
+                            className={displayErrors.city ? inputErrorClasses : inputClasses}
                           />
                         </div>
                         {fieldError("city")}
