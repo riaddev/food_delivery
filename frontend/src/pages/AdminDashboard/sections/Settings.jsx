@@ -127,7 +127,7 @@ export default function Settings({ showToast }) {
 
       <div className="space-y-5">
         <Card title="Services" pad="5">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-[#FAFAFA] border border-border rounded-[10px] p-4 flex items-start gap-3">
               <span className="w-9 h-9 rounded-lg bg-orange-soft text-orange-deep flex items-center justify-center shrink-0">
                 <CreditCard size={16} />
@@ -186,7 +186,7 @@ export default function Settings({ showToast }) {
                 className={inputClass}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <label className={labelClass}>New password</label>
                 <input

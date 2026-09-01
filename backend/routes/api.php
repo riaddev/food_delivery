@@ -31,6 +31,7 @@ Route::get('/categories', [RestaurantController::class, 'publicCategories']);
 Route::post('/reservations', [ReservationController::class, 'store']);
 Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:15,1');
 Route::get('/track/{trackingCode}', [TrackingController::class, 'track']);
+Route::get('/track/{trackingCode}/route', [TrackingController::class, 'route']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/owner/set-password', [AuthController::class, 'setSetupPassword']);
@@ -108,6 +109,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('role:rider')->prefix('/rider')->group(function () {
         Route::put('/availability', [RiderController::class, 'setAvailability']);
+        Route::post('/location', [RiderController::class, 'updateLocation']);
         Route::get('/orders', [RiderController::class, 'orders']);
         Route::post('/orders/{id}/accept', [RiderController::class, 'acceptOrder']);
         Route::put('/orders/{id}/status', [RiderController::class, 'updateStatus']);

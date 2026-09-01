@@ -281,7 +281,7 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
               View all
             </button>
           </div>
-          <div className="grid grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {riders.map((a) => (
               <div key={a.label} className="bg-[#FAFAFA] rounded-[10px] py-3.5 text-center border border-border">
                 <div className="text-[26px] font-extrabold font-mono leading-none" style={{ color: a.color }}>

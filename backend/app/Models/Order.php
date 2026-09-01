@@ -26,6 +26,12 @@ class Order extends Model
         'val_id',
         'delivery_fee',
         'delivered_at',
+        'restaurant_lat',
+        'restaurant_lng',
+        'customer_lat',
+        'customer_lng',
+        'rider_lat',
+        'rider_lng',
     ];
 
     protected static function boot(): void
@@ -45,6 +51,12 @@ class Order extends Model
             'total' => 'decimal:2',
             'delivered_at' => 'datetime',
             'accepted_at' => 'datetime',
+            'restaurant_lat' => 'decimal:8',
+            'restaurant_lng' => 'decimal:8',
+            'customer_lat' => 'decimal:8',
+            'customer_lng' => 'decimal:8',
+            'rider_lat' => 'decimal:8',
+            'rider_lng' => 'decimal:8',
         ];
     }
 
@@ -71,5 +83,10 @@ class Order extends Model
     public function statusHistories(): HasMany
     {
         return $this->hasMany(OrderStatusHistory::class)->latest();
+    }
+
+    public function riderLocations(): HasMany
+    {
+        return $this->hasMany(RiderLocation::class);
     }
 }

@@ -286,7 +286,7 @@ export default function TableManagement() {
             const assignments = assignmentsByTableId.get(table.id) || [];
             const reserved = assignments.length > 0;
             return (
-              <div key={table.id} className="bg-card rounded-[13px] border border-border p-6 transition-all duration-300 hover:border-zinc-300">
+              <div key={table.id} className="bg-card rounded-[13px] border border-border p-4 md:p-6 transition-all duration-300 hover:border-zinc-300">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${

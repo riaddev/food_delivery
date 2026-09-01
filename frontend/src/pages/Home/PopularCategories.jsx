@@ -16,9 +16,9 @@ const categories = [
 
 const PopularCategories = () => (
   <section className="bg-[#fafafa] pt-8 pb-4">
-    <div className="max-w-[1240px] mx-auto px-8">
+    <div className="max-w-[1240px] mx-auto px-4 sm:px-8">
       <div className="flex items-center justify-between mb-9">
-        <h2 className="text-[32px] font-extrabold tracking-tight m-0">Popular Categories</h2>
+        <h2 className="text-2xl sm:text-[32px] font-extrabold tracking-tight m-0">Popular Categories</h2>
         <Link to="/restaurants" className="text-sm font-medium text-[#F97316] hover:text-[#EA580C] transition whitespace-nowrap">
           See all
         </Link>

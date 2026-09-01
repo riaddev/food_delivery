@@ -40,7 +40,7 @@ export function SettingsPage() {
   return (
     <div className="max-w-2xl">
       <div className="space-y-5">
-        <div className="bg-card rounded-[13px] border border-border p-7">
+        <div className="bg-card rounded-[13px] border border-border p-5 md:p-7">
           <h2 className="text-[15px] font-bold text-text-primary mb-6">Notifications</h2>
           <div className="space-y-6">
             {TOGGLES.map((t) => {
@@ -64,7 +64,7 @@ export function SettingsPage() {
           </div>
         </div>
 
-        <div className="bg-card rounded-[13px] border border-border p-7">
+        <div className="bg-card rounded-[13px] border border-border p-5 md:p-7">
           <h2 className="text-[15px] font-bold text-text-primary mb-6">Store</h2>
 
           <div className="space-y-6">

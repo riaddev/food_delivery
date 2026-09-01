@@ -152,7 +152,7 @@ export function Analytics() {
             </div>
           </div>
 
-          <div className="bg-card rounded-[13px] border border-border p-7 overflow-hidden">
+          <div className="bg-card rounded-[13px] border border-border p-5 md:p-7 overflow-x-auto">
             <h2 className="text-[15px] font-bold text-text-primary mb-6">Orders by Hour</h2>
             <div className="overflow-x-auto pb-1">
               <div className="flex items-end gap-1.5 h-36 min-w-[430px]">

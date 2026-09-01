@@ -64,7 +64,7 @@ export default function EditProfile() {
 
   return (
     <div className="max-w-2xl">
-      <form onSubmit={handleSubmit} className="bg-card rounded-[13px] border border-border p-8 space-y-7">
+      <form onSubmit={handleSubmit} className="bg-card rounded-[13px] border border-border p-5 md:p-8 space-y-7">
         {message && (
           <div className={`text-sm px-4 py-3 rounded-2xl ${message.type === "success" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
             {message.text}

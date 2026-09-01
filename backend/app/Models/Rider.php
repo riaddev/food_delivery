@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Storage;
+use App\Models\RiderLocation;
 
 class Rider extends Model
 {
@@ -72,5 +73,10 @@ class Rider extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(RiderLocation::class);
     }
 }

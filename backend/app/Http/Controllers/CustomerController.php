@@ -11,6 +11,7 @@ use App\Models\OrderStatusHistory;
 use App\Models\Restaurant;
 use App\Models\Review;
 use App\Models\WishlistItem;
+use App\Support\Geocoder;
 use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -79,7 +80,70 @@ class CustomerController extends Controller
             ->with(['restaurant', 'items', 'rider.user', 'statusHistories'])
             ->findOrFail($id);
 
-        return response()->json(['order' => $order]);
+        $riderLocation = null;
+        if ($order->rider_lat && $order->rider_lng) {
+            $riderLocation = [
+                'lat' => (float) $order->rider_lat,
+                'lng' => (float) $order->rider_lng,
+                'updated_at' => $order->updated_at?->toISOString(),
+            ];
+        }
+
+        $restaurantCoords = null;
+        if ($order->restaurant_lat && $order->restaurant_lng) {
+            $restaurantCoords = [
+                'lat' => (float) $order->restaurant_lat,
+                'lng' => (float) $order->restaurant_lng,
+            ];
+        } elseif ($order->restaurant && $order->restaurant->latitude && $order->restaurant->longitude) {
+            $restaurantCoords = [
+                'lat' => (float) $order->restaurant->latitude,
+                'lng' => (float) $order->restaurant->longitude,
+            ];
+            $order->update([
+                'restaurant_lat' => $order->restaurant->latitude,
+                'restaurant_lng' => $order->restaurant->longitude,
+            ]);
+        } elseif ($order->restaurant) {
+            $coords = Geocoder::geocode($order->restaurant->address . ', ' . $order->restaurant->city);
+            if ($coords) {
+                $restaurantCoords = $coords;
+                $order->update([
+                    'restaurant_lat' => $coords['lat'],
+                    'restaurant_lng' => $coords['lng'],
+                ]);
+                if (!$order->restaurant->latitude) {
+                    $order->restaurant->update([
+                        'latitude' => $coords['lat'],
+                        'longitude' => $coords['lng'],
+                    ]);
+                }
+            }
+        }
+
+        $customerCoords = null;
+        if ($order->customer_lat && $order->customer_lng) {
+            $customerCoords = [
+                'lat' => (float) $order->customer_lat,
+                'lng' => (float) $order->customer_lng,
+            ];
+        } elseif ($order->delivery_address) {
+            $coords = Geocoder::geocode($order->delivery_address);
+            if ($coords) {
+                $customerCoords = $coords;
+                $order->update([
+                    'customer_lat' => $coords['lat'],
+                    'customer_lng' => $coords['lng'],
+                ]);
+            }
+        }
+
+        $orderData = $order->toArray();
+        $orderData['rider_location'] = $riderLocation;
+        $orderData['restaurant_coords'] = $restaurantCoords;
+        $orderData['customer_coords'] = $customerCoords;
+
+        return response()->json(['order' => $orderData]);
     }
 
     public function placeOrder(Request $request): JsonResponse
@@ -140,6 +204,35 @@ class CustomerController extends Controller
             'delivery_instructions' => $validated['delivery_instructions'] ?? null,
             'table_number' => $validated['table_number'] ?? null,
         ]);
+
+        $restaurantCoords = Geocoder::geocode($restaurant->address . ', ' . $restaurant->city);
+        if ($restaurantCoords && !$restaurant->latitude) {
+            $restaurant->update([
+                'latitude' => $restaurantCoords['lat'],
+                'longitude' => $restaurantCoords['lng'],
+            ]);
+        }
+
+        $orderUpdate = [];
+        if ($restaurantCoords) {
+            $orderUpdate['restaurant_lat'] = $restaurantCoords['lat'];
+            $orderUpdate['restaurant_lng'] = $restaurantCoords['lng'];
+        } elseif ($restaurant->latitude && $restaurant->longitude) {
+            $orderUpdate['restaurant_lat'] = $restaurant->latitude;
+            $orderUpdate['restaurant_lng'] = $restaurant->longitude;
+        }
+
+        if ($order->delivery_address) {
+            $customerCoords = Geocoder::geocode($order->delivery_address);
+            if ($customerCoords) {
+                $orderUpdate['customer_lat'] = $customerCoords['lat'];
+                $orderUpdate['customer_lng'] = $customerCoords['lng'];
+            }
+        }
+
+        if (!empty($orderUpdate)) {
+            $order->update($orderUpdate);
+        }
 
         $order->items()->createMany($orderItems);
 
@@ -428,6 +521,7 @@ class CustomerController extends Controller
         return response()->json([
             'review' => $review->load('user:id,name,avatar'),
             'avg_rating' => $avg ? round((float) $avg, 1) : null,
+            'review_count' => Review::where('restaurant_id', $validated['restaurant_id'])->count(),
             'message' => 'Thank you for your review!',
         ], 201);
     }

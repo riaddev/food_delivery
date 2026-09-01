@@ -11,6 +11,7 @@ const STATUS_FLOW = [
   { value: "assigned", label: "Rider Assigned", color: "bg-indigo-50 text-indigo-600" },
   { value: "picked_up", label: "Picked Up", color: "bg-violet-50 text-violet-600" },
   { value: "on_the_way", label: "On the Way", color: "bg-indigo-50 text-indigo-600" },
+  { value: "near_customer", label: "Near Customer", color: "bg-amber-50 text-amber-600" },
   { value: "served", label: "Served", color: "bg-emerald-50 text-emerald-600" },
   { value: "delivered", label: "Delivered", color: "bg-emerald-50 text-emerald-600" },
   { value: "cancelled", label: "Cancelled", color: "bg-red-50 text-red-500" },
@@ -103,7 +104,7 @@ export default function OrdersManagement() {
     ? orders
     : orders.filter((o) => o.status === filter);
 
-  const filters = ["all", "pending", "confirmed", "preparing", "ready", "assigned", "on_the_way", "served", "delivered", "cancelled"];
+  const filters = ["all", "pending", "confirmed", "preparing", "ready", "assigned", "on_the_way", "near_customer", "served", "delivered", "cancelled"];
 
   if (loading) {
     return (
@@ -150,7 +151,7 @@ export default function OrdersManagement() {
       ) : (
         <div className="space-y-5">
           {filtered.map((order) => (
-            <div key={order.id} className="bg-card rounded-[13px] border border-border p-6 transition-all duration-300 hover:border-zinc-300">
+            <div key={order.id} className="bg-card rounded-[13px] border border-border p-4 md:p-6 transition-all duration-300 hover:border-zinc-300">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
                   <div className="flex items-center gap-2.5 mb-1">

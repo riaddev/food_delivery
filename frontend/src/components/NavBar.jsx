@@ -95,7 +95,7 @@ const Header = ({ transparent = false }) => {
       : scrolled ? "bg-white/95 backdrop-blur-xl shadow-[0_1px_0_rgba(0,0,0,0.08)]"
       : "bg-transparent"
     }`}>
-      <div className="max-w-[1240px] mx-auto px-4 md:px-8 flex items-center justify-between gap-5">
+      <div className="max-w-[1240px] mx-auto px-4 md:px-8 flex items-center justify-between gap-3 sm:gap-5">
         <Link to="/" onClick={closeMobile} className="flex items-center gap-2 shrink-0 outline-none focus:outline-none">
           <Logo
             size={35}
@@ -199,10 +199,10 @@ const Header = ({ transparent = false }) => {
             </>
           ) : (
             <>
-              <Link to="/login" className={`border-[1.5px] px-5 py-2 rounded-[10px] text-sm font-semibold transition whitespace-nowrap ${overHero ? "border-white/40 text-white hover:border-[#FF6B00] hover:text-[#FF6B00]" : "border-[#E5E5E5] text-zinc-900 hover:border-[#FF6B00] hover:text-[#FF6B00]"}`}>
+              <Link to="/login" className={`hidden sm:flex border-[1.5px] px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-[10px] text-sm font-semibold transition whitespace-nowrap ${overHero ? "border-white/40 text-white hover:border-[#FF6B00] hover:text-[#FF6B00]" : "border-[#E5E5E5] text-zinc-900 hover:border-[#FF6B00] hover:text-[#FF6B00]"}`}>
                 Login
               </Link>
-              <button onClick={() => setSignupOpen(true)} className="bg-gradient-to-br from-[#FF6B00] to-[#E05500] hover:opacity-90 text-white text-sm font-bold px-5 py-2 rounded-[10px] shadow-[0_4px_16px_rgba(255,107,0,0.38)] transition whitespace-nowrap">
+              <button onClick={() => setSignupOpen(true)} className="hidden sm:flex bg-gradient-to-br from-[#FF6B00] to-[#E05500] hover:opacity-90 text-white text-sm font-bold px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-[10px] shadow-[0_4px_16px_rgba(255,107,0,0.38)] transition whitespace-nowrap">
                 Sign Up
               </button>
             </>
@@ -212,6 +212,16 @@ const Header = ({ transparent = false }) => {
 
       {mobileOpen && (
         <div className="lg:hidden border-t border-zinc-100 mt-3 px-4 md:px-8 pt-3 pb-2 flex flex-col items-start gap-3 bg-white">
+          {!user && (
+            <>
+              <Link to="/login" onClick={closeMobile} className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 hover:text-[#FF6B00] transition">
+                Login
+              </Link>
+              <button onClick={() => { closeMobile(); setSignupOpen(true); }} className="flex items-center gap-1.5 text-sm font-semibold text-[#FF6B00] hover:text-[#E05500] transition">
+                Sign Up
+              </button>
+            </>
+          )}
           {!user && guestLinks}
           {isCustomer && customerLinks}
         </div>

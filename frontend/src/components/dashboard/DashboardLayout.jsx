@@ -144,7 +144,7 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      <main className="flex-1 p-7 lg:p-8 overflow-auto min-w-0">
+      <main className="flex-1 p-4 lg:p-8 overflow-auto min-w-0">
         <div className="flex items-center justify-between mb-7">
           <div className="flex items-center gap-2.5 min-w-0">
             <button
@@ -154,7 +154,7 @@ export default function DashboardLayout({
               <Menu size={19} />
             </button>
             <div className="min-w-0">
-              <h1 className="text-[22px] font-bold text-text-primary m-0 tracking-[-0.4px]">{title}</h1>
+              <h1 className="text-lg lg:text-[22px] font-bold text-text-primary m-0 tracking-[-0.4px]">{title}</h1>
               {subtitle && <p className="text-[14px] text-text-muted mt-1 mb-0">{subtitle}</p>}
             </div>
           </div>

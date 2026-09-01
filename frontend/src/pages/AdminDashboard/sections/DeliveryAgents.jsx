@@ -133,7 +133,7 @@ export default function DeliveryAgents({ showToast }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search agents..."
-              className="w-60 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
+              className="w-full sm:w-60 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
             />
           </div>
         </div>
@@ -282,7 +282,7 @@ export default function DeliveryAgents({ showToast }) {
               {state && <PillBadge tone={state.tone}>{state.label}</PillBadge>}
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-[#FAFAFA] border border-border rounded-[10px] p-3.5 text-center">
                 <div className="text-[22px] font-extrabold font-mono text-text-primary leading-none">{detail.completed_deliveries ?? 0}</div>
                 <div className="text-[12px] text-text-muted mt-1.5 font-medium">Deliveries</div>

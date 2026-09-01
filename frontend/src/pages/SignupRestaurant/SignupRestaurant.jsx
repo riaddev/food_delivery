@@ -334,7 +334,7 @@ export default function SignupRestaurant() {
       </aside>
 
       <div className="flex-1 min-w-0">
-        <div className="px-12 py-8">
+        <div className="px-5 sm:px-12 py-8">
           <Link
             to="/"
             className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-[#FF6B00] hover:text-[#E05500] transition-colors"

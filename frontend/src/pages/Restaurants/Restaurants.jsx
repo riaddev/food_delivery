@@ -504,9 +504,9 @@ export default function Restaurants() {
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between gap-4 mb-5">
-              <div className="min-w-0">
-                <h1 className="text-xl font-bold tracking-tight text-zinc-900">{shownHeading}</h1>
+            <div className="flex items-center justify-between gap-3 sm:gap-4 mb-5 overflow-hidden">
+              <div className="min-w-0 shrink-0 sm:shrink">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-zinc-900 truncate">{shownHeading}</h1>
                 <p className="text-sm text-zinc-500 mt-0.5">
                   {shown.length} {mode === "dine_in"
                     ? shown.length === 1 ? "restaurant" : "restaurants"
@@ -661,7 +661,7 @@ export default function Restaurants() {
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} mode={mode} />
 
       {toast && (
-        <div className="fixed top-5 right-5 z-[60] animate-fade-in-up">
+        <div className="fixed top-5 right-5 z-[2000] animate-fade-in-up">
           <div className="bg-success text-white px-4 py-3 rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.12)] flex items-center gap-3">
             <Check size={16} strokeWidth={2.5} className="shrink-0" />
             <span className="text-sm font-semibold max-w-[220px] truncate">{toast.msg}</span>

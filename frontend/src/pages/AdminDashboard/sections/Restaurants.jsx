@@ -198,7 +198,7 @@ export default function Restaurants({ showToast }) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search restaurants..."
-              className="w-60 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
+              className="w-full sm:w-60 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
             />
           </div>
         </div>

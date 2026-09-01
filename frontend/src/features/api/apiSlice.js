@@ -165,6 +165,7 @@ export const adminApi = {
 
 export const riderApi = {
   setAvailability: (isOnline) => api.put("/rider/availability", { is_online: isOnline }),
+  updateLocation: (data) => api.post("/rider/location", data),
   getOrders: () => api.get("/rider/orders"),
   acceptOrder: (id) => api.post(`/rider/orders/${id}/accept`),
   updateOrderStatus: (id, status) => api.put(`/rider/orders/${id}/status`, { status }),
@@ -176,6 +177,7 @@ export const chatApi = {
 
 export const trackingApi = {
   track: (trackingCode) => api.get(`/track/${trackingCode}`, { skipAuthRedirect: true }),
+  getRoute: (trackingCode) => api.get(`/track/${trackingCode}/route`, { skipAuthRedirect: true }),
 };
 
 export default api;

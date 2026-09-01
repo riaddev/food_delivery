@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 const foodIcons = ["🍔", "🍕", "🍣", "🌮", "🍜", "🥗", "🍰", "🥤", "🍗", "🍝"];
 
 const CTABanner = () => (
-  <section className="bg-[#ff6a2b] text-white py-11 text-center relative overflow-hidden">
+  <section className="bg-[#ff6a2b] text-white py-8 sm:py-11 text-center relative overflow-hidden">
     <div className="absolute w-[260px] h-[260px] rounded-full bg-white/8 -top-[120px] -right-[60px]" />
     <div className="absolute w-[180px] h-[180px] rounded-full bg-black/8 -bottom-[100px] -left-[40px]" />
     <div className="absolute inset-0 pointer-events-none z-0">
@@ -21,8 +21,8 @@ const CTABanner = () => (
         >{icon}</span>
       ))}
     </div>
-    <div className="max-w-[1240px] mx-auto px-8 relative z-10">
-      <h2 className="text-[34px] font-extrabold mb-3">Hungry? We've got you covered.</h2>
+    <div className="max-w-[1240px] mx-auto px-4 sm:px-8 relative z-10">
+      <h2 className="text-2xl sm:text-[34px] font-extrabold mb-3">Hungry? We've got you covered.</h2>
       <p className="text-[15.5px] text-white/90 max-w-[480px] mx-auto mb-5">
         Browse hundreds of restaurants in Dhaka and get your favorite food delivered hot, fast, and right to your door.
       </p>

@@ -260,7 +260,7 @@ export default function Promotions({ showToast }) {
                   className={`${inputClass} font-mono uppercase`}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className={labelClass}>Type</label>
                   <select
@@ -287,7 +287,7 @@ export default function Promotions({ showToast }) {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className={labelClass}>Min order amount</label>
                   <input
@@ -314,7 +314,7 @@ export default function Promotions({ showToast }) {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
                   <label className={labelClass}>Starts</label>
                   <input

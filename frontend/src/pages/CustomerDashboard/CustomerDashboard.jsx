@@ -6,10 +6,11 @@ import {
   X, XCircle,
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
-import { customerApi, reservationApi } from "../../features/api/apiSlice";
+import { customerApi, trackingApi, reservationApi } from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import CartDrawer from "../../components/CartDrawer";
+import LiveMap from "../../components/LiveMap";
 import { Card, EmptyState, SectionTitle } from "../../components/dashboard/Card";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
 
@@ -27,6 +28,7 @@ const STATUS_COLOR = {
   assigned: "#7C3AED",
   picked_up: "#2563EB",
   on_the_way: "#2563EB",
+  near_customer: "#F59E0B",
   delivered: "#16A34A",
   served: "#16A34A",
   cancelled: "#DC2626",
@@ -40,12 +42,13 @@ const STATUS_LABEL = {
   assigned: "Rider Assigned",
   picked_up: "Picked up",
   on_the_way: "On the way",
+  near_customer: "Near Customer",
   delivered: "Delivered",
   served: "Served",
   cancelled: "Cancelled",
 };
 
-const ACTIVE_STATUSES = ["pending", "confirmed", "preparing", "ready", "assigned", "picked_up", "on_the_way"];
+const ACTIVE_STATUSES = ["pending", "confirmed", "preparing", "ready", "assigned", "picked_up", "on_the_way", "near_customer"];
 
 const STEPS = [
   { label: "Placed", status: "pending" },
@@ -53,6 +56,7 @@ const STEPS = [
   { label: "Preparing", status: "preparing" },
   { label: "Ready", status: "ready" },
   { label: "On the way", status: "on_the_way" },
+  { label: "Near You", status: "near_customer" },
   { label: "Delivered", status: "delivered" },
 ];
 
@@ -83,7 +87,7 @@ const orderDate = (order) => {
 
 function DeliveryTracker({ current }) {
   return (
-    <div className="flex items-start w-full mt-5">
+    <div className="flex items-start w-full mt-5 overflow-x-auto">
       {STEPS.map((step, i) => {
         const done = i <= current;
         const active = i === current;
@@ -481,51 +485,64 @@ function OrderDetailsModal({ order, onClose, onTrack, onReorder, onReview }) {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Track live modal (simulated preview, GPS-ready structure)          */
+/*  Track live modal (real GPS tracking)                                */
 /* ------------------------------------------------------------------ */
 
-function SimulatedMap({ order }) {
-  const hasRider = Boolean(order.rider);
-  return (
-    <div className="rounded-[13px] border border-border overflow-hidden relative">
-      <div className="h-44 bg-[#F2F3F5] relative">
-        <svg className="w-full h-full" viewBox="0 0 320 140" preserveAspectRatio="xMidYMid meet">
-          <path
-            d="M 24 26 C 80 20, 100 92, 168 90 S 260 40, 296 108"
-            fill="none"
-            stroke="#F97316"
-            strokeWidth="2.5"
-            strokeDasharray="7 5"
-            strokeLinecap="round"
-            className="bar-anim"
-          />
-          <circle cx="24" cy="26" r="7" fill="#0F1117" />
-          <circle cx="296" cy="108" r="7" fill="#F97316" />
-          {hasRider && <circle cx="168" cy="90" r="6" fill="#2563EB" />}
-        </svg>
+const IN_TRANSIT_STATUSES = ["picked_up", "on_the_way", "near_customer"];
 
-        <div className="absolute top-2 left-3 flex items-center gap-1.5 bg-card border border-border rounded-md px-2 py-1 text-[11px] font-semibold text-text-primary shadow-sm">
-          <MapPin size={11} className="text-text-primary" /> Restaurant
-        </div>
-        {hasRider && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-card border border-border rounded-md px-2 py-1 text-[11px] font-semibold text-text-primary shadow-sm">
-            <Bike size={11} className="text-blue-600" /> Rider
-          </div>
-        )}
-        <div className="absolute bottom-2 right-3 flex items-center gap-1.5 bg-card border border-border rounded-md px-2 py-1 text-[11px] font-semibold text-text-primary shadow-sm">
-          <Home size={11} className="text-orange-primary" /> Customer
-        </div>
+function LiveTrackingMap({ order }) {
+  const [route, setRoute] = useState(null);
+  const [pollData, setPollData] = useState(null);
+  const timerRef = useRef(null);
+
+  const isTransit = IN_TRANSIT_STATUSES.includes(order.status);
+
+  useEffect(() => {
+    if (!order.tracking_code || !isTransit) return;
+
+    trackingApi.getRoute(order.tracking_code)
+      .then((res) => setRoute(res.data))
+      .catch(() => {});
+
+    const poll = () => {
+      trackingApi.track(order.tracking_code)
+        .then((res) => setPollData(res.data))
+        .catch(() => {});
+    };
+
+    poll();
+    timerRef.current = setInterval(poll, 3000);
+
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [order.tracking_code, isTransit]);
+
+  const data = pollData || {};
+  const restaurantCoords = data.restaurant_coords || order.restaurant_coords || null;
+  const customerCoords = data.customer_coords || order.customer_coords || null;
+  const riderLocation = data.rider_location || order.rider_location || null;
+
+  if (!restaurantCoords && !customerCoords && !riderLocation) {
+    return (
+      <div className="rounded-[13px] border border-border overflow-hidden bg-[#F2F3F5] h-44 flex items-center justify-center">
+        <p className="text-[12px] text-text-muted">Map will appear once coordinates are available.</p>
       </div>
-      <p className="text-[11px] text-text-light px-3 py-2 bg-card border-t border-border">
-        Simulated preview — live GPS tracking coming soon.
-      </p>
-    </div>
+    );
+  }
+
+  return (
+    <LiveMap
+      restaurantCoords={restaurantCoords}
+      customerCoords={customerCoords}
+      riderLocation={riderLocation}
+      polyline={route?.polyline}
+    />
   );
 }
 
 function TrackLiveModal({ order, onClose, onSupport }) {
   const color = STATUS_COLOR[order.status] || "#9CA3AF";
   const rider = order.rider;
+  const isTransit = IN_TRANSIT_STATUSES.includes(order.status);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -543,6 +560,12 @@ function TrackLiveModal({ order, onClose, onSupport }) {
                   <span className="w-1.5 h-1.5 rounded-full inline-block pulse-dot" style={{ background: color }} />
                   {STATUS_LABEL[order.status] || order.status}
                 </span>
+                {isTransit && (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    Live
+                  </span>
+                )}
               </div>
               <p className="text-[13px] text-text-muted mt-0.5">
                 {order.restaurant?.restaurant_name || "Restaurant"} · {orderItemsLabel(order)}
@@ -562,7 +585,7 @@ function TrackLiveModal({ order, onClose, onSupport }) {
             </span>
           </div>
 
-          <SimulatedMap order={order} />
+          <LiveTrackingMap order={order} />
 
           {rider && (
             <div className="flex items-center gap-3 bg-surface rounded-[13px] border border-border px-4 py-3">
@@ -639,7 +662,7 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
   const list = tab === "active" ? activeOrders : historyOrders;
 
   const isCancellable = (o) => ["pending", "confirmed"].includes(o.status);
-  const canTrack = (o) => ["preparing", "ready", "assigned", "picked_up", "on_the_way"].includes(o.status);
+  const canTrack = (o) => ["preparing", "ready", "assigned", "picked_up", "on_the_way", "near_customer"].includes(o.status);
 
   const selectOrder = (o) => {
     if (tab === "active" && ACTIVE_STATUSES.includes(o.status)) setSelectedId(o.id);
@@ -1788,6 +1811,7 @@ const NOTIF_ICON = {
   ready: Clock,
   picked_up: Bike,
   on_the_way: Bike,
+  near_customer: MapPin,
   delivered: CheckCircle2,
   served: CheckCircle2,
   cancelled: XCircle,
@@ -2086,7 +2110,7 @@ function SettingsView() {
 function Toast({ toast }) {
   if (!toast) return null;
   return (
-    <div className="fixed top-5 right-5 z-50 animate-fade-in-up">
+    <div className="fixed top-5 right-5 z-[2000] animate-fade-in-up">
       <div className={`px-5 py-3 rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.1)] flex items-center gap-2.5 ${
         toast.type === "error" ? "bg-danger text-white" : "bg-success text-white"
       }`}>

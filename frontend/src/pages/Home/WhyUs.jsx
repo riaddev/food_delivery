@@ -11,7 +11,7 @@ const features = [
 
 const WhyUs = () => (
   <section className="bg-[#f6f2ec] py-7 md:py-12" id="how-it-works">
-    <div className="max-w-[1240px] mx-auto px-8 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+    <div className="max-w-[1240px] mx-auto px-4 sm:px-8 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
       <div className="relative">
         <div className="w-full aspect-[1/0.82] rounded-[20px] bg-cover bg-center"
           style={{ backgroundImage: "url(https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=900&auto=format&fit=crop)" }} />
@@ -30,7 +30,7 @@ const WhyUs = () => (
 
       <div>
         <span className="inline-block text-xs font-bold tracking-widest uppercase text-[#ff6a2b] mb-2.5">Why Swift Bite</span>
-        <h2 className="text-4xl font-extrabold leading-tight tracking-tight mb-3">
+        <h2 className="text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight mb-3">
           Not just another <span className="text-[#ff6a2b]">delivery app.</span>
         </h2>
         <p className="text-[15.5px] leading-relaxed text-gray-500 mb-6 max-w-[480px]">

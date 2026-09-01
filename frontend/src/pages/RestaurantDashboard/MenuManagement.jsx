@@ -142,7 +142,7 @@ export default function MenuManagement() {
       </div>
 
       {showForm && (
-        <div className="bg-card rounded-[13px] border border-border p-7 mb-8">
+        <div className="bg-card rounded-[13px] border border-border p-5 md:p-7 mb-8">
           <h2 className="text-[15px] font-bold text-text-primary mb-6">{editingId ? "Edit Menu Item" : "New Menu Item"}</h2>
 
           {error && <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-6">{error}</div>}

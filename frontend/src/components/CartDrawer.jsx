@@ -151,14 +151,19 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
               </div>
 
               {cart.items.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-                  <ShoppingCart size={48} strokeWidth={1.6} className="text-zinc-300 mb-4" />
-                  <p className="text-zinc-500 font-semibold">Your cart is empty</p>
-                  <p className="text-sm text-zinc-400 mt-1">Add some food to get started.</p>
+                <div className="flex-1 flex flex-col items-center justify-center px-8 py-8 text-center">
+                  <div className="relative w-28 h-28 mb-5">
+                    <div className="absolute inset-0 rounded-full bg-orange-50 border-2 border-dashed border-orange-200" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <ShoppingCart size={44} strokeWidth={1.5} className="text-orange-300" />
+                    </div>
+                  </div>
+                  <p className="text-lg font-bold text-zinc-800">Your cart is empty</p>
+                  <p className="text-sm text-zinc-400 mt-1.5 max-w-[240px]">Looks like you haven't added anything yet. Find something delicious!</p>
                   <Link
                     to="/restaurants"
                     onClick={handleClose}
-                    className="mt-5 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold py-2.5 px-6 rounded-xl transition-colors"
+                    className="mt-6 w-full max-w-[220px] bg-[#F97316] hover:bg-[#EA580C] text-white font-bold py-3 px-6 rounded-xl transition-colors text-sm"
                   >
                     Browse Restaurants
                   </Link>

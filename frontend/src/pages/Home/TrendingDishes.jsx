@@ -176,11 +176,11 @@ const TrendingDishes = () => {
 
   return (
     <section className="pt-4 md:pt-8 pb-4 md:pb-11 bg-white" id="features" ref={sectionRef}>
-      <div className="max-w-[1240px] mx-auto px-8">
+      <div className="max-w-[1240px] mx-auto px-4 sm:px-8">
         <span className="inline-block text-xs font-bold tracking-widest uppercase text-[#ff6a2b] mb-2.5">Trending Now</span>
-        <div className="flex justify-between items-end mb-4">
-          <h2 className="text-[34px] font-extrabold tracking-tight m-0">Popular Restaurants in Dhaka City</h2>
-          <Link to="/restaurants" className="text-[#ff6a2b] font-semibold text-sm">See all restaurants →</Link>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 mb-4">
+          <h2 className="text-2xl sm:text-[34px] font-extrabold tracking-tight m-0">Popular Restaurants in Dhaka City</h2>
+          <Link to="/restaurants" className="text-[#ff6a2b] font-semibold text-sm shrink-0">See all restaurants →</Link>
         </div>
         <div className="flex flex-wrap gap-2.5 mb-6">
           {tabs.map((tab) => (

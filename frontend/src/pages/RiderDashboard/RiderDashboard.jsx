@@ -1,13 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, ExternalLink,
-  TrendingUp, CheckCircle2, Bike, MapPin, Home, Navigation, Zap,
+  LayoutDashboard, ExternalLink, CheckCircle2,
+  TrendingUp, Bike, MapPin, Home, Navigation, Zap, Package, Radio, RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { authApi, riderApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
+
+const GPS_STATUSES = ["picked_up", "on_the_way", "near_customer"];
+
+const GPS_ERROR_MESSAGES = {
+  1: "Location permission denied. Please enable it in browser settings.",
+  2: "Location unavailable. Please check your device settings.",
+  3: "Location request timed out. Retrying...",
+};
+
+const getGpsErrorMessage = (err) => {
+  if (typeof err === "string") return err;
+  return GPS_ERROR_MESSAGES[err?.code] || "Unable to get location";
+};
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", path: "/rider/dashboard", icon: LayoutDashboard, exact: true },
@@ -19,6 +32,14 @@ const KITCHEN_STATUS_LABEL = {
   preparing: "Preparing",
   ready: "Ready for pickup",
 };
+
+const DELIVERY_STEPS = [
+  { status: "assigned", label: "Rider Assigned", icon: Bike },
+  { status: "picked_up", label: "Picked Up", icon: Package },
+  { status: "on_the_way", label: "Out for Delivery", icon: Navigation },
+  { status: "near_customer", label: "Near Customer", icon: MapPin },
+  { status: "delivered", label: "Delivered", icon: Home },
+];
 
 const mapsUrl = (destination) =>
   `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination || "")}`;
@@ -38,6 +59,12 @@ export default function RiderDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionBusyId, setActionBusyId] = useState(null);
+  const [gpsActive, setGpsActive] = useState(false);
+  const [gpsError, setGpsError] = useState(null);
+  const [gpsPermissionState, setGpsPermissionState] = useState("unknown");
+  const watchIdRef = useRef(null);
+  const retryTimeoutRef = useRef(null);
+  const requestGpsRef = useRef(null);
 
   const name = user?.name || "Rider";
   const initials = name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
@@ -94,6 +121,7 @@ export default function RiderDashboard() {
   const accept = (order) => runAction(order.id, () => riderApi.acceptOrder(order.id));
   const markPickedUp = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "picked_up"));
   const startDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "on_the_way"));
+  const markNearCustomer = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "near_customer"));
   const completeDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "delivered"));
 
   const requests = orders.filter(
@@ -118,6 +146,136 @@ export default function RiderDashboard() {
     { title: "Completed Today", value: String(todaysDelivered.length), icon: CheckCircle2, tint: "bg-sky-50 text-sky-600" },
     { title: "Active Order", value: activeOrder ? "1" : "0", icon: Bike, tint: "bg-orange-soft text-orange-deep" },
   ];
+
+  const sendLocation = useCallback(async (orderId, position) => {
+    const { latitude, longitude, heading, speed } = position.coords;
+    const payload = {
+      order_id: orderId,
+      latitude,
+      longitude,
+      heading: typeof heading === "number" ? heading : null,
+      speed: typeof speed === "number" ? speed : null,
+    };
+    try {
+      await riderApi.updateLocation(payload);
+      setGpsError(null);
+    } catch (err) {
+      console.error("GPS location send failed:", err?.response?.data || err.message);
+      setGpsError(err?.response?.data?.message || "Failed to send location");
+    }
+  }, []);
+
+  const cleanupGps = useCallback(() => {
+    if (watchIdRef.current) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+    setGpsActive(false);
+  }, []);
+
+  const checkPermission = useCallback(async () => {
+    if (!navigator.permissions) {
+      setGpsPermissionState("unknown");
+      return "unknown";
+    }
+    try {
+      const result = await navigator.permissions.query({ name: "geolocation" });
+      setGpsPermissionState(result.state);
+      result.addEventListener("change", () => {
+        setGpsPermissionState(result.state);
+      });
+      return result.state;
+    } catch {
+      setGpsPermissionState("unknown");
+      return "unknown";
+    }
+  }, []);
+
+  const requestGps = useCallback(
+    async (orderId, retryCount = 0) => {
+      cleanupGps();
+
+      if (!navigator.geolocation) {
+        setGpsError("Geolocation not supported by your browser");
+        return;
+      }
+
+      const permissionState = await checkPermission();
+      if (permissionState === "denied") {
+        setGpsError("Location permission denied. Please enable it in browser settings.");
+        setGpsPermissionState("denied");
+        return;
+      }
+
+      const options = { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 };
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          sendLocation(orderId, position);
+          setGpsError(null);
+
+          watchIdRef.current = navigator.geolocation.watchPosition(
+            (pos) => sendLocation(orderId, pos),
+            (err) => {
+              if (err.code === 1) {
+                setGpsError(getGpsErrorMessage(err));
+                setGpsPermissionState("denied");
+                cleanupGps();
+              } else if (err.code === 3 && retryCount < 3) {
+                retryTimeoutRef.current = setTimeout(() => {
+                  requestGpsRef.current?.(orderId, retryCount + 1);
+                }, 2000);
+              } else {
+                setGpsError(getGpsErrorMessage(err));
+              }
+            },
+            options
+          );
+
+          setGpsActive(true);
+          setGpsPermissionState("granted");
+        },
+        (err) => {
+          if (err.code === 1) {
+            setGpsError(getGpsErrorMessage(err));
+            setGpsPermissionState("denied");
+          } else if (retryCount < 2) {
+            setGpsError("Retrying location access...");
+            retryTimeoutRef.current = setTimeout(() => {
+              requestGpsRef.current?.(orderId, retryCount + 1);
+            }, 2000);
+          } else {
+            setGpsError(getGpsErrorMessage(err));
+          }
+        },
+        options
+      );
+    },
+    [cleanupGps, checkPermission, sendLocation]
+  );
+
+  useEffect(() => {
+    requestGpsRef.current = requestGps;
+  });
+
+  useEffect(() => {
+    cleanupGps();
+    setGpsError(null);
+
+    if (!activeOrder || !GPS_STATUSES.includes(activeOrder.status)) {
+      return;
+    }
+
+    requestGps(activeOrder.id);
+
+    return () => {
+      cleanupGps();
+    };
+  }, [activeOrder?.id, activeOrder?.status, requestGps, cleanupGps]);
 
   const profileSection = (collapsed) =>
     collapsed ? null : (
@@ -253,20 +411,43 @@ export default function RiderDashboard() {
                   <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md ${
                     activeOrder.status === "picked_up" ? "bg-sky-50 text-sky-700"
                       : activeOrder.status === "on_the_way" ? "bg-indigo-50 text-indigo-700"
-                        : activeOrder.status === "assigned" ? "bg-violet-50 text-violet-700"
-                          : "bg-amber-50 text-amber-700"
+                        : activeOrder.status === "near_customer" ? "bg-amber-50 text-amber-700"
+                          : activeOrder.status === "assigned" ? "bg-violet-50 text-violet-700"
+                            : "bg-amber-50 text-amber-700"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
                       activeOrder.status === "picked_up" ? "bg-sky-500"
                         : activeOrder.status === "on_the_way" ? "bg-indigo-500"
-                          : activeOrder.status === "assigned" ? "bg-violet-500"
-                            : "bg-amber-500"
+                          : activeOrder.status === "near_customer" ? "bg-amber-500"
+                            : activeOrder.status === "assigned" ? "bg-violet-500"
+                              : "bg-amber-500"
                     }`} />
                     {activeOrder.status === "picked_up" ? "Picked up"
-                      : activeOrder.status === "on_the_way" ? "On the way"
-                        : activeOrder.status === "assigned" ? "Assigned"
-                          : "Awaiting pickup"}
+                      : activeOrder.status === "on_the_way" ? "Out for Delivery"
+                        : activeOrder.status === "near_customer" ? "Near Customer"
+                          : activeOrder.status === "assigned" ? "Assigned"
+                            : "Awaiting pickup"}
                   </span>
+                  {gpsActive && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md">
+                      <Radio size={12} className="animate-pulse" />
+                      GPS Active
+                    </span>
+                  )}
+                  {gpsError && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md">
+                      {gpsError}
+                      {gpsPermissionState === "denied" && (
+                        <button
+                          onClick={() => requestGps(activeOrder.id)}
+                          className="ml-1 p-0.5 rounded hover:bg-amber-100 transition-colors cursor-pointer"
+                          title="Retry GPS permission"
+                        >
+                          <RefreshCw size={11} />
+                        </button>
+                      )}
+                    </span>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
@@ -282,7 +463,7 @@ export default function RiderDashboard() {
                     </div>
                     <p className="text-xs text-text-muted mb-3">{activeOrder.restaurant?.address || "—"}</p>
 
-                    {activeOrder.status !== "ready" && activeOrder.status !== "picked_up" && activeOrder.status !== "on_the_way" && activeOrder.status !== "assigned" ? (
+                    {activeOrder.status !== "ready" && activeOrder.status !== "picked_up" && activeOrder.status !== "on_the_way" && activeOrder.status !== "assigned" && activeOrder.status !== "near_customer" ? (
                       <>
                         <button
                           disabled
@@ -334,6 +515,14 @@ export default function RiderDashboard() {
                       </button>
                     ) : activeOrder.status === "on_the_way" ? (
                       <button
+                        onClick={() => markNearCustomer(activeOrder)}
+                        disabled={actionBusyId === activeOrder.id}
+                        className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
+                      >
+                        {actionBusyId === activeOrder.id ? "Updating..." : "Near Customer"}
+                      </button>
+                    ) : activeOrder.status === "near_customer" ? (
+                      <button
                         onClick={() => completeDelivery(activeOrder)}
                         disabled={actionBusyId === activeOrder.id}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
@@ -352,6 +541,48 @@ export default function RiderDashboard() {
                     {activeOrder.delivery_instructions && (
                       <p className="text-[11px] text-text-muted mt-3 mb-0 italic">"{activeOrder.delivery_instructions}"</p>
                     )}
+                  </div>
+                </div>
+
+                <div className="px-5 py-4 border-t border-border">
+                  <p className="text-[11px] font-bold tracking-widest uppercase text-text-light mb-3">Delivery Progress</p>
+                  <div className="flex items-start gap-0">
+                    {DELIVERY_STEPS.map((step, i) => {
+                      const stepIdx = (() => {
+                        const order = ["assigned", "picked_up", "on_the_way", "near_customer", "delivered"];
+                        return order.indexOf(activeOrder.status);
+                      })();
+                      const currentIdx = (() => {
+                        const order = ["assigned", "picked_up", "on_the_way", "near_customer", "delivered"];
+                        return order.indexOf(step.status);
+                      })();
+                      const isCompleted = currentIdx < stepIdx;
+                      const isActive = step.status === activeOrder.status;
+                      const Icon = step.icon;
+                      return (
+                        <div key={step.status} className="flex items-center flex-1 last:flex-initial">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${
+                              isCompleted ? "bg-emerald-100 text-emerald-600"
+                                : isActive ? "bg-orange-100 text-orange-deep"
+                                  : "bg-zinc-100 text-zinc-400"
+                            }`}>
+                              {isCompleted ? <CheckCircle2 size={14} /> : <Icon size={14} />}
+                            </div>
+                            <p className={`text-[10px] font-medium mt-1.5 text-center leading-tight ${
+                              isCompleted ? "text-emerald-600" : isActive ? "text-orange-deep font-semibold" : "text-text-light"
+                            }`}>
+                              {step.label}
+                            </p>
+                          </div>
+                          {i < DELIVERY_STEPS.length - 1 && (
+                            <div className={`flex-1 h-[2px] mx-1 mt-[-18px] rounded-full ${
+                              currentIdx > i ? "bg-emerald-300" : "bg-zinc-200"
+                            }`} />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

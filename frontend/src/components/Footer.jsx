@@ -44,7 +44,7 @@ const columns = [
 const Footer = () => (
   <footer className="bg-[#0b0b0c] text-white pt-9">
     <div className="max-w-[1240px] mx-auto px-8">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-6 pb-9">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6 pb-9">
         <div className="col-span-2 md:col-span-1">
           <Link to="/" className="flex items-center gap-2 shrink-0">
             <Logo

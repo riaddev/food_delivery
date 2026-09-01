@@ -75,6 +75,7 @@ export default function RestaurantMenu() {
   const [ratingComment, setRatingComment] = useState("");
   const [ratingBusy, setRatingBusy] = useState(false);
   const [ratingMsg, setRatingMsg] = useState("");
+  const [ratingError, setRatingError] = useState("");
   const [reserveOpen, setReserveOpen] = useState(false);
   const [selectedDishId, setSelectedDishId] = useState(() => searchParams.get("dish"));
   const [allRestaurants, setAllRestaurants] = useState([]);
@@ -185,11 +186,18 @@ export default function RestaurantMenu() {
         name: r.user?.name || "Customer",
         rating: r.rating,
         comment: r.comment || "",
+        userId: r.user?.id || null,
       }));
 
+  const existingReview = user && !demoTarget
+    ? (payload.reviews || []).find((r) => r.user?.id === user.id)
+    : null;
+  const hasUserReview = !!existingReview;
+
   const handleSubmitReview = async () => {
+    if (ratingValue < 1 || ratingValue > 5) return;
     setRatingBusy(true);
-    setRatingMsg("");
+    setRatingError("");
     try {
       const res = await customerApi.submitReview({
         restaurant_id: payload.restaurant.id,
@@ -200,12 +208,26 @@ export default function RestaurantMenu() {
       setRatingComment("");
       setRatingValue(5);
       if (res.data.avg_rating) {
-        setPayload((prev) => prev ? { ...prev, restaurant: { ...prev.restaurant, avg_rating: res.data.avg_rating, review_count: (prev.restaurant.review_count || 0) + 1 } } : prev);
+        setPayload((prev) => {
+          if (!prev) return prev;
+          const reviews = hasUserReview
+            ? (prev.reviews || []).map((r) => r.user?.id === user?.id ? res.data.review : r)
+            : [...(prev.reviews || []), res.data.review];
+          return {
+            ...prev,
+            restaurant: {
+              ...prev.restaurant,
+              avg_rating: res.data.avg_rating,
+              review_count: res.data.review_count ?? prev.restaurant.review_count,
+            },
+            reviews,
+          };
+        });
       }
       setRatingMsg("Thanks for your review!");
       window.setTimeout(() => setRatingMsg(""), 2800);
     } catch (err) {
-      setRatingMsg(err.response?.data?.message || "Failed to submit review.");
+      setRatingError(err.response?.data?.message || "Failed to submit review.");
     }
     setRatingBusy(false);
   };
@@ -517,13 +539,31 @@ export default function RestaurantMenu() {
         <section className="mt-4 mb-8">
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">What people are saying</h2>
-            {!useMock && sessionStorage.getItem("currentRole") && (
+            {!useMock && user && (
               <button
-                onClick={() => setRatingOpen(true)}
+                onClick={() => {
+                  if (hasUserReview) {
+                    setRatingValue(existingReview.rating);
+                    setRatingComment(existingReview.comment || "");
+                  } else {
+                    setRatingValue(5);
+                    setRatingComment("");
+                  }
+                  setRatingError("");
+                  setRatingOpen(true);
+                }}
                 className="inline-flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-colors ml-auto cursor-pointer"
               >
-                <Star size={13} className="text-amber-400" fill="currentColor" /> Rate this restaurant
+                <Star size={13} className="text-amber-400" fill="currentColor" /> {hasUserReview ? "Edit your review" : "Rate this restaurant"}
               </button>
+            )}
+            {!useMock && !user && (
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-colors ml-auto"
+              >
+                <Star size={13} className="text-amber-400" fill="currentColor" /> Log in to review
+              </Link>
             )}
           </div>
 
@@ -629,8 +669,8 @@ export default function RestaurantMenu() {
               className="w-full border border-zinc-200 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]/40 placeholder:text-zinc-400 resize-none"
             />
 
-            {ratingMsg && (
-              <p className="mt-3 text-xs font-medium text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-lg">{ratingMsg}</p>
+            {ratingError && (
+              <p className="mt-3 text-xs font-medium text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-lg">{ratingError}</p>
             )}
 
             <button

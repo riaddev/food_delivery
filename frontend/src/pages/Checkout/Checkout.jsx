@@ -279,6 +279,7 @@ export default function Checkout() {
                       onChange={(e) => setDeliveryAddress(e.target.value)}
                       placeholder="Enter your delivery address"
                       rows={2}
+                      autoComplete="off"
                       className="w-full border border-zinc-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
                     />
                     <div className="flex items-center gap-3">

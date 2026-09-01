@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
 use App\Models\Rider;
+use App\Models\RiderLocation;
 use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,6 +44,43 @@ class RiderController extends Controller
                 ? 'You are now online and available for deliveries.'
                 : 'You are now offline.',
         ]);
+    }
+
+    public function updateLocation(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order_id' => 'required|exists:orders,id',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'heading' => 'nullable|numeric|between:0,360',
+            'speed' => 'nullable|numeric|min:0',
+        ]);
+
+        $rider = Rider::where('user_id', $request->user()->id)->firstOrFail();
+
+        $order = Order::where('id', $validated['order_id'])
+            ->where('rider_id', $rider->id)
+            ->firstOrFail();
+
+        if (in_array($order->status, ['delivered', 'cancelled'])) {
+            return response()->json(['message' => 'Order already completed.'], 422);
+        }
+
+        RiderLocation::create([
+            'rider_id' => $rider->id,
+            'order_id' => $order->id,
+            'latitude' => $validated['latitude'],
+            'longitude' => $validated['longitude'],
+            'heading' => $validated['heading'] ?? null,
+            'speed' => $validated['speed'] ?? null,
+        ]);
+
+        $order->update([
+            'rider_lat' => $validated['latitude'],
+            'rider_lng' => $validated['longitude'],
+        ]);
+
+        return response()->json(['message' => 'Location updated.']);
     }
 
     public function orders(Request $request): JsonResponse
@@ -86,7 +124,7 @@ class RiderController extends Controller
     public function updateStatus(Request $request, $id): JsonResponse
     {
         $validated = $request->validate([
-            'status' => 'required|string|in:picked_up,on_the_way,delivered',
+            'status' => 'required|string|in:picked_up,on_the_way,near_customer,delivered',
         ]);
 
         $order = $this->ownOrder($request, $id);

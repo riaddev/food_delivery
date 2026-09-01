@@ -13,7 +13,7 @@ const stars = (rating) => (
 );
 
 const ReviewCard = ({ r }) => (
-  <div className="w-[340px] mr-5 shrink-0 bg-[#fafafa] rounded-[14px] p-5 text-left align-top">
+  <div className="w-[280px] sm:w-[340px] mr-5 shrink-0 bg-[#fafafa] rounded-[14px] p-5 text-left align-top">
     <div className="mb-3.5">{stars(r.rating)}</div>
     <p className="text-[14.5px] leading-relaxed text-[#3a3a3a] mb-5">&ldquo;{r.quote}&rdquo;</p>
     <div className="flex items-center gap-2.5">
@@ -28,7 +28,7 @@ const ReviewCard = ({ r }) => (
 
 const Testimonials = () => (
   <section className="bg-white py-12 text-center overflow-hidden" id="about">
-    <div className="max-w-[1240px] mx-auto px-8">
+    <div className="max-w-[1240px] mx-auto px-4 sm:px-8">
       <span className="inline-block text-xs font-bold tracking-widest uppercase text-[#ff6a2b] mb-2.5">Real People, Real Reviews</span>
       <h2 className="text-[34px] font-extrabold mt-2 mb-2.5">Trusted by Professionals.</h2>
       <div className="flex items-center justify-center gap-2 text-[#ff6a2b] text-sm mb-8">

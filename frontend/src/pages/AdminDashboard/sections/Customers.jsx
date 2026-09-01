@@ -98,7 +98,7 @@ export default function Customers({ showToast }) {
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                 placeholder="Search name, email, phone..."
-                className="w-64 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
+                className="w-full sm:w-64 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
               />
             </div>
           </div>

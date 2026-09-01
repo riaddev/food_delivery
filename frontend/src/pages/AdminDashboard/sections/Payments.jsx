@@ -70,7 +70,7 @@ export default function Payments({ onViewOrder }) {
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setPage(1); }}
                 placeholder="Search order # or txn ID..."
-                className="w-52 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
+                className="w-full sm:w-52 pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit"
               />
             </div>
           </div>

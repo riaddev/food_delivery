@@ -12,6 +12,7 @@ class OrderStatuses
         'assigned',
         'picked_up',
         'on_the_way',
+        'near_customer',
         'delivered',
         'served',
         'cancelled',
@@ -25,6 +26,7 @@ class OrderStatuses
         'assigned',
         'picked_up',
         'on_the_way',
+        'near_customer',
     ];
 
     public const COMPLETED_STATUSES = [
@@ -44,8 +46,9 @@ class OrderStatuses
         'preparing' => ['ready', 'cancelled'],
         'ready' => ['assigned', 'served', 'cancelled'],
         'assigned' => ['picked_up', 'cancelled'],
-        'picked_up' => ['on_the_way', 'delivered'],
-        'on_the_way' => ['delivered'],
+        'picked_up' => ['on_the_way'],
+        'on_the_way' => ['near_customer'],
+        'near_customer' => ['delivered'],
         'delivered' => [],
         'served' => [],
         'cancelled' => [],

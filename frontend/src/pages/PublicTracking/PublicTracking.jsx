@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
-import { CheckCircle, Utensils, Bike, Home, Package, ArrowLeft, RefreshCw } from "lucide-react";
+import { CheckCircle, Utensils, Bike, Home, Package, MapPin, ArrowLeft, RefreshCw, Clock } from "lucide-react";
+import LiveMap from "../../components/LiveMap";
 import { trackingApi } from "../../features/api/apiSlice";
 
 const DELIVERY_STEPS = [
@@ -11,6 +12,7 @@ const DELIVERY_STEPS = [
   { key: "assigned", label: "Rider Assigned", icon: Bike },
   { key: "picked_up", label: "Picked Up", icon: Bike },
   { key: "on_the_way", label: "On the Way", icon: Bike },
+  { key: "near_customer", label: "Near Customer", icon: MapPin },
   { key: "delivered", label: "Delivered", icon: Home },
 ];
 
@@ -22,7 +24,8 @@ const STEP_INDEX = {
   assigned: 4,
   picked_up: 5,
   on_the_way: 6,
-  delivered: 7,
+  near_customer: 7,
+  delivered: 8,
 };
 
 const STATUS_TEXT = {
@@ -33,15 +36,23 @@ const STATUS_TEXT = {
   assigned: "A rider has been assigned to your order.",
   picked_up: "Your order has been picked up by the rider.",
   on_the_way: "Your order is on the way!",
+  near_customer: "Your rider is near you!",
   delivered: "Your order has been delivered. Enjoy!",
   cancelled: "This order was cancelled.",
 };
+
+const IN_TRANSIT_STATUSES = ["picked_up", "on_the_way", "near_customer"];
+
+const POLL_FAST = 3000;
+const POLL_SLOW = 5000;
 
 export default function PublicTracking() {
   const { trackingCode } = useParams();
   const [order, setOrder] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [route, setRoute] = useState(null);
+  const timerRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -65,17 +76,51 @@ export default function PublicTracking() {
         });
 
     load();
-    const timer = setInterval(load, 5000);
 
     return () => {
       active = false;
-      clearInterval(timer);
     };
   }, [trackingCode]);
+
+  useEffect(() => {
+    if (!order) return;
+
+    const status = order.status;
+    const isTransit = IN_TRANSIT_STATUSES.includes(status);
+    const interval = isTransit ? POLL_FAST : POLL_SLOW;
+
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      trackingApi.track(trackingCode).then((res) => {
+        setOrder(res.data);
+        setError(null);
+      }).catch(() => {});
+    }, interval);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [order?.status, trackingCode]);
+
+  useEffect(() => {
+    if (!order?.tracking_code) return;
+
+    const status = order.status;
+    const isTransit = IN_TRANSIT_STATUSES.includes(status);
+
+    if (isTransit && !route) {
+      trackingApi
+        .getRoute(order.tracking_code)
+        .then((res) => setRoute(res.data))
+        .catch(() => {});
+    }
+  }, [order?.tracking_code, order?.status]);
 
   const status = order?.status;
   const activeStep = status ? STEP_INDEX[status] ?? 0 : 0;
   const isCancelled = status === "cancelled";
+  const isTransit = IN_TRANSIT_STATUSES.includes(status);
+  const hasCoords = order?.restaurant_coords || order?.customer_coords || order?.rider_location;
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
@@ -117,15 +162,44 @@ export default function PublicTracking() {
                     {STATUS_TEXT[status] || "Order status is being updated."}
                   </p>
                 </div>
-                <button
-                  onClick={() => window.location.reload()}
-                  className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
-                  title="Refresh"
-                >
-                  <RefreshCw size={18} />
-                </button>
+                <div className="flex items-center gap-2">
+                  {isTransit && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      Live
+                    </div>
+                  )}
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                    title="Refresh"
+                  >
+                    <RefreshCw size={18} />
+                  </button>
+                </div>
               </div>
             </section>
+
+            {isTransit && hasCoords && (
+              <LiveMap
+                restaurantCoords={order.restaurant_coords}
+                customerCoords={order.customer_coords}
+                riderLocation={order.rider_location}
+                polyline={route?.polyline}
+              />
+            )}
+
+            {isTransit && hasCoords && route && (
+              <div className="bg-white rounded-xl border border-zinc-100 shadow-[0_4px_20px_rgba(0,0,0,0.05)] p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-zinc-600">
+                  <Clock size={16} className="text-blue-500" />
+                  <span>Estimated arrival</span>
+                </div>
+                <span className="font-extrabold text-zinc-900">
+                  ~{route.duration_min} min
+                </span>
+              </div>
+            )}
 
             {!isCancelled && (
               <section className="bg-white rounded-xl border border-zinc-100 shadow-[0_4px_20px_rgba(0,0,0,0.05)] p-5">

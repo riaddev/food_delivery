@@ -29,6 +29,8 @@ class Restaurant extends Model
         'status',
         'delivery_fee',
         'accepts_dine_in',
+        'latitude',
+        'longitude',
     ];
 
     protected $appends = ['image_url', 'cover_image_url', 'logo_url'];

@@ -508,6 +508,7 @@ class RestaurantController extends Controller
                     'comment' => $review->comment,
                     'created_at' => $review->created_at,
                     'user' => [
+                        'id' => $review->user?->id,
                         'name' => $review->user?->name ?? 'Customer',
                         'avatar_url' => $review->user?->avatar_url,
                     ],
@@ -557,6 +558,7 @@ class RestaurantController extends Controller
                     'comment' => $review->comment,
                     'created_at' => $review->created_at,
                     'user' => [
+                        'id' => $review->user?->id,
                         'name' => $review->user?->name ?? 'Customer',
                         'avatar_url' => $review->user?->avatar_url,
                     ],
