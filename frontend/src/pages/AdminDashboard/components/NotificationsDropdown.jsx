@@ -14,6 +14,8 @@ const LINK_SECTIONS = {
   rider_activated: "agents",
   customer_suspended: "customers",
   customer_activated: "customers",
+  category_request_approved: "categories",
+  category_request_rejected: "categories",
 };
 
 export default function NotificationsDropdown({ onNavigate }) {

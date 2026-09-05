@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { ClipboardList, MapPin, RefreshCw, UtensilsCrossed, Bike, X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ClipboardList, MapPin, RefreshCw, UtensilsCrossed, Bike, X, AlertTriangle } from "lucide-react";
 import { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
@@ -17,26 +17,77 @@ const STATUS_FLOW = [
   { value: "cancelled", label: "Cancelled", color: "bg-red-50 text-red-500" },
 ];
 
-const statusColor = (status) => STATUS_FLOW.find((s) => s.value === status)?.color || "bg-zinc-50 text-zinc-500";
-const statusLabel = (status) => STATUS_FLOW.find((s) => s.value === status)?.label || status;
+const statusColor = (s) => STATUS_FLOW.find((x) => x.value === s)?.color || "bg-zinc-50 text-zinc-500";
+const statusLabel = (s) => STATUS_FLOW.find((x) => x.value === s)?.label || s;
 
-const paymentMethodLabel = (method) => {
-  if (method === "bkash") return "bKash";
-  if (method === "card") return "Card";
+const RESTAURANT_ACTIONABLE = new Set(["pending", "confirmed", "preparing", "ready"]);
+
+const nextActions = (status, orderType) => {
+  if (status === "pending") return [{ to: "confirmed", label: "Accept Order" }];
+  if (status === "confirmed") return [{ to: "preparing", label: "Start Preparing" }];
+  if (status === "preparing") return [{ to: "ready", label: "Mark Ready" }];
+  if (status === "ready" && orderType === "dine_in") return [{ to: "served", label: "Mark Served" }];
+  return [];
+};
+
+const paymentMethodLabel = (m) => {
+  if (m === "bkash") return "bKash";
+  if (m === "card") return "Card";
   return "Cash on Delivery";
 };
 
-const formatDate = (date) => new Date(date).toLocaleString("en-US", {
+const formatDate = (d) => new Date(d).toLocaleString("en-US", {
   month: "short",
   day: "numeric",
   hour: "numeric",
   minute: "2-digit",
 });
 
-const appliedStatuses = (order) =>
-  order.order_type === "dine_in"
-    ? ["confirmed", "preparing", "ready", "served"]
-    : ["confirmed", "preparing", "ready"];
+const RESTAURANT_FILTERS = ["pending", "confirmed", "preparing", "ready", "delivered", "cancelled"];
+
+function CancelConfirmModal({ order, onConfirm, onCancel, loading }) {
+  if (!order) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative bg-card rounded-2xl border border-border shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-text-primary text-lg">Cancel Order</h3>
+          <button onClick={onCancel} className="text-text-light hover:text-text-primary cursor-pointer"><X size={20} /></button>
+        </div>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <AlertTriangle size={18} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm text-text-primary font-medium">
+              Are you sure you want to cancel Order #{order.id}?
+            </p>
+            <p className="text-xs text-text-muted mt-1">
+              This action cannot be undone. The customer will be notified.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2.5 pt-1">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-text-muted hover:border-zinc-300 hover:text-text-primary transition disabled:opacity-50 cursor-pointer"
+          >
+            Keep Order
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition disabled:opacity-50 cursor-pointer"
+          >
+            {loading ? "Cancelling..." : "Yes, Cancel"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function OrdersManagement() {
   const [orders, setOrders] = useState([]);
@@ -50,14 +101,16 @@ export default function OrdersManagement() {
   const [ridersLoading, setRidersLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
-  const load = () => {
+  const [cancelModal, setCancelModal] = useState(null);
+
+  const load = useCallback(() => {
     restaurantApi.getOrders()
       .then((r) => setOrders(r.data.orders))
       .catch(() => setError("Failed to load orders"))
       .finally(() => setLoading(false));
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const handleStatus = async (order, status) => {
     setUpdatingId(order.id);
@@ -104,8 +157,6 @@ export default function OrdersManagement() {
     ? orders
     : orders.filter((o) => o.status === filter);
 
-  const filters = ["all", "pending", "confirmed", "preparing", "ready", "assigned", "on_the_way", "near_customer", "served", "delivered", "cancelled"];
-
   if (loading) {
     return (
       <div className="max-w-5xl space-y-5">
@@ -126,11 +177,15 @@ export default function OrdersManagement() {
         <button onClick={() => setFilter("all")} className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap transition-all cursor-pointer ${filter === "all" ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
           All ({orders.length})
         </button>
-        {filters.filter((f) => f !== "all").map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap capitalize transition-all cursor-pointer ${filter === f ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
-            {f.replace(/_/g, " ")}
-          </button>
-        ))}
+        {RESTAURANT_FILTERS.map((f) => {
+          const count = orders.filter((o) => o.status === f).length;
+          if (count === 0 && !["pending", "confirmed", "preparing", "ready"].includes(f)) return null;
+          return (
+            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap capitalize transition-all cursor-pointer ${filter === f ? "bg-orange-primary text-white" : "bg-card text-text-muted border border-border hover:text-text-primary"}`}>
+              {f.replace(/_/g, " ")} ({count})
+            </button>
+          );
+        })}
       </div>
 
       {error && (
@@ -150,99 +205,103 @@ export default function OrdersManagement() {
         </div>
       ) : (
         <div className="space-y-5">
-          {filtered.map((order) => (
-            <div key={order.id} className="bg-card rounded-[13px] border border-border p-4 md:p-6 transition-all duration-300 hover:border-zinc-300">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div>
-                  <div className="flex items-center gap-2.5 mb-1">
-                    <span className="font-bold text-text-primary">Order #{order.id}</span>
-                    {order.status === "pending" && (
-                      <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot" /> Pending
+          {filtered.map((order) => {
+            const actions = nextActions(order.status, order.order_type);
+            const showAssign = order.status === "ready" && order.order_type !== "dine_in" && !order.rider;
+            const canCancel = RESTAURANT_ACTIONABLE.has(order.status);
+
+            return (
+              <div key={order.id} className="bg-card rounded-[13px] border border-border p-4 md:p-6 transition-all duration-300 hover:border-zinc-300">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-1">
+                      <span className="font-bold text-text-primary">Order #{order.id}</span>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(order.status)}`}>
+                        {statusLabel(order.status)}
                       </span>
+                      {order.order_type === "dine_in" && (
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                          <UtensilsCrossed size={12} /> Dine-In{order.table_number ? ` · Table ${order.table_number}` : ""}
+                        </span>
+                      )}
+                      {order.tracking_code && (
+                        <span className="text-xs font-mono text-text-light bg-zinc-50 px-2 py-0.5 rounded">
+                          {order.tracking_code}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-text-muted">
+                      {order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ""} · {formatDate(order.created_at)}
+                    </p>
+                    {order.payment_method && (
+                      <p className="text-xs text-text-light mt-1.5">
+                        {paymentMethodLabel(order.payment_method)} · {order.payment_status === "paid" ? "Paid" : order.order_type === "dine_in" ? "Pay at table" : "Pay on delivery"} · {order.order_type === "dine_in" ? "No delivery fee" : `Delivery ${order.delivery_fee > 0 ? formatPrice(order.delivery_fee) : "Free"}`}
+                      </p>
                     )}
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(order.status)}`}>
-                      {statusLabel(order.status)}
-                    </span>
-                    {order.order_type === "dine_in" && (
-                      <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
-                        <UtensilsCrossed size={12} /> Dine-In{order.table_number ? ` · Table ${order.table_number}` : ""}
-                      </span>
-                    )}
-                    {order.tracking_code && (
-                      <span className="text-xs font-mono text-text-light bg-zinc-50 px-2 py-0.5 rounded">
-                        {order.tracking_code}
-                      </span>
+                    {order.rider && (
+                      <p className="text-xs text-indigo-600 mt-1.5 flex items-center gap-1">
+                        <Bike size={11} /> Rider: {order.rider.name} · {order.rider.phone}
+                      </p>
                     )}
                   </div>
-                  <p className="text-sm text-text-muted">
-                    {order.customer_name}{order.customer_phone ? ` · ${order.customer_phone}` : ""} · {formatDate(order.created_at)}
-                  </p>
-                  {order.payment_method && (
-                    <p className="text-xs text-text-light mt-1.5">
-                      {paymentMethodLabel(order.payment_method)} · {order.payment_status === "paid" ? "Paid" : order.order_type === "dine_in" ? "Pay at table" : "Pay on delivery"} · {order.order_type === "dine_in" ? "No delivery fee" : `Delivery ${order.delivery_fee > 0 ? formatPrice(order.delivery_fee) : "Free"}`}
-                    </p>
-                  )}
-                  {order.rider && (
-                    <p className="text-xs text-indigo-600 mt-1.5 flex items-center gap-1">
-                      <Bike size={11} /> Rider: {order.rider.name} · {order.rider.phone}
+                  <p className="font-bold text-text-primary text-lg font-mono tracking-tight">{formatPrice(order.total)}</p>
+                </div>
+
+                <div className="bg-surface rounded-[13px] p-4 mb-4 border border-border">
+                  {order.items.map((item) => (
+                    <div key={item.id} className="flex justify-between text-sm py-1">
+                      <span className="text-text-primary">{item.name} <span className="text-text-light">× {item.quantity}</span></span>
+                      <span className="font-semibold text-text-primary font-mono">{formatPrice(parseFloat(item.price) * item.quantity)}</span>
+                    </div>
+                  ))}
+                  {order.delivery_address && (
+                    <p className="text-xs text-text-muted mt-3 pt-3 border-t border-border flex items-center gap-1.5">
+                      <MapPin size={12} className="text-orange-primary shrink-0" /> {order.delivery_address}
                     </p>
                   )}
                 </div>
-                <p className="font-bold text-text-primary text-lg font-mono tracking-tight">{formatPrice(order.total)}</p>
-              </div>
 
-              <div className="bg-surface rounded-[13px] p-4 mb-4 border border-border">
-                {order.items.map((item) => (
-                  <div key={item.id} className="flex justify-between text-sm py-1">
-                    <span className="text-text-primary">{item.name} <span className="text-text-light">× {item.quantity}</span></span>
-                    <span className="font-semibold text-text-primary font-mono">{formatPrice(parseFloat(item.price) * item.quantity)}</span>
+                {(actions.length > 0 || showAssign || canCancel) && (
+                  <div className="flex flex-wrap gap-2.5">
+                    {showAssign && (
+                      <button
+                        onClick={() => openAssignModal(order)}
+                        className="text-sm font-semibold px-4 py-2 rounded-full bg-indigo-500 text-white border border-indigo-500 hover:bg-indigo-600 transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Bike size={14} /> Assign Rider
+                      </button>
+                    )}
+                    {actions.map((a) => (
+                      <button
+                        key={a.to}
+                        onClick={() => handleStatus(order, a.to)}
+                        disabled={updatingId === order.id}
+                        className="text-sm font-semibold px-4 py-2 rounded-full bg-orange-primary text-white border border-orange-primary hover:bg-orange-deep transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {updatingId === order.id ? "Updating..." : a.label}
+                      </button>
+                    ))}
+                    {canCancel && (
+                      <button
+                        onClick={() => setCancelModal(order)}
+                        disabled={updatingId === order.id}
+                        className="text-sm font-semibold px-4 py-2 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50 cursor-pointer"
+                      >
+                        Cancel Order
+                      </button>
+                    )}
+                    {!RESTAURANT_ACTIONABLE.has(order.status) && order.status !== "delivered" && order.status !== "cancelled" && (
+                      <span className="text-xs text-text-light italic self-center">
+                        {["assigned", "picked_up", "on_the_way", "near_customer", "served"].includes(order.status)
+                          ? "Rider is handling delivery"
+                          : "Waiting for next step"}
+                      </span>
+                    )}
                   </div>
-                ))}
-                {order.delivery_address && (
-                  <p className="text-xs text-text-muted mt-3 pt-3 border-t border-border flex items-center gap-1.5">
-                    <MapPin size={12} className="text-orange-primary shrink-0" /> {order.delivery_address}
-                  </p>
                 )}
               </div>
-
-              {order.status !== "delivered" && order.status !== "served" && order.status !== "cancelled" && (
-                <div className="flex flex-wrap gap-2.5">
-                  {order.status === "ready" && order.order_type !== "dine_in" && !order.rider && (
-                    <button
-                      onClick={() => openAssignModal(order)}
-                      className="text-sm font-semibold px-4 py-2 rounded-full bg-indigo-500 text-white border border-indigo-500 hover:bg-indigo-600 transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <Bike size={14} /> Assign Rider
-                    </button>
-                  )}
-                  {appliedStatuses(order).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => handleStatus(order, s)}
-                      disabled={updatingId === order.id || s === order.status}
-                      className={`text-sm font-semibold px-4 py-2 rounded-full border transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-                        s === order.status
-                          ? "bg-orange-primary text-white border-orange-primary"
-                          : s === "on_the_way" || s === "served"
-                            ? "bg-text-primary text-white border-text-primary hover:bg-zinc-800"
-                            : "border-border text-text-muted hover:border-orange-primary hover:text-orange-primary"
-                      }`}
-                    >
-                      {updatingId === order.id ? "Updating..." : statusLabel(s)}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => handleStatus(order, "cancelled")}
-                    disabled={updatingId === order.id}
-                    className="text-sm font-semibold px-4 py-2 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition disabled:opacity-50 cursor-pointer"
-                  >
-                    Cancel Order
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -286,6 +345,15 @@ export default function OrdersManagement() {
           </div>
         </div>
       )}
+
+      <CancelConfirmModal
+        order={cancelModal}
+        loading={updatingId === cancelModal?.id}
+        onConfirm={() => {
+          if (cancelModal) handleStatus(cancelModal, "cancelled").then(() => setCancelModal(null));
+        }}
+        onCancel={() => setCancelModal(null)}
+      />
     </div>
   );
 }

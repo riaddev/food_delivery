@@ -76,7 +76,7 @@ export default function EditProfile() {
             <label className={labelCls}>Cover Image</label>
             {cover.preview ? (
               <div className="relative mt-2">
-                <img src={cover.preview} alt="Cover preview" className="w-full h-32 sm:h-44 object-cover rounded-2xl" />
+                <img src={cover.preview} alt="Cover preview" className="w-full h-32 sm:h-44 object-cover rounded-2xl" onError={() => clearKind("cover")} />
                 <button type="button" onClick={() => clearKind("cover")} className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors cursor-pointer" aria-label="Remove cover image">
                   <X size={14} />
                 </button>

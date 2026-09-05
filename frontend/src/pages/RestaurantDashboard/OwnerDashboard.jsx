@@ -1,19 +1,84 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { TrendingUp, ClipboardList, CheckCircle2, CalendarClock, Plus, ArrowRight } from "lucide-react";
+import { TrendingUp, ClipboardList, CheckCircle2, CalendarClock, Plus, ArrowRight, Bike, AlertTriangle, X } from "lucide-react";
 import { restaurantApi, reservationApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
 const COMPLETED_STATUSES = ["delivered", "served"];
+const TERMINAL_STATUSES = ["delivered", "cancelled"];
 const ACTIVE_RESERVATION_STATUSES = ["pending", "confirmed"];
 
+const STATUS_META = {
+  pending: { label: "Pending", color: "bg-amber-50 text-amber-600" },
+  confirmed: { label: "Confirmed", color: "bg-blue-50 text-blue-600" },
+  preparing: { label: "Preparing", color: "bg-purple-50 text-purple-600" },
+  ready: { label: "Ready", color: "bg-cyan-50 text-cyan-600" },
+  assigned: { label: "Rider Assigned", color: "bg-indigo-50 text-indigo-600" },
+  picked_up: { label: "Picked Up", color: "bg-violet-50 text-violet-600" },
+  on_the_way: { label: "On the Way", color: "bg-indigo-50 text-indigo-600" },
+  near_customer: { label: "Near Customer", color: "bg-amber-50 text-amber-600" },
+  served: { label: "Served", color: "bg-emerald-50 text-emerald-600" },
+  delivered: { label: "Delivered", color: "bg-emerald-50 text-emerald-600" },
+  cancelled: { label: "Cancelled", color: "bg-red-50 text-red-500" },
+};
+
+const RESTAURANT_ACTIONABLE = new Set(["pending", "confirmed", "preparing", "ready"]);
+
+const statusColor = (s) => STATUS_META[s]?.color || "bg-zinc-50 text-zinc-500";
+const statusLabel = (s) => STATUS_META[s]?.label || s;
+
+const nextAction = (status, orderType) => {
+  if (status === "pending") return { to: "confirmed", label: "Accept" };
+  if (status === "confirmed") return { to: "preparing", label: "Prepare" };
+  if (status === "preparing") return { to: "ready", label: "Ready" };
+  if (status === "ready" && orderType === "dine_in") return { to: "served", label: "Served" };
+  return null;
+};
+
 const sameDay = (a, b) => a.toDateString() === b.toDateString();
+
+function CancelModal({ order, onConfirm, onCancel, loading }) {
+  if (!order) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancel}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative bg-card rounded-2xl border border-border shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-text-primary text-lg">Cancel Order</h3>
+          <button onClick={onCancel} className="text-text-light hover:text-text-primary cursor-pointer"><X size={20} /></button>
+        </div>
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+            <AlertTriangle size={18} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm text-text-primary font-medium">
+              Cancel Order #{order.id}?
+            </p>
+            <p className="text-xs text-text-muted mt-1">
+              The customer will be notified.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2.5 pt-1">
+          <button onClick={onCancel} disabled={loading} className="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm font-semibold text-text-muted hover:border-zinc-300 hover:text-text-primary transition disabled:opacity-50 cursor-pointer">
+            Keep
+          </button>
+          <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition disabled:opacity-50 cursor-pointer">
+            {loading ? "Cancelling..." : "Cancel"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function OwnerDashboard() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [actingId, setActingId] = useState(null);
+  const [cancelModal, setCancelModal] = useState(null);
 
   useEffect(() => {
     restaurantApi.getOrders()
@@ -26,7 +91,10 @@ export default function OwnerDashboard() {
 
   const now = new Date();
 
-  const liveOrders = orders.filter((o) => o.status === "pending");
+  const liveOrders = orders.filter(
+    (o) => !TERMINAL_STATUSES.includes(o.status)
+  );
+  const pendingOrders = orders.filter((o) => o.status === "pending");
   const completedToday = orders.filter(
     (o) => COMPLETED_STATUSES.includes(o.status) && sameDay(new Date(o.created_at), now)
   );
@@ -37,7 +105,7 @@ export default function OwnerDashboard() {
 
   const stats = [
     { title: "Today's Revenue", value: formatPrice(todayRevenue), icon: TrendingUp, tint: "bg-emerald-50 text-emerald-600" },
-    { title: "Pending Orders", value: String(liveOrders.length), icon: ClipboardList, tint: "bg-amber-50 text-amber-600" },
+    { title: "Pending Orders", value: String(pendingOrders.length), icon: ClipboardList, tint: "bg-amber-50 text-amber-600" },
     { title: "Completed Today", value: String(completedToday.length), icon: CheckCircle2, tint: "bg-sky-50 text-sky-600" },
     { title: "Active Reservations", value: String(activeReservations.length), icon: CalendarClock, tint: "bg-orange-soft text-orange-deep" },
   ];
@@ -70,19 +138,19 @@ export default function OwnerDashboard() {
     .slice(0, 5);
 
   return (
-    <div className="max-w-6xl">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
-            <div key={s.title} className="bg-card rounded-[13px] border border-border p-5">
-              <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${s.tint}`}>
-                  <Icon size={18} strokeWidth={2} />
+            <div key={s.title} className="bg-card rounded-[13px] border border-border p-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0 ${s.tint}`}>
+                  <Icon size={17} strokeWidth={2} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-light truncate">{s.title}</p>
-                  <p className="text-xl font-bold font-mono tracking-tight text-text-primary mt-1 leading-tight">{s.value}</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-text-light truncate">{s.title}</p>
+                  <p className="text-[17px] font-bold font-mono tracking-tight text-text-primary mt-0.5 leading-tight">{s.value}</p>
                 </div>
               </div>
             </div>
@@ -90,12 +158,12 @@ export default function OwnerDashboard() {
         })}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-3.5 items-start">
-        {/* Live Orders */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.9fr_1fr] gap-4 items-start">
+        {/* Active Orders */}
         <section className="bg-card rounded-[13px] border border-border overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-            <h2 className="text-[15px] font-bold text-text-primary">Live Orders</h2>
-            <Link to="/restaurant/dashboard/orders" className="inline-flex items-center gap-1 text-[13px] font-semibold text-orange-primary no-underline">
+          <div className="flex items-center justify-between px-5 py-4">
+            <h2 className="text-[15px] font-bold text-text-primary">Active Orders</h2>
+            <Link to="/restaurant/dashboard/orders" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-orange-primary no-underline hover:underline">
               See all <ArrowRight size={13} />
             </Link>
           </div>
@@ -105,73 +173,86 @@ export default function OwnerDashboard() {
               <div className="w-11 h-11 mx-auto rounded-full bg-orange-soft flex items-center justify-center text-orange-deep mb-3">
                 <ClipboardList size={19} />
               </div>
-              <p className="text-sm font-medium text-text-primary mb-1">No pending orders</p>
+              <p className="text-sm font-medium text-text-primary mb-1">No active orders</p>
               <p className="text-xs text-text-muted mb-4">New orders will appear here as they come in.</p>
               <Link to="/restaurant/dashboard/orders" className="text-sm font-medium text-orange-primary no-underline">
                 Open Live Orders
               </Link>
             </div>
           ) : (
-            <div>
-              <div className="hidden md:grid grid-cols-12 gap-3 px-5 py-2.5 border-b border-border text-[11px] font-semibold uppercase tracking-[0.04em] text-text-light">
-                <span className="col-span-3">Order</span>
-                <span className="col-span-4">Items</span>
-                <span className="col-span-2">Status</span>
-                <span className="col-span-1 text-right">Total</span>
-                <span className="col-span-2 text-right">Actions</span>
-              </div>
-
-              <div className="divide-y divide-[#F3F4F6]">
-                {liveOrders.map((order) => (
-                  <div key={order.id} className="grid grid-cols-2 md:grid-cols-12 gap-x-3 gap-y-2 items-center px-5 py-3.5 hover:bg-[#FAFAFA] transition-colors">
-                    <div className="col-span-1 md:col-span-3 min-w-0">
-                      <p className="text-sm font-semibold font-mono text-orange-primary">#{order.id}</p>
-                      <p className="text-xs text-text-muted truncate flex items-center gap-1.5">
-                        {order.customer_name || "Guest"}
+            <div className="divide-y divide-border">
+              {liveOrders.slice(0, 8).map((order) => {
+                const action = nextAction(order.status, order.order_type);
+                return (
+                  <div key={order.id} className="px-5 py-3.5 hover:bg-[#FAFAFA] transition-colors">
+                    <div className="flex items-center justify-between gap-3 mb-1.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-bold font-mono text-orange-primary">#{order.id}</span>
+                        <span className="text-sm font-medium text-text-primary truncate">{order.customer_name || "Guest"}</span>
                         {order.order_type === "dine_in" && (
-                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
                             Dine-In{order.table_number ? ` · T${order.table_number}` : ""}
                           </span>
                         )}
-                      </p>
+                      </div>
+                      <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full capitalize shrink-0 ${statusColor(order.status)}`}>
+                        {statusLabel(order.status)}
+                      </span>
                     </div>
-                    <p className="col-span-1 md:col-span-4 text-xs text-text-muted truncate">
+
+                    <p className="text-xs text-text-muted truncate mb-1.5">
                       {(order.items || []).map((i) => `${i.quantity}× ${i.name}`).join(", ")}
                     </p>
-                    <span className="hidden md:inline-block col-span-1 md:col-span-2 justify-self-start">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-md">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 pulse-dot" /> Pending
-                      </span>
-                    </span>
-                    <p className="col-span-1 md:col-span-1 text-sm font-bold font-mono tracking-tight text-text-primary text-right justify-self-end">{formatPrice(order.total)}</p>
-                    <div className="col-span-2 md:col-span-2 flex justify-end gap-2 md:justify-self-end">
-                      <button
-                        onClick={() => handleStatus(order, "confirmed")}
-                        disabled={actingId === order.id}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-primary hover:bg-orange-deep text-white transition-colors disabled:opacity-50 cursor-pointer font-outfit"
-                      >
-                        {actingId === order.id ? "…" : "Accept"}
-                      </button>
-                      <button
-                        onClick={() => handleStatus(order, "cancelled")}
-                        disabled={actingId === order.id}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border text-text-muted hover:border-zinc-300 hover:text-text-primary transition-colors disabled:opacity-50 cursor-pointer font-outfit"
-                      >
-                        Reject
-                      </button>
+
+                    {order.rider && (
+                      <p className="text-[11px] text-indigo-600 mb-1.5 flex items-center gap-1">
+                        <Bike size={11} /> {order.rider.name}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-bold font-mono tracking-tight text-text-primary">{formatPrice(order.total)}</p>
+                      <div className="flex items-center gap-2">
+                        {RESTAURANT_ACTIONABLE.has(order.status) && action ? (
+                          <>
+                            <button
+                              onClick={() => handleStatus(order, action.to)}
+                              disabled={actingId === order.id}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-orange-primary hover:bg-orange-deep text-white transition-colors disabled:opacity-50 cursor-pointer font-outfit"
+                            >
+                              {actingId === order.id ? "..." : action.label}
+                            </button>
+                            <button
+                              onClick={() => setCancelModal(order)}
+                              disabled={actingId === order.id}
+                              className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 transition-colors disabled:opacity-50 cursor-pointer font-outfit"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-text-light italic">
+                            {order.status === "ready" && order.order_type !== "dine_in"
+                              ? "Waiting for rider..."
+                              : ["assigned", "picked_up", "on_the_way", "near_customer", "served"].includes(order.status)
+                                ? "In delivery"
+                                : "—"}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           )}
         </section>
 
         {/* Top selling items */}
         <section className="bg-card rounded-[13px] border border-border overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center justify-between px-5 py-4">
             <h2 className="text-[15px] font-bold text-text-primary">Top Selling Items</h2>
-            <Link to="/restaurant/dashboard/analytics" className="inline-flex items-center gap-1 text-[13px] font-semibold text-orange-primary no-underline">
+            <Link to="/restaurant/dashboard/analytics" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-orange-primary no-underline hover:underline">
               See all <ArrowRight size={13} />
             </Link>
           </div>
@@ -182,12 +263,12 @@ export default function OwnerDashboard() {
               <p className="text-xs text-text-muted">Your best sellers will appear once orders are completed.</p>
             </div>
           ) : (
-            <div className="divide-y divide-[#F3F4F6]">
+            <div className="divide-y divide-border">
               {topItems.map((item, idx) => (
                 <div key={item.name} className="flex items-center gap-3 px-5 py-3 hover:bg-[#FAFAFA] transition-colors">
-                  <span className={`text-xs font-bold font-mono w-5 ${idx === 0 ? "text-orange-primary" : "text-text-light"}`}>{idx + 1}</span>
-                  <p className="flex-1 min-w-0 text-sm font-medium text-text-primary truncate m-0">{item.name}</p>
-                  <span className="text-xs font-semibold text-text-muted whitespace-nowrap">{item.qty} sold</span>
+                  <span className={`text-[13px] font-bold font-mono w-6 ${idx === 0 ? "text-orange-primary" : "text-text-light"}`}>{String(idx + 1).padStart(2, "0")}</span>
+                  <p className="flex-1 min-w-0 text-sm font-semibold text-text-primary truncate m-0">{item.name}</p>
+                  <span className="text-[11px] font-medium text-text-muted whitespace-nowrap">{item.qty} sold</span>
                 </div>
               ))}
             </div>
@@ -203,6 +284,18 @@ export default function OwnerDashboard() {
           </div>
         </section>
       </div>
+
+      <CancelModal
+        order={cancelModal}
+        loading={actingId === cancelModal?.id}
+        onConfirm={async () => {
+          if (cancelModal) {
+            await handleStatus(cancelModal, "cancelled");
+            setCancelModal(null);
+          }
+        }}
+        onCancel={() => setCancelModal(null)}
+      />
     </div>
   );
 }

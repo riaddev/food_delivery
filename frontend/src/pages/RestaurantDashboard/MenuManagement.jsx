@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, UtensilsCrossed, Image as ImageIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, UtensilsCrossed, Image as ImageIcon, Tag, Power, PowerOff } from "lucide-react";
 import api, { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
-const emptyItem = { name: "", description: "", price: "", category: "", category_id: "", is_available: true };
+const emptyItem = { name: "", description: "", price: "", discount_price: "", category: "", category_id: "", is_available: true };
 
 export default function MenuManagement() {
   const [items, setItems] = useState([]);
@@ -18,6 +18,11 @@ export default function MenuManagement() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [categories, setCategories] = useState([]);
+  const [showCategoryRequest, setShowCategoryRequest] = useState(false);
+  const [categoryRequestName, setCategoryRequestName] = useState("");
+  const [categoryRequestSaving, setCategoryRequestSaving] = useState(false);
+  const [categoryRequestError, setCategoryRequestError] = useState("");
+  const [categoryRequestSuccess, setCategoryRequestSuccess] = useState("");
 
   const fetchItems = async () => {
     try {
@@ -76,7 +81,7 @@ export default function MenuManagement() {
   };
 
   const openEdit = (item) => {
-    setForm({ ...item, price: item.price.toString(), category_id: item.category_id ?? "" }); setEditingId(item.id);
+    setForm({ ...item, price: item.price.toString(), discount_price: item.discount_price != null ? item.discount_price.toString() : "", category_id: item.category_id ?? "" }); setEditingId(item.id);
     setImageFile(null); setImagePreview(item.image_url || null);
     setImageUrl(item.image && String(item.image).startsWith("http") ? item.image : "");
     setRemoveImage(false); setShowForm(true); setError("");
@@ -85,6 +90,7 @@ export default function MenuManagement() {
   const buildFormData = () => {
     const fd = new FormData();
     fd.append("name", form.name); fd.append("price", form.price);
+    if (form.discount_price !== "" && form.discount_price != null) fd.append("discount_price", form.discount_price);
     if (form.description) fd.append("description", form.description);
     if (form.category) fd.append("category", form.category);
     if (form.category_id) fd.append("category_id", form.category_id);
@@ -104,6 +110,7 @@ export default function MenuManagement() {
         const fd = new FormData();
         fd.append("name", form.name);
         fd.append("price", form.price);
+        if (form.discount_price !== "" && form.discount_price != null) fd.append("discount_price", form.discount_price);
         if (form.description) fd.append("description", form.description);
         if (form.category) fd.append("category", form.category);
         if (form.category_id) fd.append("category_id", form.category_id);
@@ -128,6 +135,37 @@ export default function MenuManagement() {
   const handleDelete = async (id) => {
     if (!confirm("Delete this item?")) return;
     try { await restaurantApi.deleteMenuItem(id); fetchItems(); } catch { alert("Failed to delete."); }
+  };
+
+  const handleToggleAvailability = async (item) => {
+    try {
+      await restaurantApi.toggleAvailability(item.id, { is_available: !item.is_available });
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, is_available: !i.is_available } : i))
+      );
+    } catch {
+      alert("Failed to update availability.");
+    }
+  };
+
+  const handleCategoryRequest = async () => {
+    if (!categoryRequestName.trim()) return;
+    setCategoryRequestSaving(true);
+    setCategoryRequestError("");
+    setCategoryRequestSuccess("");
+    try {
+      const res = await restaurantApi.storeCategoryRequest({ name: categoryRequestName.trim() });
+      setCategoryRequestSuccess(res.data.message);
+      setCategoryRequestName("");
+      setTimeout(() => {
+        setShowCategoryRequest(false);
+        setCategoryRequestSuccess("");
+      }, 2000);
+    } catch (err) {
+      setCategoryRequestError(err.response?.data?.message || "Failed to submit request.");
+    } finally {
+      setCategoryRequestSaving(false);
+    }
   };
 
   const inputCls = "w-full bg-transparent border-b border-zinc-200 focus:border-orange-500 outline-none py-2.5 text-sm text-text-primary placeholder:text-text-light transition-colors";
@@ -158,21 +196,60 @@ export default function MenuManagement() {
                 <input type="number" name="price" required min="0" step="0.01" value={form.price} onChange={handleChange} className={inputCls} placeholder="240" />
               </div>
               <div>
+                <label className={labelCls}>Discounted Price (৳)</label>
+                <input
+                  type="number"
+                  name="discount_price"
+                  min="0"
+                  step="0.01"
+                  value={form.discount_price}
+                  onChange={handleChange}
+                  className={inputCls}
+                  placeholder="Leave empty for no discount"
+                />
+                {form.discount_price !== "" && form.discount_price != null && parseFloat(form.discount_price) > 0 && form.price && parseFloat(form.discount_price) < parseFloat(form.price) && (
+                  <p className="text-xs text-emerald-600 mt-1">
+                    Customer pays: ৳{parseFloat(form.discount_price).toFixed(2)} (save ৳{(parseFloat(form.price) - parseFloat(form.discount_price)).toFixed(2)})
+                  </p>
+                )}
+                {form.discount_price !== "" && form.discount_price != null && parseFloat(form.discount_price) > 0 && form.price && parseFloat(form.discount_price) >= parseFloat(form.price) && (
+                  <p className="text-xs text-red-500 mt-1">Must be less than regular price</p>
+                )}
+              </div>
+              <div>
                 <label className={labelCls}>Category</label>
                 {categories.length > 0 ? (
-                  <select
-                    name="category_id"
-                    value={form.category_id ?? ""}
-                    onChange={handleCategoryChange}
-                    className={`${inputCls} bg-transparent cursor-pointer`}
-                  >
-                    <option value="">— None —</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <div>
+                    <select
+                      name="category_id"
+                      value={form.category_id ?? ""}
+                      onChange={handleCategoryChange}
+                      className={`${inputCls} bg-transparent cursor-pointer`}
+                    >
+                      <option value="">— None —</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryRequest(true)}
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-orange-primary hover:text-orange-deep transition-colors cursor-pointer"
+                    >
+                      <Tag size={12} /> Request new category
+                    </button>
+                  </div>
                 ) : (
-                  <input type="text" name="category" value={form.category} onChange={handleChange} className={inputCls} placeholder="Burgers, Drinks, etc." />
+                  <div>
+                    <input type="text" name="category" value={form.category} onChange={handleChange} className={inputCls} placeholder="Burgers, Drinks, etc." />
+                    <button
+                      type="button"
+                      onClick={() => setShowCategoryRequest(true)}
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-orange-primary hover:text-orange-deep transition-colors cursor-pointer"
+                    >
+                      <Tag size={12} /> Request new category
+                    </button>
+                  </div>
                 )}
               </div>
               <div>
@@ -272,7 +349,14 @@ export default function MenuManagement() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <span className="font-bold text-text-primary">{item.name}</span>
-                            <span className="font-bold text-orange-primary font-mono tracking-tight">{formatPrice(item.price)}</span>
+                            {item.discount_price != null ? (
+                              <>
+                                <span className="font-bold text-text-light line-through font-mono tracking-tight text-xs">{formatPrice(item.price)}</span>
+                                <span className="font-bold text-orange-primary font-mono tracking-tight">{formatPrice(item.discount_price)}</span>
+                              </>
+                            ) : (
+                              <span className="font-bold text-orange-primary font-mono tracking-tight">{formatPrice(item.price)}</span>
+                            )}
                             {!item.is_available && (
                               <span className="text-[11px] bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Unavailable</span>
                             )}
@@ -281,6 +365,18 @@ export default function MenuManagement() {
                         </div>
                       </div>
                       <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => handleToggleAvailability(item)}
+                          title={item.is_available ? "Mark unavailable" : "Mark available"}
+                          className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-lg border transition-colors cursor-pointer ${
+                            item.is_available
+                              ? "text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                              : "text-red-500 border-red-200 hover:bg-red-50"
+                          }`}
+                        >
+                          {item.is_available ? <Power size={14} /> : <PowerOff size={14} />}
+                          {item.is_available ? "On" : "Off"}
+                        </button>
                         <button onClick={() => openEdit(item)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-muted hover:text-text-primary border border-border hover:border-zinc-300 px-4 py-2 rounded-lg transition-colors cursor-pointer">
                           <Pencil size={13} /> Edit
                         </button>
@@ -294,6 +390,46 @@ export default function MenuManagement() {
               </div>
             ));
           })()}
+        </div>
+      )}
+
+      {showCategoryRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card rounded-[13px] border border-border p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-[15px] font-bold text-text-primary mb-4">Request New Category</h3>
+            {categoryRequestSuccess ? (
+              <div className="bg-emerald-50 text-emerald-700 text-sm px-4 py-3 rounded-2xl mb-4">{categoryRequestSuccess}</div>
+            ) : (
+              <>
+                {categoryRequestError && <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-4">{categoryRequestError}</div>}
+                <input
+                  type="text"
+                  value={categoryRequestName}
+                  onChange={(e) => setCategoryRequestName(e.target.value)}
+                  placeholder="e.g. Sushi, Thai..."
+                  className={`${inputCls} mb-4`}
+                  autoFocus
+                />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCategoryRequest}
+                    disabled={categoryRequestSaving || !categoryRequestName.trim()}
+                    className="bg-orange-primary hover:bg-orange-deep disabled:opacity-50 text-white text-sm font-bold px-5 py-2.5 rounded-lg transition-all disabled:cursor-not-allowed cursor-pointer font-outfit"
+                  >
+                    {categoryRequestSaving ? "Submitting..." : "Submit Request"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowCategoryRequest(false); setCategoryRequestName(""); setCategoryRequestError(""); setCategoryRequestSuccess(""); }}
+                    className="text-text-muted hover:text-text-primary text-sm font-medium px-4 py-2.5 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -8,6 +8,7 @@ export default function ConfirmDialog({
   danger = false,
   onConfirm,
   onClose,
+  extra,
 }) {
   if (!open) return null;
 
@@ -35,6 +36,7 @@ export default function ConfirmDialog({
           </button>
         </div>
         <p className="text-[14px] text-text-muted leading-relaxed mt-3">{message}</p>
+        {extra}
         <div className="flex justify-end gap-2.5 mt-6">
           <button
             onClick={onClose}

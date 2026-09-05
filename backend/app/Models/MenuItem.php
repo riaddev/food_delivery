@@ -13,18 +13,20 @@ class MenuItem extends Model
         'name',
         'description',
         'price',
+        'discount_price',
         'image',
         'category',
         'category_id',
         'is_available',
     ];
 
-    protected $appends = ['image_url'];
+    protected $appends = ['image_url', 'effective_price', 'has_discount'];
 
     protected function casts(): array
     {
         return [
             'price' => 'decimal:2',
+            'discount_price' => 'decimal:2',
             'is_available' => 'boolean',
         ];
     }
@@ -37,6 +39,16 @@ class MenuItem extends Model
     public function menuCategory(): BelongsTo
     {
         return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function getEffectivePriceAttribute(): float
+    {
+        return $this->discount_price !== null ? (float) $this->discount_price : (float) $this->price;
+    }
+
+    public function getHasDiscountAttribute(): bool
+    {
+        return $this->discount_price !== null;
     }
 
     public function getImageUrlAttribute(): ?string

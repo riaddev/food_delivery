@@ -36,7 +36,6 @@ class OrderStatuses
 
     public const TERMINAL_STATUSES = [
         'delivered',
-        'served',
         'cancelled',
     ];
 
@@ -48,10 +47,18 @@ class OrderStatuses
         'assigned' => ['picked_up', 'cancelled'],
         'picked_up' => ['on_the_way'],
         'on_the_way' => ['near_customer'],
-        'near_customer' => ['delivered'],
+        'near_customer' => ['served', 'delivered'],
         'delivered' => [],
-        'served' => [],
+        'served' => ['delivered'],
         'cancelled' => [],
+    ];
+
+    public const RESTAURANT_TRANSITIONS = [
+        'pending' => ['confirmed', 'cancelled'],
+        'confirmed' => ['preparing', 'cancelled'],
+        'preparing' => ['ready', 'cancelled'],
+        'ready' => ['cancelled', 'served'],
+        'served' => [],
     ];
 
     public static function canTransition(string $from, string $to): bool

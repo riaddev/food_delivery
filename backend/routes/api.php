@@ -105,6 +105,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/menu-items', [RestaurantController::class, 'createMenuItem']);
         Route::put('/menu-items/{id}', [RestaurantController::class, 'updateMenuItem']);
         Route::delete('/menu-items/{id}', [RestaurantController::class, 'deleteMenuItem']);
+        Route::patch('/menu-items/{id}/availability', [RestaurantController::class, 'toggleAvailability']);
+        Route::post('/menu-items/check-availability', [RestaurantController::class, 'checkAvailability']);
+        Route::post('/category-requests', [RestaurantController::class, 'storeCategoryRequest']);
+        Route::get('/category-requests', [RestaurantController::class, 'categoryRequests']);
     });
 
     Route::middleware('role:rider')->prefix('/rider')->group(function () {
@@ -163,5 +167,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/categories/reorder', [App\Http\Controllers\AdminController::class, 'reorderCategories']);
         Route::put('/categories/{id}', [App\Http\Controllers\AdminController::class, 'updateCategory']);
         Route::delete('/categories/{id}', [App\Http\Controllers\AdminController::class, 'deleteCategory']);
+        Route::get('/category-requests', [App\Http\Controllers\AdminController::class, 'categoryRequests']);
+        Route::post('/category-requests/{id}/approve', [App\Http\Controllers\AdminController::class, 'approveCategoryRequest']);
+        Route::post('/category-requests/{id}/reject', [App\Http\Controllers\AdminController::class, 'rejectCategoryRequest']);
     });
 });

@@ -72,7 +72,16 @@ export default function FoodCard({ dish, isFav, onToggleFav, onAdd, offline, can
             )}
           </div>
         )}
-        <p className="font-bold text-zinc-900 mt-1.5">{formatPrice(dish.price)}</p>
+        <p className="font-bold text-zinc-900 mt-1.5">
+          {dish.discount_price != null ? (
+            <>
+              <span className="text-zinc-400 line-through font-normal mr-1.5">{formatPrice(dish.price)}</span>
+              {formatPrice(dish.discount_price)}
+            </>
+          ) : (
+            formatPrice(dish.price)
+          )}
+        </p>
 
         {canOrder ? (
           <button

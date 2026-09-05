@@ -177,13 +177,13 @@ class CustomerController extends Controller
                 ], 422);
             }
 
-            $subtotal += $menuItem->price * $item['quantity'];
+            $subtotal += $menuItem->effective_price * $item['quantity'];
 
             $orderItems[] = [
                 'menu_item_id' => $menuItem->id,
                 'name' => $menuItem->name,
                 'quantity' => $item['quantity'],
-                'price' => $menuItem->price,
+                'price' => $menuItem->effective_price,
             ];
         }
 
@@ -264,14 +264,14 @@ class CustomerController extends Controller
             $menuItem = $menuItems->get($prevItem->menu_item_id);
             if (!$menuItem) continue;
 
-            $lineTotal = $menuItem->price * $prevItem->quantity;
+            $lineTotal = $menuItem->effective_price * $prevItem->quantity;
             $total += $lineTotal;
 
             $orderItems[] = [
                 'menu_item_id' => $menuItem->id,
                 'name' => $menuItem->name,
                 'quantity' => $prevItem->quantity,
-                'price' => $menuItem->price,
+                'price' => $menuItem->effective_price,
             ];
         }
 

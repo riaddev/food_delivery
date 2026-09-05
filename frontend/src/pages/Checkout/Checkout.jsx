@@ -5,7 +5,7 @@ import {
   Smartphone, Store, Truck, Utensils,
 } from "lucide-react";
 import { useCart } from "../../context/CartContext";
-import { customerApi, paymentApi } from "../../features/api/apiSlice";
+import { customerApi, paymentApi, restaurantApi } from "../../features/api/apiSlice";
 import api from "../../features/api/apiSlice";
 import { useAuth } from "../../features/auth/AuthContext";
 import BackToHome from "../../components/BackToHome";
@@ -32,7 +32,7 @@ const modeDesc = (id, restaurantName) => {
 const formatAddress = (addr) => [addr.address, addr.city].filter(Boolean).join(", ");
 
 export default function Checkout() {
-  const { cart, total, updateQuantity, removeItem, clearCart } = useCart();
+  const { cart, total, updateQuantity, removeItem, removeItems, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [deliveryAddress, setDeliveryAddress] = useState(user?.address || "");
@@ -86,6 +86,29 @@ export default function Checkout() {
       });
     return () => { active = false; };
   }, [user]);
+
+  useEffect(() => {
+    if (cart.items.length === 0 || !cart.restaurantId) return;
+    let active = true;
+    const ids = cart.items.map((i) => i.menu_item_id);
+    restaurantApi
+      .checkAvailability({ menu_item_ids: ids })
+      .then((res) => {
+        if (!active) return;
+        const unavailable = (res.data.items || []).filter((i) => !i.is_available);
+        if (unavailable.length > 0) {
+          const removedIds = unavailable.map((i) => i.id);
+          removeItems(removedIds);
+          setError(
+            unavailable.length === 1
+              ? "1 item was removed — no longer available."
+              : `${unavailable.length} items were removed — no longer available.`
+          );
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [cart.items, cart.restaurantId, removeItems]);
 
   if (cart.items.length === 0) {
     return (

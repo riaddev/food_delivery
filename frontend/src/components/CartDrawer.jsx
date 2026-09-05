@@ -6,12 +6,12 @@ import {
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../features/auth/AuthContext";
-import api, { customerApi } from "../features/api/apiSlice";
+import api, { customerApi, restaurantApi } from "../features/api/apiSlice";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop";
 
 export default function CartDrawer({ open, onClose, mode: modeProp }) {
-  const { cart, updateQuantity, total } = useCart();
+  const { cart, updateQuantity, removeItems, total } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -19,6 +19,7 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
   const [feeRestaurantId, setFeeRestaurantId] = useState(null);
   const [feeStatus, setFeeStatus] = useState("loading");
   const [savedAddresses, setSavedAddresses] = useState([]);
+  const [staleNotice, setStaleNotice] = useState("");
 
   const rawMode = modeProp || cart.mode || "delivery";
   const effectiveMode = rawMode === "pickup" ? "takeout" : rawMode;
@@ -88,6 +89,30 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
     };
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open || cart.items.length === 0 || !cart.restaurantId) return;
+    let active = true;
+    const ids = cart.items.map((i) => i.menu_item_id);
+    restaurantApi
+      .checkAvailability({ menu_item_ids: ids })
+      .then((res) => {
+        if (!active) return;
+        const unavailable = (res.data.items || []).filter((i) => !i.is_available);
+        if (unavailable.length > 0) {
+          const removedIds = unavailable.map((i) => i.id);
+          removeItems(removedIds);
+          setStaleNotice(
+            unavailable.length === 1
+              ? "1 item was removed — no longer available."
+              : `${unavailable.length} items were removed — no longer available.`
+          );
+          setTimeout(() => setStaleNotice(""), 4000);
+        }
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [open, cart.items, cart.restaurantId, removeItems]);
+
   const handleAddMore = () => {
     onClose();
     navigate(cart.restaurantId ? `/restaurants/${cart.restaurantId}` : "/restaurants");
@@ -149,6 +174,12 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                   <X size={18} strokeWidth={2.2} />
                 </button>
               </div>
+
+              {staleNotice && (
+                <div className="mx-6 mb-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl">
+                  {staleNotice}
+                </div>
+              )}
 
               {cart.items.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center px-8 py-8 text-center">

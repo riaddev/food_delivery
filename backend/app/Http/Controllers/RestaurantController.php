@@ -84,12 +84,21 @@ class RestaurantController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
+            'discount_price' => 'nullable|numeric|min:0',
             'category' => 'nullable|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
             'image' => 'nullable',
             'image_url' => 'nullable|string|url|max:2048',
         ]);
+
+        if (!empty($validated['discount_price']) && !empty($validated['price']) && $validated['discount_price'] >= $validated['price']) {
+            return response()->json(['message' => 'Discounted price must be less than the regular price.'], 422);
+        }
+
+        if (empty($validated['discount_price'])) {
+            $validated['discount_price'] = null;
+        }
 
         $validated['restaurant_id'] = $request->user()->restaurant->id;
 
@@ -114,6 +123,7 @@ class RestaurantController extends Controller
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'price' => 'sometimes|numeric|min:0',
+            'discount_price' => 'nullable|numeric|min:0',
             'category' => 'nullable|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
@@ -121,6 +131,15 @@ class RestaurantController extends Controller
             'image_url' => 'nullable|string|url|max:2048',
             'remove_image' => 'boolean',
         ]);
+
+        $effectivePrice = $validated['price'] ?? $item->price;
+        if (!empty($validated['discount_price']) && $validated['discount_price'] >= $effectivePrice) {
+            return response()->json(['message' => 'Discounted price must be less than the regular price.'], 422);
+        }
+
+        if (array_key_exists('discount_price', $validated) && empty($validated['discount_price'])) {
+            $validated['discount_price'] = null;
+        }
 
         if ($request->hasFile('image')) {
             if ($item->image && !str_starts_with($item->image, 'http://') && !str_starts_with($item->image, 'https://')) {
@@ -157,6 +176,42 @@ class RestaurantController extends Controller
         $item->delete();
 
         return response()->json(['message' => 'Menu item deleted.']);
+    }
+
+    public function toggleAvailability(Request $request, int $id): JsonResponse
+    {
+        $item = MenuItem::where('restaurant_id', $request->user()->restaurant->id)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'is_available' => 'required|boolean',
+        ]);
+
+        $item->update(['is_available' => $validated['is_available']]);
+
+        return response()->json([
+            'menu_item' => $item->fresh(),
+            'message' => $item->is_available ? 'Item is now available.' : 'Item is now hidden.',
+        ]);
+    }
+
+    public function checkAvailability(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'menu_item_ids' => 'required|array|min:1',
+            'menu_item_ids.*' => 'required|integer|exists:menu_items,id',
+        ]);
+
+        $items = MenuItem::whereIn('id', $validated['menu_item_ids'])
+            ->get()
+            ->map(fn($item) => [
+                'id' => $item->id,
+                'is_available' => $item->is_available,
+                'price' => (float) $item->price,
+                'discount_price' => $item->discount_price !== null ? (float) $item->discount_price : null,
+            ]);
+
+        return response()->json(['items' => $items]);
     }
 
     public function tables(Request $request): JsonResponse
@@ -404,15 +459,23 @@ class RestaurantController extends Controller
             'status' => 'required|string|in:' . implode(',', OrderStatuses::ORDER_STATUSES),
         ]);
 
-        if (!OrderStatuses::canTransition($order->status, $validated['status'])) {
+        $allowed = OrderStatuses::RESTAURANT_TRANSITIONS[$order->status] ?? null;
+
+        if ($allowed === null || !in_array($validated['status'], $allowed)) {
             throw ValidationException::withMessages([
-                'status' => ["Order cannot move from \"{$order->status}\" to \"{$validated['status']}\"."],
+                'status' => ["Restaurant cannot move from \"{$order->status}\" to \"{$validated['status']}\"."],
+            ]);
+        }
+
+        if ($order->status === 'ready' && $validated['status'] === 'served' && $order->order_type !== 'dine_in') {
+            throw ValidationException::withMessages([
+                'status' => ['Only dine-in orders can be marked as served.'],
             ]);
         }
 
         $order->update([
             'status' => $validated['status'],
-            'delivered_at' => in_array($validated['status'], ['delivered', 'served']) ? now() : $order->delivered_at,
+            'delivered_at' => $validated['status'] === 'delivered' ? now() : $order->delivered_at,
         ]);
 
         if ($validated['status'] === 'cancelled' && $order->payment_status === 'pending') {
@@ -462,6 +525,8 @@ class RestaurantController extends Controller
                             'id' => $m->id,
                             'name' => $m->name,
                             'price' => (float) $m->price,
+                            'discount_price' => $m->discount_price !== null ? (float) $m->discount_price : null,
+                            'effective_price' => $m->effective_price,
                             'image_url' => $m->image_url,
                             'category' => $m->category,
                         ]),
@@ -581,5 +646,51 @@ class RestaurantController extends Controller
             ->get();
 
         return response()->json(['categories' => $categories]);
+    }
+
+    public function storeCategoryRequest(Request $request): JsonResponse
+    {
+        $restaurant = $request->user()->restaurant;
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+        ]);
+
+        $name = trim($validated['name']);
+
+        $existingCategory = \App\Models\Category::whereRaw('LOWER(name) = ?', [strtolower($name)])->first();
+        if ($existingCategory) {
+            return response()->json(['message' => 'A category with this name already exists.'], 422);
+        }
+
+        $existingRequest = \App\Models\CategoryRequest::where('restaurant_id', $restaurant->id)
+            ->whereRaw('LOWER(name) = ?', [strtolower($name)])
+            ->where('status', 'pending')
+            ->exists();
+        if ($existingRequest) {
+            return response()->json(['message' => 'You already have a pending request for this category.'], 422);
+        }
+
+        $request_record = \App\Models\CategoryRequest::create([
+            'restaurant_id' => $restaurant->id,
+            'name' => $name,
+            'status' => \App\Models\CategoryRequest::PENDING,
+        ]);
+
+        return response()->json([
+            'message' => 'Category request submitted. Admin will review it shortly.',
+            'request' => $request_record,
+        ], 201);
+    }
+
+    public function categoryRequests(Request $request): JsonResponse
+    {
+        $restaurant = $request->user()->restaurant;
+
+        $requests = \App\Models\CategoryRequest::where('restaurant_id', $restaurant->id)
+            ->latest()
+            ->get();
+
+        return response()->json(['requests' => $requests]);
     }
 }

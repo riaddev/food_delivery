@@ -1400,6 +1400,106 @@ class AdminController extends Controller
         return response()->json(['message' => 'Password changed successfully.']);
     }
 
+    public function categoryRequests(Request $request): JsonResponse
+    {
+        $query = \App\Models\CategoryRequest::with('restaurant');
+
+        if ($request->has('status') && in_array($request->status, ['pending', 'approved', 'rejected'])) {
+            $query->where('status', $request->status);
+        }
+
+        $requests = $query->latest()->get()->map(fn($r) => [
+            'id' => $r->id,
+            'name' => $r->name,
+            'status' => $r->status,
+            'admin_note' => $r->admin_note,
+            'created_at' => $r->created_at,
+            'restaurant' => [
+                'id' => $r->restaurant->id,
+                'restaurant_name' => $r->restaurant->restaurant_name,
+            ],
+        ]);
+
+        $pendingCount = \App\Models\CategoryRequest::where('status', 'pending')->count();
+
+        return response()->json(['requests' => $requests, 'pending_count' => $pendingCount]);
+    }
+
+    public function approveCategoryRequest(int $id): JsonResponse
+    {
+        $request = \App\Models\CategoryRequest::findOrFail($id);
+
+        if ($request->status !== \App\Models\CategoryRequest::PENDING) {
+            return response()->json(['message' => 'This request has already been processed.'], 422);
+        }
+
+        $existingCategory = \App\Models\Category::whereRaw('LOWER(name) = ?', [strtolower($request->name)])->first();
+        if ($existingCategory) {
+            $request->update(['status' => \App\Models\CategoryRequest::APPROVED]);
+            return response()->json(['message' => 'A category with this name already exists. Request marked as approved.']);
+        }
+
+        $maxOrder = \App\Models\Category::max('sort_order') ?? 0;
+        $category = \App\Models\Category::create([
+            'name' => $request->name,
+            'is_active' => true,
+            'sort_order' => $maxOrder + 1,
+        ]);
+
+        $request->update(['status' => \App\Models\CategoryRequest::APPROVED]);
+
+        $this->notify(
+            'category_request_approved',
+            'Category request approved',
+            "The category \"{$request->name}\" has been created.",
+            'categories',
+            $category->id
+        );
+
+        ActivityLog::create([
+            'type' => 'category_request_approved',
+            'description' => "Admin approved category request #{$request->id} from {$request->restaurant->restaurant_name}: \"{$request->name}\"",
+        ]);
+
+        return response()->json([
+            'message' => "Category \"{$request->name}\" has been created.",
+            'category' => $category,
+        ]);
+    }
+
+    public function rejectCategoryRequest(int $id, Request $request): JsonResponse
+    {
+        $categoryRequest = \App\Models\CategoryRequest::findOrFail($id);
+
+        if ($categoryRequest->status !== \App\Models\CategoryRequest::PENDING) {
+            return response()->json(['message' => 'This request has already been processed.'], 422);
+        }
+
+        $validated = $request->validate([
+            'admin_note' => 'nullable|string|max:500',
+        ]);
+
+        $categoryRequest->update([
+            'status' => \App\Models\CategoryRequest::REJECTED,
+            'admin_note' => $validated['admin_note'] ?? null,
+        ]);
+
+        $this->notify(
+            'category_request_rejected',
+            'Category request rejected',
+            "The category request \"{$categoryRequest->name}\" has been rejected.",
+            'categories',
+            $categoryRequest->id
+        );
+
+        ActivityLog::create([
+            'type' => 'category_request_rejected',
+            'description' => "Admin rejected category request #{$categoryRequest->id} from {$categoryRequest->restaurant->restaurant_name}: \"{$categoryRequest->name}\"",
+        ]);
+
+        return response()->json(['message' => 'Request rejected.']);
+    }
+
     private function notify(string $type, string $title, string $description, ?string $linkType = null, ?int $linkId = null): void
     {
         AdminNotification::create([

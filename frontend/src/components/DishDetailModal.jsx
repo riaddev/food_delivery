@@ -45,7 +45,8 @@ export default function DishDetailModal({
   const deliveryFee = restaurantInfo?.delivery_fee;
   const deliveryLabel =
     deliveryFee == null ? null : parseFloat(deliveryFee) === 0 ? "Free delivery" : `${formatPrice(deliveryFee)} delivery`;
-  const totalPrice = formatPrice(parseFloat(item.price) * qty);
+  const effectivePrice = item.discount_price != null ? parseFloat(item.discount_price) : parseFloat(item.price);
+  const totalPrice = formatPrice(effectivePrice * qty);
 
   const handleConfirm = () => {
     onConfirm(item, qty);
@@ -128,7 +129,16 @@ export default function DishDetailModal({
             )}
 
             <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between">
-              <span className="text-lg font-extrabold text-zinc-900">{formatPrice(item.price)}</span>
+              <span className="text-lg font-extrabold text-zinc-900">
+                {item.discount_price != null ? (
+                  <>
+                    <span className="text-zinc-400 line-through font-normal mr-1.5">{formatPrice(item.price)}</span>
+                    {formatPrice(item.discount_price)}
+                  </>
+                ) : (
+                  formatPrice(item.price)
+                )}
+              </span>
               {orderable && (
                 <div className="flex items-center gap-1 border border-zinc-200 rounded-lg px-1 py-1">
                   <button

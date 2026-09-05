@@ -501,7 +501,16 @@ export default function RestaurantMenu() {
                             <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{item.description}</p>
                           )}
                           <div className="mt-auto pt-3 flex items-center justify-between">
-                            <span className="font-bold text-zinc-900">{formatPrice(item.price)}</span>
+                            <span className="font-bold text-zinc-900">
+                              {item.discount_price != null ? (
+                                <>
+                                  <span className="text-zinc-400 line-through font-normal mr-1.5">{formatPrice(item.price)}</span>
+                                  {formatPrice(item.discount_price)}
+                                </>
+                              ) : (
+                                formatPrice(item.price)
+                              )}
+                            </span>
                             {canOrder && !useMock && (qty === 0 ? (
                               <button
                                 onClick={(e) => {

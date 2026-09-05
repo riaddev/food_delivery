@@ -105,12 +105,16 @@ export const restaurantApi = {
   createMenuItem: (data) => api.post("/restaurant/menu-items", data),
   updateMenuItem: (id, data) => api.put(`/restaurant/menu-items/${id}`, data),
   deleteMenuItem: (id) => api.delete(`/restaurant/menu-items/${id}`),
+  toggleAvailability: (id, data) => api.patch(`/restaurant/menu-items/${id}/availability`, data),
+  checkAvailability: (data) => api.post("/restaurant/menu-items/check-availability", data),
   getTables: () => api.get("/restaurant/tables"),
   createTable: (data) => api.post("/restaurant/tables", data),
   updateTable: (id, data) => api.put(`/restaurant/tables/${id}`, data),
   updateTableStatus: (id, status) => api.put(`/restaurant/tables/${id}/status`, { status }),
   assignReservationTable: (id, restaurantTableId) =>
     api.put(`/restaurant/reservations/${id}/table`, { restaurant_table_id: restaurantTableId }),
+  storeCategoryRequest: (data) => api.post("/restaurant/category-requests", data),
+  getCategoryRequests: () => api.get("/restaurant/category-requests"),
 };
 
 export const adminApi = {
@@ -161,6 +165,9 @@ export const adminApi = {
   updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
   deleteCategory: (id) => api.delete(`/admin/categories/${id}`),
   reorderCategories: (ids) => api.put("/admin/categories/reorder", { ids }),
+  getCategoryRequests: (params) => api.get("/admin/category-requests", { params }),
+  approveCategoryRequest: (id) => api.post(`/admin/category-requests/${id}/approve`),
+  rejectCategoryRequest: (id, data) => api.post(`/admin/category-requests/${id}/reject`, data),
 };
 
 export const riderApi = {

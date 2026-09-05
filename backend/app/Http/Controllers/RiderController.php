@@ -124,7 +124,7 @@ class RiderController extends Controller
     public function updateStatus(Request $request, $id): JsonResponse
     {
         $validated = $request->validate([
-            'status' => 'required|string|in:picked_up,on_the_way,near_customer,delivered',
+            'status' => 'required|string|in:picked_up,on_the_way,near_customer,served,delivered',
         ]);
 
         $order = $this->ownOrder($request, $id);

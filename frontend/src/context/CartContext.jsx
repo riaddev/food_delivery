@@ -17,11 +17,13 @@ function cartReducer(state, action) {
   switch (action.type) {
     case "ADD_ITEM": {
       const { restaurantId, restaurantName, item, mode } = action.payload;
+      const effectivePrice = item.discount_price != null ? parseFloat(item.discount_price) : parseFloat(item.price);
+      const cartItem = { ...item, price: effectivePrice, menu_item_id: item.id, quantity: 1 };
       if (state.restaurantId && state.restaurantId !== restaurantId) {
         return {
           restaurantId,
           restaurantName,
-          items: [{ ...item, menu_item_id: item.id, quantity: 1 }],
+          items: [cartItem],
           mode: mode || "delivery",
         };
       }
@@ -38,12 +40,19 @@ function cartReducer(state, action) {
       return {
         restaurantId,
         restaurantName,
-        items: [...state.items, { ...item, menu_item_id: item.id, quantity: 1 }],
+        items: [...state.items, cartItem],
         mode: mode || state.mode || "delivery",
       };
     }
     case "REMOVE_ITEM": {
       const filtered = state.items.filter((i) => i.menu_item_id !== action.payload);
+      return filtered.length === 0
+        ? { restaurantId: null, restaurantName: null, items: [], mode: null }
+        : { ...state, items: filtered };
+    }
+    case "REMOVE_ITEMS": {
+      const ids = new Set(action.payload);
+      const filtered = state.items.filter((i) => !ids.has(i.menu_item_id));
       return filtered.length === 0
         ? { restaurantId: null, restaurantName: null, items: [], mode: null }
         : { ...state, items: filtered };
@@ -83,6 +92,9 @@ export function CartProvider({ children }) {
   const removeItem = useCallback((menuItemId) =>
     dispatch({ type: "REMOVE_ITEM", payload: menuItemId }), []);
 
+  const removeItems = useCallback((menuItemIds) =>
+    dispatch({ type: "REMOVE_ITEMS", payload: menuItemIds }), []);
+
   const updateQuantity = useCallback((menuItemId, quantity) =>
     dispatch({ type: "UPDATE_QUANTITY", payload: { id: menuItemId, quantity } }), []);
 
@@ -92,7 +104,7 @@ export function CartProvider({ children }) {
   const total = cart.items.reduce((sum, i) => sum + parseFloat(i.price) * i.quantity, 0);
 
   return (
-    <CartContext.Provider value={{ cart, addItem, removeItem, updateQuantity, clearCart, itemCount, total }}>
+    <CartContext.Provider value={{ cart, addItem, removeItem, removeItems, updateQuantity, clearCart, itemCount, total }}>
       {children}
     </CartContext.Provider>
   );

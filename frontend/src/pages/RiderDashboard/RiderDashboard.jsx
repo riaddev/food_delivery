@@ -38,6 +38,7 @@ const DELIVERY_STEPS = [
   { status: "picked_up", label: "Picked Up", icon: Package },
   { status: "on_the_way", label: "Out for Delivery", icon: Navigation },
   { status: "near_customer", label: "Near Customer", icon: MapPin },
+  { status: "served", label: "Served", icon: CheckCircle2 },
   { status: "delivered", label: "Delivered", icon: Home },
 ];
 
@@ -122,6 +123,7 @@ export default function RiderDashboard() {
   const markPickedUp = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "picked_up"));
   const startDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "on_the_way"));
   const markNearCustomer = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "near_customer"));
+  const markServed = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "served"));
   const completeDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "delivered"));
 
   const requests = orders.filter(
@@ -412,21 +414,24 @@ export default function RiderDashboard() {
                     activeOrder.status === "picked_up" ? "bg-sky-50 text-sky-700"
                       : activeOrder.status === "on_the_way" ? "bg-indigo-50 text-indigo-700"
                         : activeOrder.status === "near_customer" ? "bg-amber-50 text-amber-700"
-                          : activeOrder.status === "assigned" ? "bg-violet-50 text-violet-700"
-                            : "bg-amber-50 text-amber-700"
+                          : activeOrder.status === "served" ? "bg-emerald-50 text-emerald-700"
+                            : activeOrder.status === "assigned" ? "bg-violet-50 text-violet-700"
+                              : "bg-amber-50 text-amber-700"
                   }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
                       activeOrder.status === "picked_up" ? "bg-sky-500"
                         : activeOrder.status === "on_the_way" ? "bg-indigo-500"
                           : activeOrder.status === "near_customer" ? "bg-amber-500"
-                            : activeOrder.status === "assigned" ? "bg-violet-500"
-                              : "bg-amber-500"
+                            : activeOrder.status === "served" ? "bg-emerald-500"
+                              : activeOrder.status === "assigned" ? "bg-violet-500"
+                                : "bg-amber-500"
                     }`} />
                     {activeOrder.status === "picked_up" ? "Picked up"
                       : activeOrder.status === "on_the_way" ? "Out for Delivery"
                         : activeOrder.status === "near_customer" ? "Near Customer"
-                          : activeOrder.status === "assigned" ? "Assigned"
-                            : "Awaiting pickup"}
+                          : activeOrder.status === "served" ? "Served"
+                            : activeOrder.status === "assigned" ? "Assigned"
+                              : "Awaiting pickup"}
                   </span>
                   {gpsActive && (
                     <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md">
@@ -523,6 +528,14 @@ export default function RiderDashboard() {
                       </button>
                     ) : activeOrder.status === "near_customer" ? (
                       <button
+                        onClick={() => markServed(activeOrder)}
+                        disabled={actionBusyId === activeOrder.id}
+                        className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
+                      >
+                        {actionBusyId === activeOrder.id ? "Updating..." : "Mark as Served"}
+                      </button>
+                    ) : activeOrder.status === "served" ? (
+                      <button
                         onClick={() => completeDelivery(activeOrder)}
                         disabled={actionBusyId === activeOrder.id}
                         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
@@ -549,11 +562,11 @@ export default function RiderDashboard() {
                   <div className="flex items-start gap-0">
                     {DELIVERY_STEPS.map((step, i) => {
                       const stepIdx = (() => {
-                        const order = ["assigned", "picked_up", "on_the_way", "near_customer", "delivered"];
+                        const order = ["assigned", "picked_up", "on_the_way", "near_customer", "served", "delivered"];
                         return order.indexOf(activeOrder.status);
                       })();
                       const currentIdx = (() => {
-                        const order = ["assigned", "picked_up", "on_the_way", "near_customer", "delivered"];
+                        const order = ["assigned", "picked_up", "on_the_way", "near_customer", "served", "delivered"];
                         return order.indexOf(step.status);
                       })();
                       const isCompleted = currentIdx < stepIdx;
