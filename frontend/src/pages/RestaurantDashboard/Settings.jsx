@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Zap, PackageOpen, Clock, Truck, UtensilsCrossed, Save } from "lucide-react";
 import { restaurantApi } from "../../features/api/apiSlice";
 import { useAuth } from "../../features/auth/AuthContext";
@@ -10,29 +10,63 @@ const TOGGLES = [
 ];
 
 export function SettingsPage() {
-  const { user } = useAuth();
-  const [toggles, setToggles] = useState(() =>
-    TOGGLES.reduce((acc, t) => { acc[t.key] = t.initial; return acc; }, {})
-  );
+  const { user, refreshUser } = useAuth();
+  const [toggles, setToggles] = useState(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}");
+      return TOGGLES.reduce((acc, t) => { acc[t.key] = saved[t.key] ?? t.initial; return acc; }, {});
+    } catch {
+      return TOGGLES.reduce((acc, t) => { acc[t.key] = t.initial; return acc; }, {});
+    }
+  });
   const [dineIn, setDineIn] = useState(() => user?.restaurant?.accepts_dine_in === true);
-  const [radius, setRadius] = useState(5);
-  const [hours, setHours] = useState("10AM - 11PM");
+  const [radius, setRadius] = useState(() => {
+    try {
+      return Number(JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}").radius) || 5;
+    } catch { return 5; }
+  });
+  const [hours, setHours] = useState(() => user?.restaurant?.opening_hours || "10AM - 11PM");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  const flip = (key) => setToggles((t) => ({ ...t, [key]: !t[key] }));
+  // user.restaurant loads async — sync server-backed fields once available.
+  useEffect(() => {
+    if (user?.restaurant) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDineIn(user.restaurant.accepts_dine_in === true);
+      if (user.restaurant.opening_hours) setHours(user.restaurant.opening_hours);
+    }
+  }, [user?.restaurant?.id, user?.restaurant?.accepts_dine_in, user?.restaurant?.opening_hours]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const flip = (key) => setToggles((t) => {
+    const next = { ...t, [key]: !t[key] };
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}");
+      window.localStorage.setItem("restaurant_settings", JSON.stringify({ ...saved, [key]: next[key] }));
+    } catch { /* storage unavailable */ }
+    return next;
+  });
+
+  const handleRadius = (v) => {
+    setRadius(v);
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}");
+      window.localStorage.setItem("restaurant_settings", JSON.stringify({ ...saved, radius: v }));
+    } catch { /* storage unavailable */ }
+  };
 
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     setSaved(false);
     try {
-      await restaurantApi.updateProfile({ accepts_dine_in: dineIn });
+      await restaurantApi.updateProfile({ accepts_dine_in: dineIn, opening_hours: hours });
+      await refreshUser?.();
       setSaved(true);
       window.setTimeout(() => setSaved(false), 2800);
     } catch {
-      setError("Couldn't save dine-in settings. Please try again.");
+      setError("Couldn't save store settings. Please try again.");
     }
     setSaving(false);
   };
@@ -87,7 +121,7 @@ export function SettingsPage() {
                   <p className="font-semibold text-text-primary text-sm">Delivery radius</p>
                   <span className="text-xs font-bold text-text-primary font-mono">{radius} km</span>
                 </div>
-                <input type="range" min="1" max="20" value={radius} onChange={(e) => setRadius(e.target.value)} className="w-full accent-orange-500" />
+                <input type="range" min="1" max="20" value={radius} onChange={(e) => handleRadius(e.target.value)} className="w-full accent-orange-500" />
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -121,7 +155,7 @@ export function SettingsPage() {
           >
             <Save size={15} /> {saving ? "Saving..." : "Save Settings"}
           </button>
-          <span className="text-xs text-text-muted">Dine-in preference is saved to your store.</span>
+          <span className="text-xs text-text-muted">Opening hours &amp; dine-in preference are saved to your store. Notification toggles &amp; delivery radius are kept on this device.</span>
         </div>
       </div>
     </div>

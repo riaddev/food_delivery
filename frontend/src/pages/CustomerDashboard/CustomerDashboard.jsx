@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Bell, Bike, CalendarClock, Camera, Check, CheckCircle2, Clock, CreditCard, Heart, Home, KeyRound, MapPin,
+  Bell, Bike, CalendarClock, Camera, Check, CheckCircle2, Clock, CreditCard, Heart, KeyRound, MapPin,
   MessageCircle, Navigation, Package, Pencil, Phone, Plus, Settings, ShoppingCart, Star, Trash2, User, Utensils,
   X, XCircle,
 } from "lucide-react";
@@ -12,7 +12,7 @@ import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import CartDrawer from "../../components/CartDrawer";
 import LiveMap from "../../components/LiveMap";
 import { Card, EmptyState, SectionTitle } from "../../components/dashboard/Card";
-import { formatPrice, restaurantImage } from "../../utils/foodImages";
+import { formatPrice, resolveAssetUrl, restaurantImage } from "../../utils/foodImages";
 
 /* ------------------------------------------------------------------ */
 /*  Constants & helpers                                                */
@@ -489,37 +489,96 @@ function OrderDetailsModal({ order, onClose, onTrack, onReorder, onReview }) {
 /* ------------------------------------------------------------------ */
 
 const IN_TRANSIT_STATUSES = ["picked_up", "on_the_way", "near_customer"];
+const TERMINAL_STATUSES = ["delivered", "cancelled"];
+const STALE_AFTER_MS = 45000;
+const ROUTE_REFRESH_MS = 60000;
+const ROUTE_MIN_MOVE_M = 150;
+
+const haversineM = (aLat, aLng, bLat, bLng) => {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.sqrt(a));
+};
+
+const trackingTimeAgo = (iso, now) => {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s} second${s === 1 ? "" : "s"} ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  return `${Math.floor(m / 60)}h ago`;
+};
 
 function LiveTrackingMap({ order }) {
   const [route, setRoute] = useState(null);
   const [pollData, setPollData] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
   const timerRef = useRef(null);
-
-  const isTransit = IN_TRANSIT_STATUSES.includes(order.status);
+  const tickerRef = useRef(null);
+  const routeMetaRef = useRef({ at: 0, lat: null, lng: null });
 
   useEffect(() => {
-    if (!order.tracking_code || !isTransit) return;
+    if (!order.tracking_code || !IN_TRANSIT_STATUSES.includes(order.status)) return;
 
-    trackingApi.getRoute(order.tracking_code)
-      .then((res) => setRoute(res.data))
-      .catch(() => {});
+    const fetchRoute = (rider) => {
+      trackingApi.getRoute(order.tracking_code)
+        .then((res) => {
+          setRoute(res.data);
+          routeMetaRef.current = { at: Date.now(), lat: rider?.lat ?? null, lng: rider?.lng ?? null };
+        })
+        .catch(() => {});
+    };
+
+    fetchRoute(null);
 
     const poll = () => {
       trackingApi.track(order.tracking_code)
-        .then((res) => setPollData(res.data))
+        .then((res) => {
+          const data = res.data;
+          setPollData(data);
+          setNow(Date.now());
+          if (TERMINAL_STATUSES.includes(data?.status)) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = null;
+            return;
+          }
+          // Refresh route at most every 60s or after 150m rider move (free OSRM).
+          const rider = data?.rider_location;
+          const meta = routeMetaRef.current;
+          const elapsed = Date.now() - meta.at;
+          let moved = Infinity;
+          if (rider && meta.lat != null) moved = haversineM(meta.lat, meta.lng, rider.lat, rider.lng);
+          if (elapsed > ROUTE_REFRESH_MS || moved > ROUTE_MIN_MOVE_M) fetchRoute(rider);
+        })
         .catch(() => {});
     };
 
     poll();
     timerRef.current = setInterval(poll, 3000);
+    tickerRef.current = setInterval(() => setNow(Date.now()), 5000);
 
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [order.tracking_code, isTransit]);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (tickerRef.current) clearInterval(tickerRef.current);
+    };
+  }, [order.tracking_code, order.status]);
 
   const data = pollData || {};
   const restaurantCoords = data.restaurant_coords || order.restaurant_coords || null;
   const customerCoords = data.customer_coords || order.customer_coords || null;
   const riderLocation = data.rider_location || order.rider_location || null;
+  const riderUpdatedAt = riderLocation?.updated_at || null;
+  const riderStale = !riderUpdatedAt || (now - new Date(riderUpdatedAt).getTime() > STALE_AFTER_MS);
+  const updatedLabel = riderUpdatedAt ? trackingTimeAgo(riderUpdatedAt, now) : null;
 
   if (!restaurantCoords && !customerCoords && !riderLocation) {
     return (
@@ -530,12 +589,29 @@ function LiveTrackingMap({ order }) {
   }
 
   return (
-    <LiveMap
-      restaurantCoords={restaurantCoords}
-      customerCoords={customerCoords}
-      riderLocation={riderLocation}
-      polyline={route?.polyline}
-    />
+    <div className="space-y-2">
+      <LiveMap
+        restaurantCoords={restaurantCoords}
+        customerCoords={customerCoords}
+        riderLocation={riderLocation}
+        polyline={route?.polyline}
+      />
+      <div className="flex items-center justify-between px-1">
+        {riderLocation && !riderStale ? (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            Live{updatedLabel ? ` · Updated ${updatedLabel}` : ""}
+          </span>
+        ) : (
+          <span className="text-[11px] font-semibold text-amber-600">
+            Location unavailable/stale{updatedLabel ? ` · Updated ${updatedLabel}` : ""}
+          </span>
+        )}
+        {route?.duration_min != null && (
+          <span className="text-[11px] text-text-muted">ETA ~{route.duration_min} min</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -579,7 +655,7 @@ function TrackLiveModal({ order, onClose, onSupport }) {
 
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between bg-surface rounded-[13px] border border-border px-4 py-3">
-            <span className="text-[13px] text-text-muted">Estimated arrival</span>
+            <span className="text-[13px] text-text-muted">Restaurant estimate</span>
             <span className="text-[16px] font-bold font-mono text-text-primary">
               {order.restaurant?.delivery_time || "TBA"}
             </span>
@@ -600,14 +676,6 @@ function TrackLiveModal({ order, onClose, onSupport }) {
                   </div>
                 )}
               </div>
-              {rider.phone && (
-                <a
-                  href={`tel:${rider.phone}`}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white bg-orange-primary hover:bg-orange-deep px-3.5 py-2 rounded-lg no-underline font-outfit"
-                >
-                  <Phone size={13} /> Call Rider
-                </a>
-              )}
             </div>
           )}
 
@@ -669,19 +737,46 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
     else setDetailsOrder(o);
   };
 
+  // Deep link from PaymentSuccess: ?trackOrder=<id> selects the order in the
+  // dashboard tracker. B1: auto-open the live modal only when trackable;
+  // fresh pending/confirmed orders land on the stepper instead.
+  const [deepLinkParams, setDeepLinkParams] = useSearchParams();
+  const deepLinkConsumedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkConsumedRef.current) return;
+    const raw = deepLinkParams.get("trackOrder");
+    if (raw == null) return;
+    if (!orders.length) return;
+    deepLinkConsumedRef.current = true;
+    const id = Number(raw);
+    const target = Number.isInteger(id) ? orders.find((o) => o.id === id) : null;
+    // Defer state updates out of the effect body (lint: no sync setState in effect).
+    const t = window.setTimeout(() => {
+      const next = new URLSearchParams(deepLinkParams);
+      next.delete("trackOrder");
+      setDeepLinkParams(next, { replace: true });
+      if (!target) return;
+      setTab("active");
+      if (ACTIVE_STATUSES.includes(target.status)) setSelectedId(target.id);
+      else setDetailsOrder(target);
+      if (canTrack(target)) setTrackOrder(target);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [orders, deepLinkParams, setDeepLinkParams, setTab]);
+
   return (
     <div>
       {/* Summary strip */}
-      <div className="flex bg-card rounded-[13px] border border-border overflow-hidden mb-5">
+      <div className="grid grid-cols-3 bg-card rounded-[13px] border border-border overflow-hidden mb-5">
         {summary.map((s, i) => (
-          <div key={s.label} className="flex-1 px-4 py-[18px]" style={{ borderLeft: i > 0 ? "1px solid #E5E7EB" : "none" }}>
+          <div key={s.label} className="flex-1 min-w-0 px-2 sm:px-4 py-[18px]" style={{ borderLeft: i > 0 ? "1px solid #E5E7EB" : "none" }}>
             <div
-              className={`text-[22px] font-extrabold font-mono leading-none tracking-[-0.5px] ${s.accent ? "text-orange-primary" : "text-text-primary"}`}
+              className={`text-lg sm:text-[22px] font-extrabold font-mono leading-none tracking-[-0.5px] truncate ${s.accent ? "text-orange-primary" : "text-text-primary"}`}
             >
               {s.value}
             </div>
-            <div className="text-[12.5px] font-semibold text-text-muted mt-1.5">{s.label}</div>
-            <div className="text-[11px] text-text-light mt-0.5">{s.note}</div>
+            <div className="text-[11px] sm:text-[12.5px] font-semibold text-text-muted mt-1.5 truncate">{s.label}</div>
+            <div className="text-[10px] sm:text-[11px] text-text-light mt-0.5 truncate">{s.note}</div>
           </div>
         ))}
       </div>
@@ -729,7 +824,7 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
 
             <DeliveryTracker current={currentIdx} />
 
-            <div className="flex gap-2.5 mt-4">
+            <div className="flex flex-col min-[420px]:flex-row gap-2.5 mt-4">
               {isCancellable(selected) && (
                 <button
                   onClick={() => setCancelOrder(selected)}
@@ -797,7 +892,7 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
             <div
               key={o.id}
               onClick={() => selectOrder(o)}
-              className={`bg-card rounded-[12px] px-4 py-3.5 border flex items-center gap-3.5 cursor-pointer transition-all duration-150 hover:shadow-[0_2px_12px_rgba(0,0,0,0.07)] ${
+              className={`bg-card rounded-[12px] px-4 py-3.5 border flex flex-col min-[480px]:flex-row min-[480px]:items-center gap-3 cursor-pointer transition-all duration-150 hover:shadow-[0_2px_12px_rgba(0,0,0,0.07)] ${
                 isSelected ? "border-orange-primary shadow-[0_2px_12px_rgba(249,115,22,0.12)]" : "border-border"
               }`}
             >
@@ -827,9 +922,9 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
                   {orderDate(o)} · <span className="font-mono text-text-muted">#{o.id}</span>
                 </div>
               </div>
-              <div className="text-right shrink-0">
+              <div className="w-full min-[480px]:w-auto min-[480px]:text-right min-[480px]:shrink-0">
                 <div className="text-[15px] font-extrabold text-text-primary font-mono">{formatPrice(o.total)}</div>
-                <div className="flex gap-2 mt-1.5 justify-end">
+                <div className="flex flex-wrap gap-2 mt-1.5 min-[480px]:justify-end">
                   {isHistory ? (
                     <>
                       <button
@@ -1223,8 +1318,32 @@ function ProfileView({ user, refreshUser }) {
   const [form, setForm] = useState({ name: user?.name || "", phone: user?.phone || "" });
   const [saving, setSaving] = useState(false);
   const [avatarSaving, setAvatarSaving] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(null); // instant blob preview
+  const [avatarBroken, setAvatarBroken] = useState(false);
   const [message, setMessage] = useState(null);
   const avatarInputRef = useRef(null);
+
+  // user loads async via refreshUser()/fetchUser — keep form in sync
+  // without clobbering in-progress edits (only sync when user identity/data changes).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setForm({ name: user?.name || "", phone: user?.phone || "" });
+  }, [user?.id, user?.name, user?.phone]);
+
+  // A new avatar_url from the server replaces the local preview; reset error flag.
+  const serverAvatar = resolveAssetUrl(user?.avatar_url);
+  const prevServerAvatarRef = useRef(serverAvatar);
+  useEffect(() => {
+    if (serverAvatar && serverAvatar !== prevServerAvatarRef.current) {
+      prevServerAvatarRef.current = serverAvatar;
+      setAvatarPreview((prev) => {
+        if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAvatarBroken(false);
+  }, [serverAvatar]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -1248,6 +1367,23 @@ function ProfileView({ user, refreshUser }) {
   const handleAvatarChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setMessage({ type: "error", text: "Please choose an image file." });
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setMessage({ type: "error", text: "Photo must be under 2MB." });
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+      return;
+    }
+    // Show the chosen photo instantly — don't wait for upload/refresh.
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview((prev) => {
+      if (prev && prev.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return previewUrl;
+    });
+    setAvatarBroken(false);
     setAvatarSaving(true);
     setMessage(null);
     try {
@@ -1262,6 +1398,34 @@ function ProfileView({ user, refreshUser }) {
         err.response?.data?.message ||
         "Failed to upload photo.";
       setMessage({ type: "error", text: msg });
+      // Upload failed — drop the instant preview so we don't show an unsaved photo.
+      URL.revokeObjectURL(previewUrl);
+      setAvatarPreview(null);
+    } finally {
+      setAvatarSaving(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    if (!displayAvatar) return;
+    if (!window.confirm("Remove your profile photo?")) return;
+    // Discard an unsaved local preview without hitting the server.
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+      setAvatarPreview(null);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+      if (!serverAvatar) return;
+    }
+    setAvatarSaving(true);
+    setMessage(null);
+    try {
+      await customerApi.updateProfile({ remove_avatar: true });
+      await refreshUser();
+      setAvatarBroken(false);
+      setMessage({ type: "success", text: "Profile photo removed." });
+    } catch {
+      setMessage({ type: "error", text: "Failed to remove photo." });
     } finally {
       setAvatarSaving(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
@@ -1272,14 +1436,20 @@ function ProfileView({ user, refreshUser }) {
     "w-full px-3.5 py-2.5 border border-border rounded-[10px] text-sm outline-none focus:ring-2 focus:ring-orange-200 box-border font-outfit bg-white";
 
   const initial = (user?.name || "U").trim().charAt(0).toUpperCase();
+  const displayAvatar = avatarPreview || (!avatarBroken ? serverAvatar : null);
 
   return (
     <Card className="max-w-[860px]">
       {/* Profile header */}
       <div className="flex items-center gap-4 pb-5 border-b border-border">
         <div className="w-[72px] h-[72px] rounded-full overflow-hidden bg-orange-primary flex items-center justify-center text-white text-[26px] font-bold shrink-0">
-          {user?.avatar_url ? (
-            <img src={user.avatar_url} alt={user?.name} className="w-full h-full object-cover" />
+          {displayAvatar ? (
+            <img
+              src={displayAvatar}
+              alt={user?.name}
+              className="w-full h-full object-cover"
+              onError={() => setAvatarBroken(true)}
+            />
           ) : (
             initial
           )}
@@ -1295,7 +1465,7 @@ function ProfileView({ user, refreshUser }) {
             <input
               ref={avatarInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
               className="hidden"
               onChange={handleAvatarChange}
             />
@@ -1307,6 +1477,16 @@ function ProfileView({ user, refreshUser }) {
               <Camera size={14} />
               {avatarSaving ? "Uploading..." : "Change photo"}
             </button>
+            {displayAvatar && (
+              <button
+                onClick={handleAvatarRemove}
+                disabled={avatarSaving}
+                className="mt-1 text-[13px] font-semibold text-danger hover:text-red-700 bg-none border-none p-0 cursor-pointer flex items-center gap-1.5 font-outfit disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                Remove photo
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -2120,6 +2300,32 @@ function Toast({ toast }) {
   );
 }
 
+function SidebarAvatar({ name, src }) {
+  const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setBroken(false);
+  }, [src]);
+  if (src && !broken) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="w-[42px] h-[42px] rounded-full object-cover shrink-0"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <div
+      className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-[17px] shrink-0"
+      style={{ background: `linear-gradient(135deg, ${ORANGE} 0%, #EA580C 100%)` }}
+    >
+      {(name || "R").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main dashboard                                                     */
 /* ------------------------------------------------------------------ */
@@ -2360,20 +2566,7 @@ export default function CustomerDashboard() {
     collapsed ? null : (
       <div className="px-[18px] py-5 border-b border-[#1A1D27]">
         <div className="flex items-center gap-2.5">
-          {user?.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt=""
-              className="w-[42px] h-[42px] rounded-full object-cover shrink-0"
-            />
-          ) : (
-            <div
-              className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-[17px] shrink-0"
-              style={{ background: `linear-gradient(135deg, ${ORANGE} 0%, #EA580C 100%)` }}
-            >
-              {(user?.name || "R").split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
-            </div>
-          )}
+          <SidebarAvatar name={user?.name} src={resolveAssetUrl(user?.avatar_url)} />
           <div className="min-w-0">
             <div className="text-[#F9FAFB] font-bold text-[15px] leading-tight truncate">
               {user?.name || "Customer"}
@@ -2397,7 +2590,7 @@ export default function CustomerDashboard() {
         subtitle={sections[active].subtitle}
         userName={user?.name || "Customer"}
         userRole="Member"
-        userAvatar={user?.avatar_url}
+        userAvatar={resolveAssetUrl(user?.avatar_url)}
         onLogout={handleLogout}
         collapsible={false}
         topbarRight={

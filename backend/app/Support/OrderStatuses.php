@@ -43,7 +43,7 @@ class OrderStatuses
         'pending' => ['confirmed', 'cancelled'],
         'confirmed' => ['preparing', 'cancelled'],
         'preparing' => ['ready', 'cancelled'],
-        'ready' => ['assigned', 'served', 'cancelled'],
+        'ready' => ['assigned', 'served', 'delivered', 'cancelled'],
         'assigned' => ['picked_up', 'cancelled'],
         'picked_up' => ['on_the_way'],
         'on_the_way' => ['near_customer'],
@@ -57,7 +57,7 @@ class OrderStatuses
         'pending' => ['confirmed', 'cancelled'],
         'confirmed' => ['preparing', 'cancelled'],
         'preparing' => ['ready', 'cancelled'],
-        'ready' => ['cancelled', 'served'],
+        'ready' => ['cancelled', 'served', 'delivered'],
         'served' => [],
     ];
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Banknote, CreditCard, Landmark, Lock, MapPin, Pencil, Plus,
@@ -37,7 +37,13 @@ export default function Checkout() {
   const navigate = useNavigate();
   const [deliveryAddress, setDeliveryAddress] = useState(user?.address || "");
   const [addressSnapshot, setAddressSnapshot] = useState("");
-  const [addressEditorOpen, setAddressEditorOpen] = useState(false);
+  // Start open when there is no address yet so the editor doesn't depend on
+  // `!deliveryAddress` to show (that coupling closed the editor on 1st keystroke).
+  const [addressEditorOpen, setAddressEditorOpen] = useState(() => !user?.address);
+  const deliveryRef = useRef(deliveryAddress);
+  useEffect(() => {
+    deliveryRef.current = deliveryAddress;
+  }, [deliveryAddress]);
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [deliveryFee, setDeliveryFee] = useState(0);
@@ -78,7 +84,13 @@ export default function Checkout() {
         setSavedAddresses(list);
         if (list.length > 0) {
           const primary = list.find((a) => a.is_default) || list[0];
-          setDeliveryAddress((cur) => cur || formatAddress(primary));
+          const formatted = formatAddress(primary);
+          // Only prefill if the user hasn't typed anything yet (read latest
+          // value via ref to avoid overwriting in-progress typing).
+          if (formatted && !deliveryRef.current?.trim()) {
+            setDeliveryAddress(formatted);
+            setAddressEditorOpen(false);
+          }
         }
       })
       .catch(() => {
@@ -86,6 +98,14 @@ export default function Checkout() {
       });
     return () => { active = false; };
   }, [user]);
+
+  // Sync late-loading profile address (user is null on first render).
+  useEffect(() => {
+    if (user?.address && !deliveryRef.current?.trim()) {
+      setDeliveryAddress(user.address);
+      setAddressEditorOpen(false);
+    }
+  }, [user?.address]);
 
   useEffect(() => {
     if (cart.items.length === 0 || !cart.restaurantId) return;
@@ -133,9 +153,27 @@ export default function Checkout() {
     setAddressEditorOpen(true);
   };
 
+  const handleAddNewAddress = () => {
+    setAddressSnapshot(deliveryAddress);
+    setDeliveryAddress("");
+    setAddressEditorOpen(true);
+  };
+
+  const handleUseAddress = () => {
+    if (!deliveryAddress?.trim()) {
+      setError("Please enter a delivery address.");
+      return;
+    }
+    setError(null);
+    setAddressEditorOpen(false);
+  };
+
   const handleCancelAddressEditor = () => {
     setDeliveryAddress(addressSnapshot);
-    setAddressEditorOpen(false);
+    // If there was nothing to go back to, stay in the editor.
+    if (addressSnapshot?.trim()) {
+      setAddressEditorOpen(false);
+    }
   };
 
   const handlePlaceOrder = async () => {
@@ -175,7 +213,13 @@ export default function Checkout() {
           order_id: res.data.order.id,
           amount: parseFloat(res.data.order.total),
         });
-        window.location.replace(pay.data.url);
+        const gatewayUrl = pay.data?.url;
+        if (!gatewayUrl) {
+          setError("Payment gateway did not return a redirect URL. Your order is saved — please retry from My Orders or choose Cash on Delivery.");
+          setPlacing(false);
+          return;
+        }
+        window.location.replace(gatewayUrl);
         return;
       }
 
@@ -209,7 +253,7 @@ export default function Checkout() {
               </div>
               <div className="divide-y divide-zinc-100">
                 {cart.items.map((item) => (
-                  <div key={item.menu_item_id} className="flex items-center gap-4 py-3">
+                  <div key={item.menu_item_id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                     {item.image_url && (
                       <img src={item.image_url} alt={item.name} className="w-14 h-14 object-cover rounded-xl shrink-0" />
                     )}
@@ -295,7 +339,7 @@ export default function Checkout() {
             {orderType === "delivery" ? (
               <div className="bg-white rounded-2xl border border-zinc-100 shadow-[0_2px_12px_rgba(0,0,0,0.06)] p-6">
                 <h2 className="font-extrabold text-lg text-zinc-900 mb-4">Delivery Address</h2>
-                {addressEditorOpen || !deliveryAddress ? (
+                {addressEditorOpen ? (
                   <div className="space-y-3">
                     <textarea
                       value={deliveryAddress}
@@ -303,19 +347,20 @@ export default function Checkout() {
                       placeholder="Enter your delivery address"
                       rows={2}
                       autoComplete="off"
+                      autoFocus
                       className="w-full border border-zinc-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-orange-400 focus:border-orange-400 focus:outline-none"
                     />
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setAddressEditorOpen(false)}
+                        onClick={handleUseAddress}
                         className="bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-bold px-5 py-2.5 rounded-xl transition-colors"
                       >Use this address</button>
-                      {deliveryAddress && (
+                      {addressSnapshot?.trim() ? (
                         <button
                           onClick={handleCancelAddressEditor}
                           className="text-sm font-semibold text-zinc-500 hover:text-zinc-800"
                         >Cancel</button>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ) : (
@@ -334,7 +379,7 @@ export default function Checkout() {
                         <Pencil size={12} strokeWidth={2.4} />Change
                       </button>
                       <button
-                        onClick={handleOpenAddressEditor}
+                        onClick={handleAddNewAddress}
                         className="text-xs font-semibold text-[#F97316] hover:underline inline-flex items-center gap-1"
                       >
                         <Plus size={12} strokeWidth={2.4} />Add new address

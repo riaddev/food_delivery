@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Support\Tunnel;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class SslCommerzController extends Controller
@@ -38,12 +40,18 @@ class SslCommerzController extends Controller
             return response()->json(['message' => 'Amount does not match the order total.'], 422);
         }
 
+        if (!filled(config('sslcommerz.store_id')) || !filled(config('sslcommerz.store_password'))) {
+            return response()->json([
+                'message' => 'Online payment is not configured. Please choose Cash on Delivery or contact support.',
+            ], 503);
+        }
+
         $tranId = 'FD' . time() . Str::upper(Str::random(6));
         $order->update(['tran_id' => $tranId]);
 
         $user = $request->user();
 
-        $response = Http::asForm()->post(config('sslcommerz.gateway_url'), [
+        $payload = [
             'store_id' => config('sslcommerz.store_id'),
             'store_passwd' => config('sslcommerz.store_password'),
             'total_amount' => (float) $order->total,
@@ -69,18 +77,60 @@ class SslCommerzController extends Controller
             'product_name' => 'Food order #' . $order->id,
             'product_category' => 'Food',
             'product_profile' => 'general',
-        ]);
+        ];
+
+        try {
+            // Timeouts are critical: without them a slow sandbox hangs php
+            // artisan serve (single worker) and the browser reports
+            // ERR_EMPTY_RESPONSE instead of a JSON error.
+            $response = Http::asForm()
+                ->connectTimeout(5)
+                ->timeout(15)
+                ->post(config('sslcommerz.gateway_url'), $payload);
+        } catch (ConnectionException $e) {
+            Log::warning('SSLCommerz initiate timeout', [
+                'order_id' => $order->id,
+                'tran_id' => $tranId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Payment gateway timed out. Your order is saved as pending — please retry from My Orders or choose Cash on Delivery.',
+            ], 503);
+        }
 
         $data = $response->json();
 
         if (!$response->successful() || ($data['status'] ?? '') !== 'SUCCESS') {
+            Log::warning('SSLCommerz initiate rejected', [
+                'order_id' => $order->id,
+                'tran_id' => $tranId,
+                'http_status' => $response->status(),
+                'gateway_status' => $data['status'] ?? null,
+                'failedreason' => $data['failedreason'] ?? null,
+            ]);
+
             return response()->json([
                 'message' => 'Could not initiate payment: ' . ($data['failedreason'] ?? 'Unknown error from gateway.'),
             ], 422);
         }
 
+        $gatewayUrl = $data['GatewayPageURL'] ?? $data['redirectGatewayURL'] ?? null;
+
+        if (!$gatewayUrl) {
+            Log::error('SSLCommerz initiate missing redirect URL', [
+                'order_id' => $order->id,
+                'tran_id' => $tranId,
+                'gateway_response' => $data,
+            ]);
+
+            return response()->json([
+                'message' => 'Payment gateway did not return a redirect URL. Please retry or choose Cash on Delivery.',
+            ], 502);
+        }
+
         return response()->json([
-            'url' => $data['GatewayPageURL'] ?? $data['redirectGatewayURL'] ?? null,
+            'url' => $gatewayUrl,
             'tran_id' => $tranId,
         ]);
     }
@@ -157,12 +207,22 @@ class SslCommerzController extends Controller
             return;
         }
 
-        $verification = Http::get(config('sslcommerz.validator_url'), [
-            'val_id' => $valId,
-            'store_id' => config('sslcommerz.store_id'),
-            'store_passwd' => config('sslcommerz.store_password'),
-            'format' => 'json',
-        ]);
+        try {
+            $verification = Http::connectTimeout(5)->timeout(15)->get(config('sslcommerz.validator_url'), [
+                'val_id' => $valId,
+                'store_id' => config('sslcommerz.store_id'),
+                'store_passwd' => config('sslcommerz.store_password'),
+                'format' => 'json',
+            ]);
+        } catch (ConnectionException $e) {
+            Log::warning('SSLCommerz validation timeout', [
+                'order_id' => $order->id,
+                'val_id' => $valId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return;
+        }
 
         $data = $verification->json();
 

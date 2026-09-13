@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, Bike, CreditCard, LayoutGrid, Package, Settings as SettingsIcon, Store, TicketPercent, Users, UtensilsCrossed } from "lucide-react";
+import { BarChart3, Bike, CreditCard, LayoutGrid, Package, Settings as SettingsIcon, Star, Store, Users, UtensilsCrossed } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { adminApi } from "../../features/api/apiSlice";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
@@ -11,7 +11,7 @@ import Restaurants from "./sections/Restaurants";
 import Customers from "./sections/Customers";
 import DeliveryAgents from "./sections/DeliveryAgents";
 import Categories from "./sections/Categories";
-import Promotions from "./sections/Promotions";
+import Reviews from "./sections/Reviews";
 import Payments from "./sections/Payments";
 import Analytics from "./sections/Analytics";
 import Settings from "./sections/Settings";
@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { key: "agents", label: "Delivery Agents", icon: Bike },
   { key: "customers", label: "Customers", icon: Users },
   { key: "categories", label: "Categories", icon: UtensilsCrossed },
-  { key: "promotions", label: "Promotions", icon: TicketPercent },
+  { key: "reviews", label: "Reviews", icon: Star },
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
   { key: "settings", label: "Settings", icon: SettingsIcon },
@@ -36,7 +36,7 @@ const SECTIONS = {
   agents: { title: "Delivery Agents", subtitle: "Review rider applications and manage delivery accounts" },
   customers: { title: "Customers", subtitle: "Manage customer accounts and access" },
   categories: { title: "Categories", subtitle: "Curate how dishes are organised" },
-  promotions: { title: "Promotions", subtitle: "Manage promo codes and discounts" },
+  reviews: { title: "Reviews", subtitle: "Approve reviews and feature the best on the homepage" },
   payments: { title: "Payments", subtitle: "Transaction history across all orders" },
   analytics: { title: "Analytics", subtitle: "Orders, revenue and performance trends" },
   settings: { title: "Settings", subtitle: "Platform configuration and account" },
@@ -63,6 +63,7 @@ export default function AdminDashboard() {
   const [activity, setActivity] = useState([]);
   const [pendingRestaurants, setPendingRestaurants] = useState(0);
   const [pendingRiders, setPendingRiders] = useState(0);
+  const [pendingReviews, setPendingReviews] = useState(0);
   const [shellLoading, setShellLoading] = useState(true);
   const [shellError, setShellError] = useState(false);
   const [focusOrderId, setFocusOrderId] = useState(null);
@@ -77,16 +78,18 @@ export default function AdminDashboard() {
     setShellLoading(true);
     setShellError(false);
     try {
-      const [statsRes, activityRes, pendingRestaurantsRes, pendingRidersRes] = await Promise.all([
+      const [statsRes, activityRes, pendingRestaurantsRes, pendingRidersRes, reviewsRes] = await Promise.all([
         adminApi.getStats(),
         adminApi.getActivityLog(),
         adminApi.getPendingRestaurants(),
         adminApi.getPendingRiders(),
+        adminApi.getReviews({ status: "pending" }).catch(() => null),
       ]);
       setStats(statsRes.data);
       setActivity(activityRes.data.activity || []);
       setPendingRestaurants((pendingRestaurantsRes.data.restaurants || []).length);
       setPendingRiders((pendingRidersRes.data.riders || []).length);
+      if (reviewsRes) setPendingReviews(reviewsRes.data.pending_count ?? (reviewsRes.data.reviews || []).length);
     } catch {
       setShellError(true);
     } finally {
@@ -115,6 +118,7 @@ export default function AdminDashboard() {
       return { ...item, badge: (stats?.pending_restaurants ?? pendingRestaurants) || undefined };
     }
     if (item.key === "agents") return { ...item, badge: (stats?.pending_riders ?? pendingRiders) || undefined };
+    if (item.key === "reviews") return { ...item, badge: pendingReviews || undefined };
     return item;
   });
 
@@ -164,7 +168,7 @@ export default function AdminDashboard() {
         {active === "agents" && <DeliveryAgents showToast={showToast} />}
         {active === "customers" && <Customers showToast={showToast} />}
         {active === "categories" && <Categories showToast={showToast} />}
-        {active === "promotions" && <Promotions showToast={showToast} />}
+        {active === "reviews" && <Reviews showToast={showToast} />}
         {active === "payments" && <Payments onViewOrder={handleViewOrder} showToast={showToast} />}
         {active === "analytics" && <Analytics />}
         {active === "settings" && <Settings showToast={showToast} />}

@@ -368,7 +368,7 @@ export default function SignupRider() {
       </aside>
 
       <div className="flex-1 min-w-0">
-        <div className="px-12 py-8">
+        <div className="px-5 sm:px-12 py-8">
           <Link
             to="/"
             className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-[#FF6B00] hover:text-[#E05500] transition-colors"
@@ -392,7 +392,7 @@ export default function SignupRider() {
             <h2 className="text-xl font-bold text-zinc-900 mt-4">Deliver with Swift Bite</h2>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-8">
+          <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-5 sm:p-8">
             {submitted ? (
               <div className="text-center py-6">
                 <span className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto">

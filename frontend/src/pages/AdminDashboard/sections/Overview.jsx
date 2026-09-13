@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  Bike, Megaphone, Store, UserPlus,
+  Bike, Store, UserPlus,
 } from "lucide-react";
 import { Card, DotStatus, EmptyState, HeroCard, KpiCard, SectionTitle, Skeleton } from "../../../components/dashboard/Card";
 import { DonutChart, Legend, LineChart } from "../../../components/dashboard/Charts";
@@ -56,7 +56,6 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
 
   const quickActions = [
     { label: "Add Restaurant", icon: Store, onClick: () => onNavigate("restaurants") },
-    { label: "Create Promo", icon: Megaphone, onClick: () => onNavigate("promotions") },
     { label: "Add Agent", icon: UserPlus, onClick: () => onNavigate("agents") },
     { label: "Broadcast", icon: Bike, onClick: () => showToast("Broadcast feature is coming soon") },
   ];
@@ -281,7 +280,7 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
               View all
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-4 gap-2.5">
             {riders.map((a) => (
               <div key={a.label} className="bg-[#FAFAFA] rounded-[10px] py-3.5 text-center border border-border">
                 <div className="text-[26px] font-extrabold font-mono leading-none" style={{ color: a.color }}>
@@ -295,7 +294,7 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
 
         <Card>
           <div className="text-[15px] font-bold text-text-primary mb-4">Quick Actions</div>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2.5">
             {quickActions.map((q) => {
               const Icon = q.icon;
               return (

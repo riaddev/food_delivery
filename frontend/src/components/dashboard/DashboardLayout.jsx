@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bell, ChevronLeft, ChevronRight, LogOut, Menu, X,
 } from "lucide-react";
@@ -72,6 +72,11 @@ export default function DashboardLayout({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [avatarBroken, setAvatarBroken] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAvatarBroken(false);
+  }, [userAvatar]);
 
   const initials = (userName || "U")
     .split(" ")
@@ -154,7 +159,7 @@ export default function DashboardLayout({
               <Menu size={19} />
             </button>
             <div className="min-w-0">
-              <h1 className="text-lg lg:text-[22px] font-bold text-text-primary m-0 tracking-[-0.4px]">{title}</h1>
+              <h1 className="text-lg lg:text-[2px] font-bold text-text-primary m-0 tracking-[-0.4px]">{title}</h1>
               {subtitle && <p className="text-[14px] text-text-muted mt-1 mb-0">{subtitle}</p>}
             </div>
           </div>
@@ -171,11 +176,12 @@ export default function DashboardLayout({
             )}
             {userName && (
               <div className="flex items-center gap-2.5 bg-card border border-border rounded-[9px] pl-1.5 py-1.5 pr-3">
-                {userAvatar ? (
+                {userAvatar && !avatarBroken ? (
                   <img
                     src={userAvatar}
                     alt=""
                     className="w-7 h-7 rounded-full object-cover shrink-0"
+                    onError={() => setAvatarBroken(true)}
                   />
                 ) : (
                   <div

@@ -86,7 +86,7 @@ export default function Customers({ showToast }) {
             <div className="text-[15px] font-bold text-text-primary">Customers</div>
             <div className="text-[13px] text-text-muted mt-0.5">Manage customer accounts and access</div>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className={selectClass}>
               <option value="">All statuses</option>
               <option value="active">Active</option>

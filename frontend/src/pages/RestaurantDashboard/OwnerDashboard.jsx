@@ -32,6 +32,7 @@ const nextAction = (status, orderType) => {
   if (status === "confirmed") return { to: "preparing", label: "Prepare" };
   if (status === "preparing") return { to: "ready", label: "Ready" };
   if (status === "ready" && orderType === "dine_in") return { to: "served", label: "Served" };
+  if (status === "ready" && orderType === "takeout") return { to: "delivered", label: "Picked Up" };
   return null;
 };
 
@@ -232,7 +233,7 @@ export default function OwnerDashboard() {
                           </>
                         ) : (
                           <span className="text-[11px] text-text-light italic">
-                            {order.status === "ready" && order.order_type !== "dine_in"
+                            {order.status === "ready" && order.order_type === "delivery"
                               ? "Waiting for rider..."
                               : ["assigned", "picked_up", "on_the_way", "near_customer", "served"].includes(order.status)
                                 ? "In delivery"

@@ -1,10 +1,11 @@
+import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Armchair, BarChart3, CalendarClock, ClipboardList, ExternalLink, LayoutDashboard,
   Settings, Store, UtensilsCrossed,
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
-import { restaurantImage } from "../../utils/foodImages";
+import { resolveAssetUrl, restaurantImage } from "../../utils/foodImages";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 
 const NAV_ITEMS = [
@@ -38,7 +39,14 @@ export default function RestaurantDashboard() {
 
   const restaurant = user?.restaurant || {};
   const name = restaurant.restaurant_name || user?.name || "Restaurant";
-  const logo = restaurant.image_url || restaurant.image || restaurantImage(name);
+  const storedLogo = restaurant.logo_url || restaurant.logo || null;
+  const logo = resolveAssetUrl(storedLogo) || restaurant.image_url || restaurant.image || restaurantImage(name);
+  const [logoBroken, setLogoBroken] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLogoBroken(false);
+  }, [logo]);
+  const logoInitials = name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
 
   const activeKey = NAV_ITEMS.find((n) =>
     n.exact ? location.pathname === n.path : location.pathname.startsWith(n.path)
@@ -48,12 +56,21 @@ export default function RestaurantDashboard() {
     collapsed ? null : (
       <div className="px-[18px] py-5 border-b border-[#1A1D27]">
         <div className="flex items-center gap-2.5">
-          <img
-            src={logo}
-            alt=""
-            className="w-[42px] h-[42px] rounded-full object-cover shrink-0 bg-[#1A1D27]"
-            onError={(e) => { e.currentTarget.style.display = "none"; }}
-          />
+          {!logoBroken ? (
+            <img
+              src={logo}
+              alt=""
+              className="w-[42px] h-[42px] rounded-full object-cover shrink-0 bg-[#1A1D27]"
+              onError={() => setLogoBroken(true)}
+            />
+          ) : (
+            <div
+              className="w-[42px] h-[42px] rounded-full flex items-center justify-center text-white font-bold text-[17px] shrink-0"
+              style={{ background: "linear-gradient(135deg, #F97316 0%, #EA580C 100%)" }}
+            >
+              {logoInitials}
+            </div>
+          )}
           <div className="min-w-0">
             <div className="text-[#F9FAFB] font-bold text-[15px] leading-tight truncate">{name}</div>
             <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-medium text-orange-soft bg-orange-primary/20 px-1.5 py-0.5 rounded">

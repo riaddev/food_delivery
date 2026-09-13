@@ -62,7 +62,8 @@ class Rider extends Model
             return $value;
         }
 
-        return Storage::disk('public')->url($value);
+        // Relative URL: works regardless of APP_URL (tunnels expire).
+        return '/storage/'.ltrim($value, '/');
     }
 
     public function user(): BelongsTo

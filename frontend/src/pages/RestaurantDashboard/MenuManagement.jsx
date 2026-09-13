@@ -337,7 +337,7 @@ export default function MenuManagement() {
                 <h3 className="text-sm font-bold text-text-primary uppercase tracking-wider mb-3">{cat}</h3>
                 <div className="grid gap-4">
                   {catItems.map((item) => (
-                    <div key={item.id} className="bg-card rounded-[13px] border border-border p-5 flex justify-between items-center gap-4 transition-all duration-300 hover:border-zinc-300">
+                    <div key={item.id} className="bg-card rounded-[13px] border border-border p-5 flex flex-col min-[560px]:flex-row min-[560px]:items-center justify-between gap-4 transition-all duration-300 hover:border-zinc-300">
                       <div className="flex gap-5 items-center min-w-0">
                         {item.image_url ? (
                           <img src={item.image_url} alt={item.name} className="w-16 h-16 rounded-2xl object-cover shrink-0" />
@@ -364,7 +364,7 @@ export default function MenuManagement() {
                           {item.description && <p className="text-sm text-text-muted truncate">{item.description}</p>}
                         </div>
                       </div>
-                      <div className="flex gap-2 shrink-0">
+                      <div className="flex flex-wrap gap-2 min-[560px]:shrink-0">
                         <button
                           onClick={() => handleToggleAvailability(item)}
                           title={item.is_available ? "Mark unavailable" : "Mark available"}

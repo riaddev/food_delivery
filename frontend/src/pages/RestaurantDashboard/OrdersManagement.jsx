@@ -1,7 +1,30 @@
-import { useState, useEffect, useCallback } from "react";
-import { ClipboardList, MapPin, RefreshCw, UtensilsCrossed, Bike, X, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { ClipboardList, MapPin, RefreshCw, UtensilsCrossed, Bike, X, AlertTriangle, Volume2, VolumeX } from "lucide-react";
 import { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
+
+// Free ding using WebAudio — no audio file needed. Only rings on new pending orders.
+const playDing = (audioRef) => {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioRef.current = audioRef.current || new Ctx();
+    const ctx = audioRef.current;
+    if (ctx.state === "suspended") ctx.resume();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+    o.start();
+    o.stop(ctx.currentTime + 0.45);
+  } catch {
+    /* audio not available — silent */
+  }
+};
 
 const STATUS_FLOW = [
   { value: "pending", label: "Pending", color: "bg-amber-50 text-amber-600" },
@@ -27,6 +50,7 @@ const nextActions = (status, orderType) => {
   if (status === "confirmed") return [{ to: "preparing", label: "Start Preparing" }];
   if (status === "preparing") return [{ to: "ready", label: "Mark Ready" }];
   if (status === "ready" && orderType === "dine_in") return [{ to: "served", label: "Mark Served" }];
+  if (status === "ready" && orderType === "takeout") return [{ to: "delivered", label: "Mark Picked Up" }];
   return [];
 };
 
@@ -100,17 +124,43 @@ export default function OrdersManagement() {
   const [riders, setRiders] = useState([]);
   const [ridersLoading, setRidersLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const prevPendingRef = useRef(null); // null = first load, no ding yet
+  const audioRef = useRef(null);
+  const mutedRef = useRef(false);
 
   const [cancelModal, setCancelModal] = useState(null);
 
-  const load = useCallback(() => {
+  const load = useCallback((opts = {}) => {
     restaurantApi.getOrders()
-      .then((r) => setOrders(r.data.orders))
-      .catch(() => setError("Failed to load orders"))
+      .then((r) => {
+        const list = r.data.orders || [];
+        setOrders(list);
+        // Ding only when a NEW pending order appears after first load.
+        const pendingIds = new Set(list.filter((o) => o.status === "pending").map((o) => o.id));
+        if (prevPendingRef.current && !mutedRef.current) {
+          const isNew = [...pendingIds].some((id) => !prevPendingRef.current.has(id));
+          if (isNew) playDing(audioRef);
+        }
+        prevPendingRef.current = pendingIds;
+      })
+      .catch(() => { if (!opts.silent) setError("Failed to load orders"); })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+
+  // Auto-refresh every 15s so new orders appear without manual reload.
+  // Pauses when tab hidden; cleaned up on unmount.
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.hidden) return;
+      load({ silent: true });
+    }, 15000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const handleStatus = async (order, status) => {
     setUpdatingId(order.id);
@@ -186,6 +236,14 @@ export default function OrdersManagement() {
             </button>
           );
         })}
+        <button
+          onClick={() => setMuted((m) => !m)}
+          title={muted ? "Turn new-order sound on" : "Mute new-order sound"}
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap border border-border bg-card text-text-muted hover:text-text-primary cursor-pointer shrink-0"
+        >
+          {muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+          {muted ? "Muted" : "Sound on"}
+        </button>
       </div>
 
       {error && (
@@ -207,7 +265,7 @@ export default function OrdersManagement() {
         <div className="space-y-5">
           {filtered.map((order) => {
             const actions = nextActions(order.status, order.order_type);
-            const showAssign = order.status === "ready" && order.order_type !== "dine_in" && !order.rider;
+            const showAssign = order.status === "ready" && order.order_type === "delivery" && !order.rider;
             const canCancel = RESTAURANT_ACTIONABLE.has(order.status);
 
             return (

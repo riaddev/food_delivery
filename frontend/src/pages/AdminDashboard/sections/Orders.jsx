@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { adminApi } from "../../../features/api/apiSlice";
 import { Card, PillBadge } from "../../../components/dashboard/Card";
 import DetailDrawer from "../components/DetailDrawer";
 import { ErrorBanner, LoadingRows } from "../components/States";
-import { capitalize, formatBDT, formatDateTime, nextOrderStatuses, ORDER_STATUS_COLOR, ORDER_STATUS_TONE, orderStatusLabel, paymentMethodLabel, PAYMENT_STATUS_TONE } from "./utils";
+import { capitalize, formatBDT, formatDateTime, ORDER_STATUS_COLOR, ORDER_STATUS_TONE, orderStatusLabel, paymentMethodLabel, PAYMENT_STATUS_TONE } from "./utils";
 
 const ORDER_TYPES = ["delivery", "takeout", "dine_in"];
 const PAYMENT_METHODS = ["cash", "bkash", "nagad", "card"];
@@ -68,19 +68,6 @@ export default function Orders({ focusOrderId, onFocusHandled, showToast }) {
     return () => window.clearTimeout(t);
   }, [focusOrderId, onFocusHandled]);
 
-  const changeStatus = async (id, status) => {
-    try {
-      await adminApi.updateOrderStatus(id, { status });
-      showToast(`Order #${id} marked as ${status.replace(/_/g, " ")}`);
-      if (selected?.id === id && detail) {
-        setDetail((prev) => (prev ? { ...prev, status } : prev));
-      }
-      fetchOrders();
-    } catch (err) {
-      showToast(err?.response?.data?.message || "Failed to update order status", "error");
-    }
-  };
-
   const assignRider = async (riderId) => {
     if (!selected || acting) return;
     setActing(true);
@@ -114,7 +101,6 @@ export default function Orders({ focusOrderId, onFocusHandled, showToast }) {
   const busyRiders = riders.filter((r) => r.status === "approved" && r.is_delivering);
 
   const isTerminal = (status) => ["delivered", "served", "cancelled"].includes(status);
-  const nextStatuses = (status) => nextOrderStatuses(status);
 
   const selectClass = "appearance-none pl-3 pr-8 py-2 rounded-lg text-xs font-semibold bg-[#FAFAFA] border border-border cursor-pointer focus:outline-none focus:ring-2 focus:ring-zinc-200 font-outfit";
   const inputClass = "pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit";
@@ -227,21 +213,7 @@ export default function Orders({ focusOrderId, onFocusHandled, showToast }) {
                       <PillBadge tone={PAYMENT_STATUS_TONE[o.payment_status] || "zinc"}>{o.payment_status || "\u2014"}</PillBadge>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
-                        <select
-                          value={o.status}
-                          onChange={(e) => changeStatus(o.id, e.target.value)}
-                          disabled={isTerminal(o.status)}
-                          className="appearance-none pl-3 pr-8 py-1.5 rounded-lg text-xs font-semibold bg-[#FAFAFA] border border-border cursor-pointer focus:outline-none focus:ring-2 focus:ring-zinc-200 capitalize font-outfit disabled:opacity-60 disabled:cursor-default"
-                        >
-                          <option value={o.status}>{orderStatusLabel(o.status)}</option>
-                          {!isTerminal(o.status) &&
-                            nextStatuses(o.status).map((s) => (
-                              <option key={s} value={s}>{orderStatusLabel(s)}</option>
-                            ))}
-                        </select>
-                        <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-light pointer-events-none" />
-                      </div>
+                      <PillBadge tone={ORDER_STATUS_TONE[o.status] || "zinc"}>{orderStatusLabel(o.status)}</PillBadge>
                     </td>
                     <td className="px-4 py-3 text-xs text-text-light whitespace-nowrap">
                       {o.created_at
@@ -375,7 +347,7 @@ export default function Orders({ focusOrderId, onFocusHandled, showToast }) {
               </p>
             </div>
 
-            {!isTerminal(detail.status) && (
+            {!isTerminal(detail.status) && detail.order_type !== "takeout" && (
               <div>
                 <div className="text-[12px] font-bold uppercase tracking-[0.06em] text-text-light mb-2">Assign delivery rider</div>
                 <div className="flex items-center gap-2.5">
@@ -418,28 +390,17 @@ export default function Orders({ focusOrderId, onFocusHandled, showToast }) {
               </div>
             )}
 
+            {!isTerminal(detail.status) && detail.order_type === "takeout" && (
+              <p className="text-[12.5px] text-text-muted bg-[#FAFAFA] border border-border rounded-lg px-3 py-2.5">
+                Takeout order — self-pickup, no rider needed. Restaurant marks it Picked Up.
+              </p>
+            )}
+
             <div>
               <div className="text-[12px] font-bold uppercase tracking-[0.06em] text-text-light mb-2">Status</div>
-              {isTerminal(detail.status) ? (
-                <p className="text-[13px] text-text-muted">This order is {orderStatusLabel(detail.status)} and cannot be changed.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {nextStatuses(detail.status).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => changeStatus(detail.id, s)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer font-outfit border ${
-                        detail.status === s
-                          ? "bg-orange-primary text-white border-orange-primary"
-                          : "bg-[#FAFAFA] text-text-muted border-border hover:text-text-primary"
-                      }`}
-                      style={detail.status === s ? { color: "#fff", background: ORDER_STATUS_COLOR[s] } : undefined}
-                    >
-                      {orderStatusLabel(s)}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <p className="text-[13px] text-text-muted">
+                Status is managed by the restaurant and rider. See the timeline below for progress.
+              </p>
             </div>
 
             <div>

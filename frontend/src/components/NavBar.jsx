@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
 import { useCart } from "../context/CartContext";
+import { resolveAssetUrl } from "../utils/foodImages";
 import CartDrawer from "./CartDrawer";
 import Logo from "./Logo";
 
@@ -134,11 +135,15 @@ const Header = ({ transparent = false }) => {
                     )}
                   </button>
                   <div className="relative" ref={menuRef}>
-                    <button onClick={() => setMenuOpen((v) => !v)} aria-label="Profile menu" className="w-9 h-9 rounded-full bg-zinc-200 flex items-center justify-center text-zinc-800 font-bold text-sm hover:bg-zinc-300 transition">
-                      {user.avatar_url ? (
-                        <img src={user.avatar_url} alt={user.name} className="w-full h-full object-cover rounded-full" />
-                      ) : (
-                        (user.name || "?").charAt(0).toUpperCase()
+                    <button onClick={() => setMenuOpen((v) => !v)} aria-label="Profile menu" className="w-9 h-9 rounded-full bg-zinc-200 flex items-center justify-center text-zinc-800 font-bold text-sm hover:bg-zinc-300 transition overflow-hidden relative">
+                      {(user.name || "?").charAt(0).toUpperCase()}
+                      {resolveAssetUrl(user.avatar_url) && (
+                        <img
+                          src={resolveAssetUrl(user.avatar_url)}
+                          alt={user.name}
+                          className="absolute inset-0 w-full h-full object-cover rounded-full"
+                          onError={(e) => { e.currentTarget.style.display = "none"; }}
+                        />
                       )}
                     </button>
                     {menuOpen && (

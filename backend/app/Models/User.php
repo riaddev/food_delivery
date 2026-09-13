@@ -106,6 +106,11 @@ class User extends Authenticatable
         if (!$this->avatar) {
             return null;
         }
-        return Storage::disk('public')->url($this->avatar);
+        if (str_starts_with($this->avatar, 'http://') || str_starts_with($this->avatar, 'https://')) {
+            return $this->avatar;
+        }
+        // Relative URL: works regardless of APP_URL (tunnels expire) and
+        // lets the frontend serve it via same-origin / vite /storage proxy.
+        return '/storage/'.ltrim($this->avatar, '/');
     }
 }

@@ -47,9 +47,13 @@ export function HeroCard({ label, value, change, up = true }) {
   );
 }
 
-export function Card({ children, className = "", pad = "22px 24px" }) {
+export function Card({ children, className = "", pad = "22px 24px", title, subtitle, action }) {
+  // Bare numbers follow the Tailwind spacing scale (pad="5" -> 20px).
+  // Raw CSS values ("22px 24px", "0") pass through untouched.
+  const normalizedPad = /^\d+$/.test(String(pad).trim()) ? `${Number(pad) * 4}px` : pad;
   return (
-    <div className={`bg-card rounded-[13px] border border-border ${className}`} style={{ padding: pad }}>
+    <div className={`bg-card rounded-[13px] border border-border ${className}`} style={{ padding: normalizedPad }}>
+      {title ? <SectionTitle title={title} subtitle={subtitle} action={action} /> : null}
       {children}
     </div>
   );

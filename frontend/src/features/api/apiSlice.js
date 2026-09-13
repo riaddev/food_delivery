@@ -58,6 +58,8 @@ export const authApi = {
 
 export const publicApi = {
   getRestaurantReviews: (id) => api.get(`/restaurants/${id}/reviews`),
+  getFeaturedReviews: (limit = 10) => api.get("/reviews/featured", { params: { limit }, skipAuthRedirect: true }),
+  getMenuItemReviews: (id) => api.get(`/menu-items/${id}/reviews`, { skipAuthRedirect: true }),
 };
 
 export const reservationApi = {
@@ -69,7 +71,15 @@ export const reservationApi = {
 };
 
 export const customerApi = {
-  updateProfile: (data) => api.post("/customer/profile", data),
+  // JSON object -> PUT; FormData (avatar upload) -> POST + _method=PUT
+  // (PHP/Laravel can't parse multipart on PUT, and the route is PUT-only).
+  updateProfile: (data) => {
+    if (data instanceof FormData) {
+      if (!data.has("_method")) data.append("_method", "PUT");
+      return api.post("/customer/profile", data);
+    }
+    return api.put("/customer/profile", data);
+  },
   changePassword: (data) => api.put("/customer/change-password", data),
   getOverview: () => api.get("/customer/overview"),
   getOrders: () => api.get("/customer/orders"),
@@ -95,7 +105,15 @@ export const paymentApi = {
 };
 
 export const restaurantApi = {
-  updateProfile: (data) => api.put("/restaurant/profile", data),
+  // JSON object -> PUT; FormData (cover/logo upload) -> POST + _method=PUT
+  // (PHP/Laravel can't parse multipart on PUT, and the route is PUT-only).
+  updateProfile: (data) => {
+    if (data instanceof FormData) {
+      if (!data.has("_method")) data.append("_method", "PUT");
+      return api.post("/restaurant/profile", data);
+    }
+    return api.put("/restaurant/profile", data);
+  },
   getOrders: () => api.get("/restaurant/orders"),
   updateOrderStatus: (id, status) => api.put(`/restaurant/orders/${id}/status`, { status }),
   getAvailableRiders: () => api.get("/restaurant/riders"),
@@ -103,7 +121,13 @@ export const restaurantApi = {
     api.post(`/restaurant/orders/${orderId}/assign-rider`, { rider_id: riderId }),
   getMenuItems: () => api.get("/restaurant/menu-items"),
   createMenuItem: (data) => api.post("/restaurant/menu-items", data),
-  updateMenuItem: (id, data) => api.put(`/restaurant/menu-items/${id}`, data),
+  updateMenuItem: (id, data) => {
+    if (data instanceof FormData) {
+      if (!data.has("_method")) data.append("_method", "PUT");
+      return api.post(`/restaurant/menu-items/${id}`, data);
+    }
+    return api.put(`/restaurant/menu-items/${id}`, data);
+  },
   deleteMenuItem: (id) => api.delete(`/restaurant/menu-items/${id}`),
   toggleAvailability: (id, data) => api.patch(`/restaurant/menu-items/${id}/availability`, data),
   checkAvailability: (data) => api.post("/restaurant/menu-items/check-availability", data),
@@ -140,7 +164,6 @@ export const adminApi = {
   getActivityLog: () => api.get("/admin/activity-log"),
   getOrders: (params) => api.get("/admin/orders", { params }),
   getOrder: (id) => api.get(`/admin/orders/${id}`),
-  updateOrderStatus: (id, data) => api.put(`/admin/orders/${id}/status`, data),
   assignRider: (id, riderId) => api.post(`/admin/orders/${id}/assign-rider`, { rider_id: riderId }),
   getCustomers: (params) => api.get("/admin/customers", { params }),
   getCustomer: (id) => api.get(`/admin/customers/${id}`),
@@ -155,11 +178,6 @@ export const adminApi = {
   updatePlatformSettings: (data) => api.put("/admin/settings/platform", data),
   updateProfile: (data) => api.put("/admin/profile", data),
   changePassword: (data) => api.put("/admin/change-password", data),
-  getPromoCodes: () => api.get("/admin/promo-codes"),
-  createPromoCode: (data) => api.post("/admin/promo-codes", data),
-  updatePromoCode: (id, data) => api.put(`/admin/promo-codes/${id}`, data),
-  togglePromoCode: (id) => api.post(`/admin/promo-codes/${id}/toggle`),
-  deletePromoCode: (id) => api.delete(`/admin/promo-codes/${id}`),
   getCategories: () => api.get("/admin/categories"),
   createCategory: (data) => api.post("/admin/categories", data),
   updateCategory: (id, data) => api.put(`/admin/categories/${id}`, data),
@@ -168,6 +186,11 @@ export const adminApi = {
   getCategoryRequests: (params) => api.get("/admin/category-requests", { params }),
   approveCategoryRequest: (id) => api.post(`/admin/category-requests/${id}/approve`),
   rejectCategoryRequest: (id, data) => api.post(`/admin/category-requests/${id}/reject`, data),
+  getReviews: (params) => api.get("/admin/reviews", { params }),
+  approveReview: (id) => api.post(`/admin/reviews/${id}/approve`),
+  rejectReview: (id) => api.post(`/admin/reviews/${id}/reject`),
+  setReviewFeatured: (id, is_featured) => api.post(`/admin/reviews/${id}/feature`, { is_featured }),
+  deleteReview: (id) => api.delete(`/admin/reviews/${id}`),
 };
 
 export const riderApi = {
@@ -179,7 +202,7 @@ export const riderApi = {
 };
 
 export const chatApi = {
-  send: (message, history) => api.post("/chat", { message, history }, { skipAuthRedirect: true }),
+  send: (message, history, signal) => api.post("/chat", { message, history }, { skipAuthRedirect: true, signal }),
 };
 
 export const trackingApi = {

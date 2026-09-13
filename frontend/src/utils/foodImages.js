@@ -34,3 +34,24 @@ export function formatDate(date) {
 export function formatDateTime(date) {
   return new Date(date).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
+
+/**
+ * Resolve a backend file URL to something loadable from the browser.
+ * - blob:/data: URLs pass through (instant local previews).
+ * - Absolute URLs pointing at /storage/... (e.g. baked with an old
+ *   trycloudflare APP_URL that has since expired) are rewritten to the
+ *   relative /storage/... path so they go same-origin (vite proxies
+ *   /storage -> backend in dev).
+ * - Bare "avatars/x.jpg" / "storage/avatars/x.jpg" paths are normalized
+ *   to "/storage/avatars/x.jpg".
+ * - External URLs (unsplash, etc.) pass through untouched.
+ */
+export function resolveAssetUrl(url) {
+  if (!url) return null;
+  if (url.startsWith("blob:") || url.startsWith("data:")) return url;
+  const storageIdx = url.indexOf("/storage/");
+  if (storageIdx >= 0) return url.slice(storageIdx);
+  if (/^(avatars|menu-items|restaurants|rider-documents)\//.test(url)) return `/storage/${url}`;
+  if (url.startsWith("storage/")) return `/${url}`;
+  return url;
+}

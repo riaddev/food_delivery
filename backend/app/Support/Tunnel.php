@@ -45,7 +45,10 @@ class Tunnel
         }
 
         $content = file_get_contents($log);
-        $content = $content === false ? '' : substr($content, -8192);
+        // Quick-tunnel URL is printed once at startup; the log can grow past
+        // 8KB with metrics/DNS noise, pushing the URL out of the tail window
+        // and forcing a fallback to a stale APP_URL. Keep a larger window.
+        $content = $content === false ? '' : substr($content, -131072);
 
         if (preg_match_all('/https:\/\/[a-z0-9-]+\.trycloudflare\.com/', $content, $matches)) {
             return rtrim(end($matches[0]), '/');

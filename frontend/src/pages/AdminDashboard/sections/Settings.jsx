@@ -6,13 +6,21 @@ import { Card } from "../../../components/dashboard/Card";
 import { ErrorBanner } from "../components/States";
 
 export default function Settings({ showToast }) {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [readOnly, setReadOnly] = useState(null);
   const [form, setForm] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState({ name: user?.name || "", phone: user?.phone || "" });
+  const [syncedUserId, setSyncedUserId] = useState(user?.id ?? null);
+  // user loads asynchronously — adopt it once it arrives (e.g. after a hard
+  // refresh straight onto Settings). Render-time adjustment only runs when
+  // the user identity changes, so typed input is never clobbered.
+  if (user && user.id !== syncedUserId) {
+    setSyncedUserId(user.id);
+    setProfile({ name: user.name || "", phone: user.phone || "" });
+  }
   const [pwd, setPwd] = useState({ current_password: "", new_password: "", new_password_confirmation: "" });
   const [pwdBusy, setPwdBusy] = useState(false);
 
@@ -54,6 +62,7 @@ export default function Settings({ showToast }) {
     e.preventDefault();
     try {
       await adminApi.updateProfile(profile);
+      await refreshUser();
       showToast("Profile updated");
     } catch {
       showToast("Failed to update profile", "error");

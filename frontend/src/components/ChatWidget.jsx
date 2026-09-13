@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Send, Sparkles, X } from "lucide-react";
+import { Bot, RotateCcw, Send, Sparkles, X } from "lucide-react";
 import { chatApi } from "../features/api/apiSlice";
 
 const FALLBACK_IMG =
@@ -31,6 +31,7 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
+  const abortRef = useRef(null);
   const isHidden = HIDDEN_PATHS.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
@@ -41,8 +42,8 @@ export default function ChatWidget() {
 
   if (isHidden) return null;
 
-  const send = async () => {
-    const text = input.trim();
+  const send = async (textOverride) => {
+    const text = (typeof textOverride === "string" ? textOverride : input).trim();
     if (!text || loading) return;
 
     const history = messages
@@ -54,21 +55,48 @@ export default function ChatWidget() {
     setInput("");
     setLoading(true);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const timeoutId = window.setTimeout(() => controller.abort(), 35000);
+
     try {
-      const res = await chatApi.send(text, history);
+      const res = await chatApi.send(text, history, controller.signal);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", text: res.data.reply, dishes: res.data.dishes || [] },
       ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "error", text: "Something went wrong. Please try again." },
-      ]);
+    } catch (err) {
+      const status = err.response?.status;
+      const code = err.response?.data?.code;
+      const serverReply = err.response?.data?.reply;
+      let errorText;
+      if (controller.signal.aborted) {
+        errorText = "Taking too long — the request was stopped.";
+      } else if (status === 429 || code === "upstream_rate_limited") {
+        errorText = "You're chatting fast — wait a few seconds and try again.";
+      } else if (status === 504 || code === "upstream_timeout") {
+        errorText = "Swift AI is taking too long to answer.";
+      } else if (!err.response) {
+        errorText = "Can't reach the server. Check your connection and that the backend is running.";
+      } else {
+        errorText = serverReply || "Something went wrong. Please try again.";
+      }
+      setMessages((prev) => [...prev, { role: "error", text: errorText, retryOf: text }]);
     } finally {
+      window.clearTimeout(timeoutId);
+      if (abortRef.current === controller) abortRef.current = null;
       setLoading(false);
     }
   };
+
+  const retry = (index) => {
+    const failed = messages[index];
+    if (!failed?.retryOf || loading) return;
+    setMessages((prev) => prev.filter((_, i) => i !== index));
+    send(failed.retryOf);
+  };
+
+  const cancel = () => abortRef.current?.abort();
 
   return (
     <div className="fixed bottom-5 right-5 z-[70] flex flex-col items-end gap-3">
@@ -121,6 +149,14 @@ export default function ChatWidget() {
                       }`}
                     >
                       {msg.text}
+                      {msg.role === "error" && msg.retryOf && (
+                        <button
+                          onClick={() => retry(i)}
+                          className="mt-2 flex items-center gap-1.5 rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                        >
+                          <RotateCcw size={12} /> Retry
+                        </button>
+                      )}
                     </div>
 
                     {msg.role === "assistant" && msg.dishes?.length > 0 && (
@@ -184,18 +220,29 @@ export default function ChatWidget() {
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about dishes or prices..."
+                  placeholder={loading ? "Waiting for Swift AI... (✕ to stop)" : "Ask about dishes or prices..."}
                   maxLength={1000}
                   className="flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm outline-none transition focus:border-orange-400 focus:bg-white"
                 />
-                <button
-                  type="submit"
-                  disabled={!input.trim() || loading}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label="Send message"
-                >
-                  <Send size={16} />
-                </button>
+                {loading ? (
+                  <button
+                    type="button"
+                    onClick={cancel}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-800 text-white transition hover:bg-gray-900"
+                    aria-label="Cancel request"
+                  >
+                    <X size={16} />
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!input.trim()}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Send message"
+                  >
+                    <Send size={16} />
+                  </button>
+                )}
               </form>
             </div>
           </motion.div>

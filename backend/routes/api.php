@@ -27,9 +27,11 @@ Route::post('/owner/resend-otp', [AuthController::class, 'resendSetupOtp'])->mid
 Route::get('/restaurants', [RestaurantController::class, 'publicList']);
 Route::get('/restaurants/{id}', [RestaurantController::class, 'publicShow']);
 Route::get('/restaurants/{id}/reviews', [RestaurantController::class, 'publicReviews']);
+Route::get('/reviews/featured', [RestaurantController::class, 'featuredReviews']);
+Route::get('/menu-items/{id}/reviews', [RestaurantController::class, 'menuItemReviews']);
 Route::get('/categories', [RestaurantController::class, 'publicCategories']);
 Route::post('/reservations', [ReservationController::class, 'store']);
-Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:15,1');
+Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:30,1');
 Route::get('/track/{trackingCode}', [TrackingController::class, 'track']);
 Route::get('/track/{trackingCode}/route', [TrackingController::class, 'route']);
 
@@ -57,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/overview', [CustomerController::class, 'dashboardOverview']);
         Route::put('/profile', [CustomerController::class, 'updateProfile']);
+        Route::post('/profile', [CustomerController::class, 'updateProfile']); // multipart uploads (avatar)
         Route::put('/change-password', [CustomerController::class, 'changePassword']);
         Route::get('/orders', [CustomerController::class, 'orders']);
         Route::get('/orders/{id}', [CustomerController::class, 'orderShow']);
@@ -90,6 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::put('/profile', [RestaurantController::class, 'updateProfile']);
+        Route::post('/profile', [RestaurantController::class, 'updateProfile']); // multipart uploads (cover/logo)
         Route::get('/orders', [RestaurantController::class, 'orders']);
         Route::put('/orders/{id}/status', [RestaurantController::class, 'updateOrderStatus']);
         Route::get('/riders', [RestaurantController::class, 'availableRiders']);
@@ -142,7 +146,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/riders/{id}/activate', [App\Http\Controllers\AdminController::class, 'activateRider']);
         Route::get('/orders', [App\Http\Controllers\AdminController::class, 'orders']);
         Route::get('/orders/{id}', [App\Http\Controllers\AdminController::class, 'orderDetail']);
-        Route::put('/orders/{id}/status', [App\Http\Controllers\AdminController::class, 'updateOrderStatus']);
         Route::post('/orders/{id}/assign-rider', [App\Http\Controllers\AdminController::class, 'assignRider']);
         Route::get('/customers', [App\Http\Controllers\AdminController::class, 'customers']);
         Route::get('/customers/{id}', [App\Http\Controllers\AdminController::class, 'customerDetail']);
@@ -157,11 +160,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/settings/platform', [App\Http\Controllers\AdminController::class, 'updatePlatformSettings']);
         Route::put('/profile', [App\Http\Controllers\AdminController::class, 'adminProfile']);
         Route::put('/change-password', [App\Http\Controllers\AdminController::class, 'adminChangePassword']);
-        Route::get('/promo-codes', [App\Http\Controllers\PromoCodeController::class, 'index']);
-        Route::post('/promo-codes', [App\Http\Controllers\PromoCodeController::class, 'store']);
-        Route::put('/promo-codes/{id}', [App\Http\Controllers\PromoCodeController::class, 'update']);
-        Route::post('/promo-codes/{id}/toggle', [App\Http\Controllers\PromoCodeController::class, 'toggle']);
-        Route::delete('/promo-codes/{id}', [App\Http\Controllers\PromoCodeController::class, 'destroy']);
         Route::get('/categories', [App\Http\Controllers\AdminController::class, 'categories']);
         Route::post('/categories', [App\Http\Controllers\AdminController::class, 'storeCategory']);
         Route::put('/categories/reorder', [App\Http\Controllers\AdminController::class, 'reorderCategories']);
@@ -170,5 +168,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/category-requests', [App\Http\Controllers\AdminController::class, 'categoryRequests']);
         Route::post('/category-requests/{id}/approve', [App\Http\Controllers\AdminController::class, 'approveCategoryRequest']);
         Route::post('/category-requests/{id}/reject', [App\Http\Controllers\AdminController::class, 'rejectCategoryRequest']);
+        Route::get('/reviews', [App\Http\Controllers\AdminController::class, 'reviews']);
+        Route::post('/reviews/{id}/approve', [App\Http\Controllers\AdminController::class, 'approveReview']);
+        Route::post('/reviews/{id}/reject', [App\Http\Controllers\AdminController::class, 'rejectReview']);
+        Route::post('/reviews/{id}/feature', [App\Http\Controllers\AdminController::class, 'setReviewFeatured']);
+        Route::delete('/reviews/{id}', [App\Http\Controllers\AdminController::class, 'deleteReview']);
     });
 });

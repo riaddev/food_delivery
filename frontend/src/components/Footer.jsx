@@ -16,7 +16,6 @@ const columns = [
     links: [
       { label: "Browse Restaurants", to: "/restaurants" },
       { label: "Track Order", to: "/customer/dashboard?order=1" },
-      { label: "Promotions", to: "/restaurants?filter=offers" },
       { label: "Gift Cards", to: "/gift-cards" },
     ],
   },

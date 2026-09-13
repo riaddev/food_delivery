@@ -46,7 +46,7 @@ const RegisterPage = () => {
           <p className="text-gray-500 mt-2 text-sm">Create your account and start ordering.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-[20px] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+        <form onSubmit={handleSubmit} className="bg-white rounded-[20px] p-5 sm:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
           {error && <div className="bg-red-50 text-red-600 text-sm px-3.5 py-2.5 rounded-[10px] mb-4">{error}</div>}
 
           {["name", "email", "phone"].map((field) => (

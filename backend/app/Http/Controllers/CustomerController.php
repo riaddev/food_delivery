@@ -29,6 +29,7 @@ class CustomerController extends Controller
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
             'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'remove_avatar' => 'boolean',
         ]);
 
         if ($request->hasFile('avatar')) {
@@ -36,7 +37,13 @@ class CustomerController extends Controller
                 Storage::disk('public')->delete($user->avatar);
             }
             $validated['avatar'] = $request->file('avatar')->store('avatars', 'public');
+        } elseif (!empty($validated['remove_avatar'])) {
+            if ($user->avatar) {
+                Storage::disk('public')->delete($user->avatar);
+            }
+            $validated['avatar'] = null;
         }
+        unset($validated['remove_avatar']);
 
         $user->update($validated);
 
@@ -490,39 +497,78 @@ class CustomerController extends Controller
     {
         $validated = $request->validate([
             'restaurant_id' => 'required|exists:restaurants,id',
+            'menu_item_id' => 'nullable|exists:menu_items,id',
             'rating' => 'required|integer|min:1|max:5',
             'comment' => 'nullable|string|max:1000',
         ]);
 
-        $delivered = $request->user()->orders()
-            ->where('restaurant_id', $validated['restaurant_id'])
-            ->where('status', 'delivered')
-            ->exists();
+        $menuItem = null;
+        if (!empty($validated['menu_item_id'])) {
+            $menuItem = MenuItem::where('id', $validated['menu_item_id'])
+                ->where('restaurant_id', $validated['restaurant_id'])
+                ->first();
 
-        if (!$delivered) {
-            return response()->json([
-                'message' => 'You can only review a restaurant after an order has been delivered.',
-            ], 422);
+            if (!$menuItem) {
+                return response()->json([
+                    'message' => 'That dish does not belong to this restaurant.',
+                ], 422);
+            }
+
+            // Dish-level policy: must have a delivered order containing that exact dish.
+            $proofOrder = $request->user()->orders()
+                ->where('restaurant_id', $validated['restaurant_id'])
+                ->where('status', 'delivered')
+                ->whereHas('items', fn ($q) => $q->where('menu_item_id', $menuItem->id))
+                ->latest()
+                ->first();
+
+            if (!$proofOrder) {
+                return response()->json([
+                    'message' => 'You can only review a dish you have ordered and received.',
+                ], 422);
+            }
+        } else {
+            // Restaurant-level policy: must have a delivered order from that restaurant.
+            $proofOrder = $request->user()->orders()
+                ->where('restaurant_id', $validated['restaurant_id'])
+                ->where('status', 'delivered')
+                ->latest()
+                ->first();
+
+            if (!$proofOrder) {
+                return response()->json([
+                    'message' => 'You can only review a restaurant after an order has been delivered.',
+                ], 422);
+            }
         }
 
         $review = Review::updateOrCreate(
             [
                 'user_id' => $request->user()->id,
                 'restaurant_id' => $validated['restaurant_id'],
+                'menu_item_id' => $validated['menu_item_id'] ?? null,
             ],
             [
+                'order_id' => $proofOrder->id,
                 'rating' => $validated['rating'],
                 'comment' => $validated['comment'] ?? null,
+                // Every new/edited customer review goes back through moderation.
+                'status' => 'pending',
+                'is_featured' => false,
+                'source' => 'customer',
             ]
         );
 
-        $avg = Review::where('restaurant_id', $validated['restaurant_id'])->avg('rating');
+        $approvedScope = Review::where('restaurant_id', $validated['restaurant_id'])
+            ->where('status', 'approved')
+            ->where('source', 'customer');
+        $avg = (clone $approvedScope)->avg('rating');
 
         return response()->json([
-            'review' => $review->load('user:id,name,avatar'),
+            'review' => $review->load(['user:id,name,avatar', 'menuItem:id,name']),
             'avg_rating' => $avg ? round((float) $avg, 1) : null,
-            'review_count' => Review::where('restaurant_id', $validated['restaurant_id'])->count(),
-            'message' => 'Thank you for your review!',
+            'review_count' => (clone $approvedScope)->count(),
+            'message' => 'Review submitted — it will appear after admin approval.',
         ], 201);
     }
 }

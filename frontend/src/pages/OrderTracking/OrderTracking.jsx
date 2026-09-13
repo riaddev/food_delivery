@@ -25,6 +25,14 @@ const DINE_IN_STEPS = [
   { key: "served", label: "Served", icon: Home },
 ];
 
+const TAKEOUT_STEPS = [
+  { key: "pending", label: "Order Placed", icon: Package },
+  { key: "confirmed", label: "Order Confirmed", icon: CheckCircle },
+  { key: "preparing", label: "Preparing Food", icon: Utensils },
+  { key: "ready", label: "Ready for Pickup", icon: Package },
+  { key: "delivered", label: "Picked Up", icon: Home },
+];
+
 const STEP_INDEX = {
   pending: 0,
   confirmed: 1,
@@ -36,6 +44,15 @@ const STEP_INDEX = {
   near_customer: 7,
   delivered: 8,
   served: 3,
+};
+
+const TAKEOUT_STEP_INDEX = {
+  pending: 0,
+  confirmed: 1,
+  preparing: 2,
+  ready: 3,
+  delivered: 4,
+  served: 4,
 };
 
 const STATUS_TEXT = {
@@ -54,8 +71,60 @@ const STATUS_TEXT = {
 
 const IN_TRANSIT_STATUSES = ["picked_up", "on_the_way", "near_customer"];
 
+const TERMINAL_STATUSES = ["delivered", "cancelled"];
+
 const POLL_FAST = 3000;
 const POLL_SLOW = 15000;
+
+// Rider GPS is stale if no update for 45s — show unavailable instead of fake live.
+const STALE_AFTER_MS = 45000;
+// Refresh OSRM route at most every 60s or after 150m of rider movement.
+const ROUTE_REFRESH_MS = 60000;
+const ROUTE_MIN_MOVE_M = 150;
+
+const haversineM = (aLat, aLng, bLat, bLng) => {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(bLat - aLat);
+  const dLng = toRad(bLng - aLng);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.sqrt(a));
+};
+
+const timeAgo = (iso, now) => {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return null;
+  const s = Math.max(0, Math.round((now - t) / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s} second${s === 1 ? "" : "s"} ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  return `${h}h ago`;
+};
+
+// First-reached time per status from existing history (no new API).
+const statusTimeMap = (order) => {
+  const map = {};
+  const histories = order?.status_histories || order?.statusHistories || [];
+  histories.forEach((h) => {
+    if (h?.status && h?.created_at && !map[h.status]) map[h.status] = h.created_at;
+  });
+  if (order?.created_at && !map.pending) map.pending = order.created_at;
+  if (order?.delivered_at && !map.delivered) map.delivered = order.delivered_at;
+  return map;
+};
+
+const formatStepTime = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+};
 
 export default function OrderTracking() {
   const { id } = useParams();
@@ -63,7 +132,10 @@ export default function OrderTracking() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [route, setRoute] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
   const timerRef = useRef(null);
+  const tickerRef = useRef(null);
+  const routeMetaRef = useRef({ at: 0, lat: null, lng: null });
 
   useEffect(() => {
     let active = true;
@@ -97,6 +169,12 @@ export default function OrderTracking() {
     if (!order) return;
 
     const status = order.status;
+    // Stop frequent polling once terminal — marker must freeze on Delivered/Cancelled.
+    if (TERMINAL_STATUSES.includes(status)) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = null;
+      return;
+    }
     const isTransit = IN_TRANSIT_STATUSES.includes(status);
     const interval = isTransit ? POLL_FAST : POLL_SLOW;
 
@@ -113,27 +191,60 @@ export default function OrderTracking() {
     };
   }, [order?.status, id]);
 
+  // Ticker so "Updated Xs ago" stays fresh between polls. Stops on terminal.
+  useEffect(() => {
+    if (!order || TERMINAL_STATUSES.includes(order.status)) return;
+    if (tickerRef.current) clearInterval(tickerRef.current);
+    tickerRef.current = setInterval(() => setNow(Date.now()), 5000);
+    return () => {
+      if (tickerRef.current) clearInterval(tickerRef.current);
+    };
+  }, [order?.status]);
+
   useEffect(() => {
     if (!order?.tracking_code) return;
 
     const status = order.status;
     const isTransit = IN_TRANSIT_STATUSES.includes(status);
+    if (!isTransit) return;
 
-    if (isTransit && !route) {
-      trackingApi
-        .getRoute(order.tracking_code)
-        .then((res) => setRoute(res.data))
-        .catch(() => {});
+    const rider = order.rider_location;
+    const meta = routeMetaRef.current;
+    const elapsed = Date.now() - meta.at;
+    let moved = Infinity;
+    if (rider && meta.lat != null && meta.lng != null) {
+      moved = haversineM(meta.lat, meta.lng, rider.lat, rider.lng);
     }
-  }, [order?.tracking_code, order?.status]);
+    const shouldFetch = !route || elapsed > ROUTE_REFRESH_MS || moved > ROUTE_MIN_MOVE_M;
+    if (!shouldFetch) return;
+
+    trackingApi
+      .getRoute(order.tracking_code)
+      .then((res) => {
+        setRoute(res.data);
+        routeMetaRef.current = {
+          at: Date.now(),
+          lat: rider?.lat ?? null,
+          lng: rider?.lng ?? null,
+        };
+      })
+      .catch(() => {});
+  }, [order?.tracking_code, order?.status, order?.rider_location?.lat, order?.rider_location?.lng]);
 
   const status = order?.status;
   const isDineIn = order?.order_type === "dine_in";
-  const steps = isDineIn ? DINE_IN_STEPS : DELIVERY_STEPS;
-  const activeStep = status ? STEP_INDEX[status] ?? 0 : 0;
+  const isTakeout = order?.order_type === "takeout";
+  const steps = isDineIn ? DINE_IN_STEPS : isTakeout ? TAKEOUT_STEPS : DELIVERY_STEPS;
+  const activeStep = status ? (isTakeout ? TAKEOUT_STEP_INDEX[status] ?? 0 : STEP_INDEX[status] ?? 0) : 0;
   const isCancelled = status === "cancelled";
-  const isTransit = IN_TRANSIT_STATUSES.includes(status);
+  const isTransit = !isTakeout && IN_TRANSIT_STATUSES.includes(status);
   const hasCoords = order?.restaurant_coords || order?.customer_coords || order?.rider_location;
+  // Freshness from existing orders.updated_at (no migration). Stale => not live.
+  const riderUpdatedAt = order?.rider_location?.updated_at || null;
+  const riderStale = !riderUpdatedAt || (now - new Date(riderUpdatedAt).getTime() > STALE_AFTER_MS);
+  const showLive = isTransit && order?.rider_location && !riderStale;
+  const updatedLabel = riderUpdatedAt ? timeAgo(riderUpdatedAt, now) : null;
+  const stepTimes = statusTimeMap(order);
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
@@ -181,15 +292,31 @@ export default function OrderTracking() {
                     {isCancelled ? "Order Cancelled" : order.restaurant?.restaurant_name}
                   </h2>
                   <p className={`text-sm mt-1 ${isCancelled ? "text-rose-600 font-semibold" : "text-zinc-400"}`}>
-                    {STATUS_TEXT[status] || "Order status is being updated."}
+                    {isTakeout && status === "delivered"
+                      ? "Your order has been picked up. Enjoy!"
+                      : isTakeout && status === "ready"
+                        ? "Your order is ready — pick it up from the restaurant."
+                        : STATUS_TEXT[status] || "Order status is being updated."}
                   </p>
                 </div>
-                {isTransit && (
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                    Live
-                  </div>
-                )}
+                <div className="flex flex-col items-end gap-1.5">
+                  {showLive && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                      Live
+                    </div>
+                  )}
+                  {isTransit && !showLive && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
+                      Location unavailable/stale
+                    </div>
+                  )}
+                  {isTransit && updatedLabel && (
+                    <span className="text-[11px] text-zinc-400 font-medium">
+                      Updated {updatedLabel}
+                    </span>
+                  )}
+                </div>
               </div>
             </section>
 
@@ -202,14 +329,14 @@ export default function OrderTracking() {
               />
             )}
 
-            {isTransit && hasCoords && route && (
+            {isTransit && hasCoords && (
               <div className="bg-white rounded-xl border border-zinc-100 shadow-[0_4px_20px_rgba(0,0,0,0.05)] p-4 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-sm text-zinc-600">
                   <Clock size={16} className="text-blue-500" />
                   <span>Estimated arrival</span>
                 </div>
                 <span className="font-extrabold text-zinc-900">
-                  ~{route.duration_min} min
+                  {route?.duration_min != null ? `~${route.duration_min} min · live` : "Calculating…"}
                 </span>
               </div>
             )}
@@ -246,6 +373,11 @@ export default function OrderTracking() {
                             <p className={`font-semibold text-sm ${isActive ? "text-[#E03546]" : labelColor}`}>
                               {step.label}
                             </p>
+                            {i <= activeStep && formatStepTime(stepTimes[step.key]) && (
+                              <span className="text-[11px] text-zinc-400 font-medium shrink-0">
+                                {formatStepTime(stepTimes[step.key])}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </li>
@@ -267,7 +399,7 @@ export default function OrderTracking() {
                       : "bg-amber-50 text-amber-600"
                   }`}
                 >
-                  {order.payment_status === "paid" ? "Paid" : "Pay on delivery"}
+                  {order.payment_status === "paid" ? "Paid" : isTakeout ? "Pay on pickup" : "Pay on delivery"}
                 </span>
               </div>
 
@@ -308,17 +440,17 @@ export default function OrderTracking() {
               <div className="flex items-center justify-between py-1">
                 <span className="text-zinc-400">Order type</span>
                 <span className="font-semibold text-zinc-800">
-                  {isDineIn ? "Dine-In" : "Delivery"}
+                  {isDineIn ? "Dine-In" : isTakeout ? "Takeout" : "Delivery"}
                   {isDineIn && order.table_number ? ` · Table ${order.table_number}` : ""}
                 </span>
               </div>
               <div className="flex items-center justify-between py-1">
                 <span className="text-zinc-400">Payment</span>
                 <span className="font-semibold text-zinc-800 capitalize">
-                  {order.payment_method === "cash" ? "Cash on Delivery" : order.payment_method}
+                  {order.payment_method === "cash" ? (isTakeout ? "Cash on Pickup" : "Cash on Delivery") : order.payment_method}
                 </span>
               </div>
-              {!isDineIn && order.delivery_address && (
+              {!isDineIn && !isTakeout && order.delivery_address && (
                 <div className="flex items-center justify-between py-1">
                   <span className="text-zinc-400">Deliver to</span>
                   <span className="font-semibold text-zinc-800 max-w-[60%] text-right">{order.delivery_address}</span>
@@ -326,10 +458,13 @@ export default function OrderTracking() {
               )}
             </section>
 
-            <button className="w-full border-2 border-zinc-200 hover:border-[#E03546] hover:text-[#E03546] text-zinc-700 font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors">
+            <a
+              href={order.restaurant?.phone ? `tel:${order.restaurant.phone}` : "/support"}
+              className="w-full border-2 border-zinc-200 hover:border-[#E03546] hover:text-[#E03546] text-zinc-700 font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors no-underline"
+            >
               <Headphones size={18} strokeWidth={2.2} />
-              Help &amp; Support
-            </button>
+              {order.restaurant?.phone ? `Call ${order.restaurant.restaurant_name || "Restaurant"}` : "Help & Support"}
+            </a>
           </>
         )}
       </main>

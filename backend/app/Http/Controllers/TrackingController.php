@@ -11,7 +11,7 @@ class TrackingController extends Controller
 {
     public function track(string $trackingCode): JsonResponse
     {
-        $order = Order::with(['restaurant:id,restaurant_name,address,phone', 'rider.user:id,name'])
+        $order = Order::with(['restaurant:id,restaurant_name,address,phone', 'rider.user:id,name', 'statusHistories'])
             ->where('tracking_code', $trackingCode)
             ->firstOrFail();
 
@@ -96,6 +96,13 @@ class TrackingController extends Controller
             'customer_coords' => $customerCoords,
             'created_at' => $order->created_at,
             'delivered_at' => $order->delivered_at?->toISOString(),
+            'status_histories' => $order->statusHistories
+                ->sortBy('created_at')
+                ->values()
+                ->map(fn ($h) => [
+                    'status' => $h->status,
+                    'created_at' => $h->created_at?->toISOString(),
+                ]),
         ]);
     }
 

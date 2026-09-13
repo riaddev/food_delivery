@@ -65,7 +65,7 @@ export default function Analytics() {
     return (
       <div className="space-y-3.5">
         <Skeleton className="h-12 w-72" />
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-[104px]" />
           ))}
@@ -144,7 +144,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
         <KpiCard label="Total orders" value={Number(orders.total ?? 0).toLocaleString("en-IN")} mono />
         <KpiCard
           label="Completed orders"

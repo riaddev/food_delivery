@@ -73,6 +73,7 @@ export default function RestaurantMenu() {
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingValue, setRatingValue] = useState(5);
   const [ratingComment, setRatingComment] = useState("");
+  const [ratingDishId, setRatingDishId] = useState("");
   const [ratingBusy, setRatingBusy] = useState(false);
   const [ratingMsg, setRatingMsg] = useState("");
   const [ratingError, setRatingError] = useState("");
@@ -187,10 +188,11 @@ export default function RestaurantMenu() {
         rating: r.rating,
         comment: r.comment || "",
         userId: r.user?.id || null,
+        menuItem: r.menu_item || null,
       }));
 
   const existingReview = user && !demoTarget
-    ? (payload.reviews || []).find((r) => r.user?.id === user.id)
+    ? (payload.reviews || []).find((r) => r.user?.id === user.id && !r.menu_item)
     : null;
   const hasUserReview = !!existingReview;
 
@@ -201,18 +203,24 @@ export default function RestaurantMenu() {
     try {
       const res = await customerApi.submitReview({
         restaurant_id: payload.restaurant.id,
+        menu_item_id: ratingDishId ? Number(ratingDishId) : null,
         rating: ratingValue,
         comment: ratingComment.trim() || null,
       });
       setRatingOpen(false);
       setRatingComment("");
       setRatingValue(5);
-      if (res.data.avg_rating) {
+      setRatingDishId("");
+      // Pending reviews are NOT merged into the public list — they appear
+      // after admin approval. Only merge if the API ever returns approved.
+      if (res.data.review?.status === "approved") {
         setPayload((prev) => {
           if (!prev) return prev;
-          const reviews = hasUserReview
-            ? (prev.reviews || []).map((r) => r.user?.id === user?.id ? res.data.review : r)
-            : [...(prev.reviews || []), res.data.review];
+          const incoming = res.data.review;
+          const incomingDishId = incoming?.menu_item?.id ?? incoming?.menu_item_id ?? null;
+          const reviews = (prev.reviews || []).some((r) => r.user?.id === user?.id && (r.menu_item?.id ?? null) === incomingDishId)
+            ? (prev.reviews || []).map((r) => (r.user?.id === user?.id && (r.menu_item?.id ?? null) === incomingDishId ? incoming : r))
+            : [...(prev.reviews || []), incoming];
           return {
             ...prev,
             restaurant: {
@@ -224,8 +232,8 @@ export default function RestaurantMenu() {
           };
         });
       }
-      setRatingMsg("Thanks for your review!");
-      window.setTimeout(() => setRatingMsg(""), 2800);
+      setRatingMsg(res.data.message || "Review submitted — it will appear after admin approval.");
+      window.setTimeout(() => setRatingMsg(""), 4000);
     } catch (err) {
       setRatingError(err.response?.data?.message || "Failed to submit review.");
     }
@@ -558,6 +566,7 @@ export default function RestaurantMenu() {
                     setRatingValue(5);
                     setRatingComment("");
                   }
+                  setRatingDishId("");
                   setRatingError("");
                   setRatingOpen(true);
                 }}
@@ -601,6 +610,11 @@ export default function RestaurantMenu() {
                           <Star key={star} size={12} className={star <= review.rating ? "text-amber-400" : "text-zinc-200"} fill="currentColor" />
                         ))}
                       </div>
+                      {review.menuItem?.name && (
+                        <p className="mt-1 inline-block text-[11px] font-semibold text-[#EA580C] bg-orange-50 border border-orange-100 px-2 py-0.5 rounded-full">
+                          {review.menuItem.name}
+                        </p>
+                      )}
                     </div>
                   </div>
                   {review.comment && <p className="text-sm text-zinc-500 leading-relaxed">"{review.comment}"</p>}
@@ -650,7 +664,24 @@ export default function RestaurantMenu() {
                 <X size={16} />
               </button>
             </div>
-            <p className="text-sm text-zinc-400 mb-5">Only available after a delivered order.</p>
+            <p className="text-sm text-zinc-400 mb-5">Only available after a delivered order. Pick a dish if this review is about a specific food — you must have ordered it.</p>
+
+            <label className="block text-xs font-semibold text-zinc-500 mb-1.5" htmlFor="review-dish">
+              Dish (optional)
+            </label>
+            <select
+              id="review-dish"
+              value={ratingDishId}
+              onChange={(e) => setRatingDishId(e.target.value)}
+              className="w-full border border-zinc-200 rounded-2xl px-4 py-3 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-[#F97316]/40 bg-white"
+            >
+              <option value="">Whole restaurant — no specific dish</option>
+              {menuItems.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
 
             <div className="flex items-center justify-center gap-1.5 mb-5">
               {[1, 2, 3, 4, 5].map((star) => (

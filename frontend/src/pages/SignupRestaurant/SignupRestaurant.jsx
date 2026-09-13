@@ -358,7 +358,7 @@ export default function SignupRestaurant() {
             <h2 className="text-xl font-bold text-zinc-900 mt-4">Partner with Swift Bite</h2>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-8">
+          <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.06)] p-5 sm:p-8">
             {submitted ? (
               <div className="text-center py-6">
                 <span className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto">

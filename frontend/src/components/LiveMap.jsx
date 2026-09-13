@@ -90,8 +90,7 @@ export default function LiveMap({
 
   return (
     <div
-      className={`relative rounded-xl overflow-hidden border border-zinc-200 ${className}`}
-      style={{ height: "350px" }}
+      className={`relative rounded-xl overflow-hidden border border-zinc-200 h-[260px] sm:h-[350px] ${className}`}
     >
       <style>{`
         @keyframes riderPulse {
@@ -148,8 +147,8 @@ export default function LiveMap({
         {riderLocation && <RecenterMap center={[riderLocation.lat, riderLocation.lng]} />}
       </MapContainer>
 
-      <div className="absolute bottom-3 left-3 z-[1000] bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm">
-        <div className="flex items-center gap-3 text-xs font-medium">
+      <div className="absolute bottom-3 left-3 z-[1000] bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-sm max-w-[calc(100%-24px)]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium">
           {restaurantCoords && (
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#E03546]" />

@@ -60,7 +60,9 @@ class Restaurant extends Model
             return $value;
         }
 
-        return Storage::disk('public')->url($value);
+        // Relative URL: works regardless of APP_URL (tunnels expire) and
+        // lets the frontend serve it via same-origin / vite /storage proxy.
+        return '/storage/'.ltrim($value, '/');
     }
 
     public function user(): BelongsTo

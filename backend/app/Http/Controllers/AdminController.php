@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\OrderStatusHistory;
 use App\Models\Restaurant;
+use App\Models\Review;
 use App\Models\Rider;
 use App\Models\Setting;
 use App\Models\User;
@@ -350,6 +351,12 @@ class AdminController extends Controller
             ]);
         }
 
+        if (($order->order_type ?? null) === 'takeout' && !empty($validated['rider_id'])) {
+            throw ValidationException::withMessages([
+                'rider_id' => ['Takeout orders are self-pickup and cannot be assigned a rider.'],
+            ]);
+        }
+
         $previousRider = $order->rider;
 
         if (empty($validated['rider_id'])) {
@@ -419,49 +426,11 @@ class AdminController extends Controller
 
     public function updateOrderStatus(Request $request, $id): JsonResponse
     {
-        $validated = $request->validate([
-            'status' => 'required|string|in:' . implode(',', OrderStatuses::ORDER_STATUSES),
-        ]);
-
-        $order = Order::findOrFail($id);
-
-        if ($order->status === $validated['status']) {
-            return response()->json([
-                'order' => $order->fresh()->load('user', 'restaurant', 'items', 'rider.user'),
-                'message' => 'Order status is already "' . $validated['status'] . '".',
-            ]);
-        }
-
-        if (!OrderStatuses::canTransition($order->status, $validated['status'])) {
-            throw ValidationException::withMessages([
-                'status' => ["Order cannot move from \"{$order->status}\" to \"{$validated['status']}\"."],
-            ]);
-        }
-
-        $order->update([
-            'status' => $validated['status'],
-            'delivered_at' => in_array($validated['status'], ['delivered', 'served']) ? now() : $order->delivered_at,
-        ]);
-
-        if ($validated['status'] === 'cancelled' && $order->payment_status === 'pending') {
-            $order->update(['payment_status' => 'cancelled']);
-        }
-
-        OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'status' => $validated['status'],
-            'changed_by' => 'admin',
-        ]);
-
-        ActivityLog::create([
-            'type' => 'order_status_changed',
-            'description' => "Order #{$order->id} status changed to \"{$validated['status']}\".",
-        ]);
-
-        return response()->json([
-            'order' => $order->fresh()->load('user', 'restaurant', 'items', 'rider.user'),
-            'message' => 'Order status updated successfully.',
-        ]);
+        // Admins are read-only for order lifecycle status.
+        // Status is owned by restaurants (confirmed/preparing/ready) and riders
+        // (picked_up/on_the_way/delivered). Route removed in routes/api.php;
+        // this guard remains so direct calls can never mutate status.
+        abort(403, 'Order status is managed by the restaurant and rider.');
     }
 
     public function stats(): JsonResponse
@@ -1498,6 +1467,135 @@ class AdminController extends Controller
         ]);
 
         return response()->json(['message' => 'Request rejected.']);
+    }
+
+    // ---------- Reviews moderation (homepage curation + per-dish visibility) ----------
+
+    public function reviews(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'nullable|string|in:pending,approved,rejected',
+            'featured' => 'nullable|boolean',
+            'source' => 'nullable|string|in:customer,curated',
+            'search' => 'nullable|string|max:255',
+        ]);
+
+        $query = Review::with(['user:id,name,email', 'restaurant:id,restaurant_name', 'menuItem:id,name', 'order:id'])
+            ->latest();
+
+        if (!empty($validated['status'])) {
+            $query->where('status', $validated['status']);
+        }
+        if (isset($validated['featured'])) {
+            $query->where('is_featured', (bool) $validated['featured']);
+        }
+        if (!empty($validated['source'])) {
+            $query->where('source', $validated['source']);
+        }
+        if (!empty($validated['search'])) {
+            $s = $validated['search'];
+            $query->where(function ($q) use ($s) {
+                $q->where('comment', 'like', "%{$s}%")
+                    ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$s}%"))
+                    ->orWhereHas('restaurant', fn ($r) => $r->where('restaurant_name', 'like', "%{$s}%"))
+                    ->orWhereHas('menuItem', fn ($m) => $m->where('name', 'like', "%{$s}%"));
+            });
+        }
+
+        $reviews = $query->take(200)->get()->map(fn ($r) => [
+            'id' => $r->id,
+            'rating' => $r->rating,
+            'comment' => $r->comment,
+            'status' => $r->status,
+            'is_featured' => (bool) $r->is_featured,
+            'source' => $r->source,
+            'created_at' => $r->created_at,
+            'user' => $r->user ? ['id' => $r->user->id, 'name' => $r->user->name, 'email' => $r->user->email] : null,
+            'restaurant' => $r->restaurant ? ['id' => $r->restaurant->id, 'restaurant_name' => $r->restaurant->restaurant_name] : null,
+            'menu_item' => $r->menuItem ? ['id' => $r->menuItem->id, 'name' => $r->menuItem->name] : null,
+            'order_id' => $r->order_id,
+        ]);
+
+        return response()->json([
+            'reviews' => $reviews,
+            'pending_count' => Review::where('status', 'pending')->count(),
+            'featured_count' => Review::where('status', 'approved')->where('is_featured', true)->count(),
+        ]);
+    }
+
+    public function approveReview($id): JsonResponse
+    {
+        $review = Review::findOrFail($id);
+
+        if ($review->status !== 'pending') {
+            return response()->json(['message' => 'Only pending reviews can be approved.'], 422);
+        }
+
+        $review->update(['status' => 'approved']);
+
+        ActivityLog::create([
+            'type' => 'review_approved',
+            'description' => "Admin approved review #{$review->id} by " . ($review->user?->name ?? 'customer') . '.',
+        ]);
+
+        return response()->json(['review' => $review->fresh(), 'message' => 'Review approved — now visible on its restaurant / dish page.']);
+    }
+
+    public function rejectReview($id): JsonResponse
+    {
+        $review = Review::findOrFail($id);
+
+        if ($review->status === 'rejected') {
+            return response()->json(['message' => 'Review is already rejected.'], 422);
+        }
+
+        $review->update(['status' => 'rejected', 'is_featured' => false]);
+
+        ActivityLog::create([
+            'type' => 'review_rejected',
+            'description' => "Admin rejected review #{$review->id}.",
+        ]);
+
+        return response()->json(['review' => $review->fresh(), 'message' => 'Review rejected — hidden everywhere.']);
+    }
+
+    public function setReviewFeatured($id, Request $request): JsonResponse
+    {
+        $validated = $request->validate(['is_featured' => 'required|boolean']);
+        $review = Review::findOrFail($id);
+
+        if ($review->status !== 'approved') {
+            return response()->json(['message' => 'Only approved reviews can be featured on the homepage.'], 422);
+        }
+
+        if (($review->comment === null || trim($review->comment) === '') && $validated['is_featured']) {
+            return response()->json(['message' => 'Reviews without text cannot be featured on the homepage.'], 422);
+        }
+
+        $review->update(['is_featured' => (bool) $validated['is_featured']]);
+
+        ActivityLog::create([
+            'type' => $review->is_featured ? 'review_featured' : 'review_unfeatured',
+            'description' => "Admin " . ($review->is_featured ? 'featured' : 'unfeatured') . " review #{$review->id} for the homepage.",
+        ]);
+
+        return response()->json([
+            'review' => $review->fresh(),
+            'message' => $review->is_featured ? 'Review will now show on the homepage.' : 'Review removed from the homepage.',
+        ]);
+    }
+
+    public function deleteReview($id): JsonResponse
+    {
+        $review = Review::findOrFail($id);
+        $review->delete();
+
+        ActivityLog::create([
+            'type' => 'review_deleted',
+            'description' => "Admin deleted review #{$id}.",
+        ]);
+
+        return response()->json(['message' => 'Review deleted.']);
     }
 
     private function notify(string $type, string $title, string $description, ?string $linkType = null, ?int $linkId = null): void

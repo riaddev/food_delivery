@@ -23,6 +23,10 @@ class RestaurantController extends Controller
     {
         $restaurant = $request->user()->restaurant;
 
+        if (!$restaurant) {
+            return response()->json(['message' => 'Restaurant profile not found.'], 404);
+        }
+
         $validated = $request->validate([
             'restaurant_name' => 'sometimes|string|max:255',
             'cuisine_type' => 'sometimes|string|max:255',
@@ -389,6 +393,12 @@ class RestaurantController extends Controller
             ]);
         }
 
+        if (($order->order_type ?? null) === 'takeout') {
+            throw ValidationException::withMessages([
+                'status' => ['Takeout orders are self-pickup and cannot be assigned a rider.'],
+            ]);
+        }
+
         $rider = Rider::findOrFail($validated['rider_id']);
 
         if ($rider->status !== 'approved' || !$rider->is_online) {
@@ -473,6 +483,12 @@ class RestaurantController extends Controller
             ]);
         }
 
+        if ($order->status === 'ready' && $validated['status'] === 'delivered' && ($order->order_type ?? 'delivery') !== 'takeout') {
+            throw ValidationException::withMessages([
+                'status' => ['Only takeout orders can be marked as delivered at pickup.'],
+            ]);
+        }
+
         $order->update([
             'status' => $validated['status'],
             'delivered_at' => $validated['status'] === 'delivered' ? now() : $order->delivered_at,
@@ -496,9 +512,10 @@ class RestaurantController extends Controller
 
     public function publicList(): JsonResponse
     {
+        $approved = fn ($q) => $q->where('status', 'approved')->where('source', 'customer');
         $restaurants = Restaurant::with('user', 'menuItems')
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews')
+            ->withAvg(['reviews as reviews_avg_rating' => $approved], 'rating')
+            ->withCount(['reviews as reviews_count' => $approved])
             ->where('status', 'approved')
             ->orderBy('restaurant_name')
             ->get()
@@ -550,9 +567,10 @@ class RestaurantController extends Controller
 
     public function publicShow($id): JsonResponse
     {
+        $approved = fn ($q) => $q->where('status', 'approved')->where('source', 'customer');
         $restaurant = Restaurant::with('user')
-            ->withAvg('reviews', 'rating')
-            ->withCount('reviews')
+            ->withAvg(['reviews as reviews_avg_rating' => $approved], 'rating')
+            ->withCount(['reviews as reviews_count' => $approved])
             ->where('status', 'approved')
             ->findOrFail($id);
 
@@ -562,8 +580,10 @@ class RestaurantController extends Controller
             ->orderBy('name')
             ->get();
 
-        $reviews = Review::with('user:id,name,avatar')
+        $reviews = Review::with(['user:id,name,avatar', 'menuItem:id,name'])
             ->where('restaurant_id', $id)
+            ->where('status', 'approved')
+            ->where('source', 'customer')
             ->latest()
             ->get()
             ->map(function ($review) {
@@ -572,6 +592,10 @@ class RestaurantController extends Controller
                     'rating' => $review->rating,
                     'comment' => $review->comment,
                     'created_at' => $review->created_at,
+                    'menu_item' => $review->menuItem ? [
+                        'id' => $review->menuItem->id,
+                        'name' => $review->menuItem->name,
+                    ] : null,
                     'user' => [
                         'id' => $review->user?->id,
                         'name' => $review->user?->name ?? 'Customer',
@@ -607,13 +631,16 @@ class RestaurantController extends Controller
 
     public function publicReviews($id): JsonResponse
     {
-        $restaurant = Restaurant::withAvg('reviews', 'rating')
-            ->withCount('reviews')
+        $approved = fn ($q) => $q->where('status', 'approved')->where('source', 'customer');
+        $restaurant = Restaurant::withAvg(['reviews as reviews_avg_rating' => $approved], 'rating')
+            ->withCount(['reviews as reviews_count' => $approved])
             ->where('status', 'approved')
             ->findOrFail($id);
 
-        $reviews = Review::with('user:id,name,avatar')
+        $reviews = Review::with(['user:id,name,avatar', 'menuItem:id,name'])
             ->where('restaurant_id', $id)
+            ->where('status', 'approved')
+            ->where('source', 'customer')
             ->latest()
             ->get()
             ->map(function ($review) {
@@ -622,6 +649,10 @@ class RestaurantController extends Controller
                     'rating' => $review->rating,
                     'comment' => $review->comment,
                     'created_at' => $review->created_at,
+                    'menu_item' => $review->menuItem ? [
+                        'id' => $review->menuItem->id,
+                        'name' => $review->menuItem->name,
+                    ] : null,
                     'user' => [
                         'id' => $review->user?->id,
                         'name' => $review->user?->name ?? 'Customer',
@@ -633,6 +664,99 @@ class RestaurantController extends Controller
         return response()->json([
             'avg_rating' => $restaurant->reviews_avg_rating ? round((float) $restaurant->reviews_avg_rating, 1) : null,
             'review_count' => $restaurant->reviews_count,
+            'reviews' => $reviews,
+        ]);
+    }
+
+    /**
+     * Public homepage feed: approved + featured reviews only.
+     * Includes curated homepage testimonials (source=curated) and
+     * customer reviews an admin has featured. Never includes pending.
+     */
+    public function featuredReviews(Request $request): JsonResponse
+    {
+        $limit = min(max((int) $request->query('limit', 10), 1), 20);
+
+        $reviews = Review::with(['user:id,name,avatar', 'restaurant:id,restaurant_name,status', 'menuItem:id,name'])
+            ->where('status', 'approved')
+            ->where('is_featured', true)
+            ->whereNotNull('comment')
+            ->where('comment', '!=', '')
+            ->where(function ($q) {
+                $q->where('source', 'curated')
+                    ->orWhere(function ($q2) {
+                        $q2->where('source', 'customer')
+                            ->whereHas('restaurant', fn ($r) => $r->where('status', 'approved'));
+                    });
+            })
+            ->latest()
+            ->take($limit)
+            ->get()
+            ->map(fn ($review) => [
+                'id' => $review->id,
+                'rating' => $review->rating,
+                'comment' => $review->comment,
+                'created_at' => $review->created_at,
+                'source' => $review->source,
+                'user' => [
+                    'id' => $review->user?->id,
+                    'name' => $review->user?->name ?? 'Customer',
+                    'avatar_url' => $review->user?->avatar_url,
+                ],
+                'restaurant' => $review->restaurant ? [
+                    'id' => $review->restaurant->id,
+                    'restaurant_name' => $review->restaurant->restaurant_name,
+                ] : null,
+                'menu_item' => $review->menuItem ? [
+                    'id' => $review->menuItem->id,
+                    'name' => $review->menuItem->name,
+                ] : null,
+            ]);
+
+        $summaryScope = Review::where('status', 'approved')->where('source', 'customer');
+
+        return response()->json([
+            'avg_rating' => ($avg = (clone $summaryScope)->avg('rating')) ? round((float) $avg, 1) : null,
+            'review_count' => (clone $summaryScope)->count(),
+            'reviews' => $reviews,
+        ]);
+    }
+
+    /**
+     * Public per-dish feed: approved customer reviews tagging this dish.
+     */
+    public function menuItemReviews($id): JsonResponse
+    {
+        $menuItem = MenuItem::with('restaurant:id,restaurant_name,status')->findOrFail($id);
+
+        if ($menuItem->restaurant && $menuItem->restaurant->status !== 'approved') {
+            abort(404);
+        }
+
+        $base = Review::where('menu_item_id', $menuItem->id)
+            ->where('status', 'approved')
+            ->where('source', 'customer');
+
+        $reviews = (clone $base)->with('user:id,name,avatar')
+            ->latest()
+            ->take(50)
+            ->get()
+            ->map(fn ($review) => [
+                'id' => $review->id,
+                'rating' => $review->rating,
+                'comment' => $review->comment,
+                'created_at' => $review->created_at,
+                'user' => [
+                    'id' => $review->user?->id,
+                    'name' => $review->user?->name ?? 'Customer',
+                    'avatar_url' => $review->user?->avatar_url,
+                ],
+            ]);
+
+        return response()->json([
+            'menu_item' => ['id' => $menuItem->id, 'name' => $menuItem->name],
+            'avg_rating' => ($avg = (clone $base)->avg('rating')) ? round((float) $avg, 1) : null,
+            'review_count' => (clone $base)->count(),
             'reviews' => $reviews,
         ]);
     }

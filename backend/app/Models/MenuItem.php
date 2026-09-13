@@ -61,6 +61,7 @@ class MenuItem extends Model
             return $this->image;
         }
 
-        return Storage::disk('public')->url($this->image);
+        // Relative URL: works regardless of APP_URL (tunnels expire).
+        return '/storage/'.ltrim($this->image, '/');
     }
 }
