@@ -22,6 +22,8 @@ class Order extends Model
         'table_number',
         'payment_method',
         'payment_status',
+        'needs_review',
+        'review_reason',
         'tran_id',
         'val_id',
         'delivery_fee',
@@ -49,6 +51,7 @@ class Order extends Model
     {
         return [
             'total' => 'decimal:2',
+            'needs_review' => 'boolean',
             'delivered_at' => 'datetime',
             'accepted_at' => 'datetime',
             'restaurant_lat' => 'decimal:8',

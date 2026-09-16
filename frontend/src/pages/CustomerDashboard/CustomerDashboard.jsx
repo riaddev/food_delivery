@@ -2431,9 +2431,11 @@ export default function CustomerDashboard() {
           name: item.name,
           price: item.price,
           image_url: item.image_url,
-        });
+          max_per_order: item.max_per_order,
+          stock_quantity: item.stock_quantity,
+        }, undefined, Number(item.quantity) || 1, order.restaurant || null);
       }
-      showToast("Items added to your cart");
+      showToast("Items added to your cart (capped to current store limits)");
       navigate("/checkout");
     } catch {
       showToast("Failed to reorder", "error");

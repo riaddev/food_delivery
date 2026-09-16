@@ -3,7 +3,13 @@ import { Plus, Pencil, Trash2, UtensilsCrossed, Image as ImageIcon, Tag, Power, 
 import api, { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
-const emptyItem = { name: "", description: "", price: "", discount_price: "", category: "", category_id: "", is_available: true };
+const emptyItem = { name: "", description: "", price: "", discount_price: "", category: "", category_id: "", is_available: true, stock_quantity: "", daily_cap: "", max_per_order: "" };
+
+const toNullableInt = (v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isInteger(n) ? n : null;
+};
 
 export default function MenuManagement() {
   const [items, setItems] = useState([]);
@@ -81,7 +87,7 @@ export default function MenuManagement() {
   };
 
   const openEdit = (item) => {
-    setForm({ ...item, price: item.price.toString(), discount_price: item.discount_price != null ? item.discount_price.toString() : "", category_id: item.category_id ?? "" }); setEditingId(item.id);
+    setForm({ ...item, price: item.price.toString(), discount_price: item.discount_price != null ? item.discount_price.toString() : "", category_id: item.category_id ?? "", stock_quantity: item.stock_quantity ?? "", daily_cap: item.daily_cap ?? "", max_per_order: item.max_per_order ?? "" }); setEditingId(item.id);
     setImageFile(null); setImagePreview(item.image_url || null);
     setImageUrl(item.image && String(item.image).startsWith("http") ? item.image : "");
     setRemoveImage(false); setShowForm(true); setError("");
@@ -95,6 +101,9 @@ export default function MenuManagement() {
     if (form.category) fd.append("category", form.category);
     if (form.category_id) fd.append("category_id", form.category_id);
     fd.append("is_available", form.is_available ? "1" : "0");
+    if (toNullableInt(form.stock_quantity) !== null) fd.append("stock_quantity", toNullableInt(form.stock_quantity));
+    if (toNullableInt(form.daily_cap) !== null) fd.append("daily_cap", toNullableInt(form.daily_cap));
+    if (toNullableInt(form.max_per_order) !== null) fd.append("max_per_order", toNullableInt(form.max_per_order));
     if (imageFile) fd.append("image", imageFile);
     if (!imageFile && imageUrl.trim()) fd.append("image_url", imageUrl.trim());
     if (removeImage) fd.append("remove_image", "1");
@@ -115,6 +124,10 @@ export default function MenuManagement() {
         if (form.category) fd.append("category", form.category);
         if (form.category_id) fd.append("category_id", form.category_id);
         fd.append("is_available", form.is_available ? "1" : "0");
+        // Send explicit empty values so clearing a limit resets it to unlimited (null).
+        fd.append("stock_quantity", toNullableInt(form.stock_quantity) ?? "");
+        fd.append("daily_cap", toNullableInt(form.daily_cap) ?? "");
+        fd.append("max_per_order", toNullableInt(form.max_per_order) ?? "");
         if (imageFile) fd.append("image", imageFile);
         if (!imageFile && imageUrl.trim()) fd.append("image_url", imageUrl.trim());
         if (removeImage) fd.append("remove_image", "1");
@@ -262,6 +275,23 @@ export default function MenuManagement() {
                   <span className="text-sm text-text-muted">{form.is_available ? "Available to order" : "Hidden from menu"}</span>
                 </label>
               </div>
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-6 bg-zinc-50/60 border border-zinc-100 rounded-2xl p-4">
+                <div>
+                  <label className={labelCls}>Stock (blank = unlimited)</label>
+                  <input type="number" name="stock_quantity" min="0" max="100000" step="1" value={form.stock_quantity} onChange={handleChange} className={inputCls} placeholder="e.g. 30" />
+                  <p className="text-[11px] text-text-light mt-1">Decrements on every order. 0 = sold out.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Daily cap (blank = unlimited)</label>
+                  <input type="number" name="daily_cap" min="1" max="100000" step="1" value={form.daily_cap} onChange={handleChange} className={inputCls} placeholder="e.g. 50/day" />
+                  <p className="text-[11px] text-text-light mt-1">Max servings per day.</p>
+                </div>
+                <div>
+                  <label className={labelCls}>Max per order (blank = store default)</label>
+                  <input type="number" name="max_per_order" min="1" max="100" step="1" value={form.max_per_order} onChange={handleChange} className={inputCls} placeholder="e.g. 10" />
+                  <p className="text-[11px] text-text-light mt-1">Anti-abuse cap for this dish.</p>
+                </div>
+              </div>
               <div className="sm:col-span-2">
                 <label className={labelCls}>Description</label>
                 <textarea name="description" value={form.description} onChange={handleChange} rows={2} className={`${inputCls} resize-y`} placeholder="Describe the item..." />
@@ -359,6 +389,17 @@ export default function MenuManagement() {
                             )}
                             {!item.is_available && (
                               <span className="text-[11px] bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Unavailable</span>
+                            )}
+                            {item.stock_quantity != null && (
+                              <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${Number(item.stock_quantity) <= 0 ? "bg-red-50 text-red-500" : Number(item.stock_quantity) <= 5 ? "bg-amber-50 text-amber-600" : "bg-zinc-100 text-zinc-500"}`}>
+                                {Number(item.stock_quantity) <= 0 ? "Sold out" : `Stock: ${item.stock_quantity}`}
+                              </span>
+                            )}
+                            {item.daily_cap != null && (
+                              <span className="text-[11px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">{item.daily_cap}/day</span>
+                            )}
+                            {item.max_per_order != null && (
+                              <span className="text-[11px] bg-zinc-100 text-zinc-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Max {item.max_per_order}/order</span>
                             )}
                           </div>
                           {item.description && <p className="text-sm text-text-muted truncate">{item.description}</p>}

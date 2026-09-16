@@ -277,6 +277,11 @@ export default function OrdersManagement() {
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(order.status)}`}>
                         {statusLabel(order.status)}
                       </span>
+                      {order.needs_review && order.status !== "cancelled" && (
+                        <span title={order.review_reason || "Bulk order — please confirm with customer"} className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold px-2.5 py-1 rounded-full">
+                          <AlertTriangle size={12} /> Needs review
+                        </span>
+                      )}
                       {order.order_type === "dine_in" && (
                         <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full">
                           <UtensilsCrossed size={12} /> Dine-In{order.table_number ? ` · Table ${order.table_number}` : ""}
@@ -299,6 +304,11 @@ export default function OrdersManagement() {
                     {order.rider && (
                       <p className="text-xs text-indigo-600 mt-1.5 flex items-center gap-1">
                         <Bike size={11} /> Rider: {order.rider.name} · {order.rider.phone}
+                      </p>
+                    )}
+                    {order.needs_review && order.review_reason && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mt-2">
+                        {order.review_reason}
                       </p>
                     )}
                   </div>

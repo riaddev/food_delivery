@@ -7,11 +7,12 @@ import {
 import { useCart } from "../context/CartContext";
 import { useAuth } from "../features/auth/AuthContext";
 import api, { customerApi, restaurantApi } from "../features/api/apiSlice";
+import { ORDER_LIMITS, getEffectiveCap } from "../utils/orderLimits";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=400&auto=format&fit=crop";
 
 export default function CartDrawer({ open, onClose, mode: modeProp }) {
-  const { cart, updateQuantity, removeItems, total } = useCart();
+  const { cart, updateQuantity, removeItems, clampToLimits, total, itemCount, limitNotice } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -97,21 +98,33 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
       .checkAvailability({ menu_item_ids: ids })
       .then((res) => {
         if (!active) return;
-        const unavailable = (res.data.items || []).filter((i) => !i.is_available);
-        if (unavailable.length > 0) {
+        const serverItems = res.data.items || [];
+        const byId = Object.fromEntries(serverItems.map((i) => [i.id, i]));
+        const unavailable = serverItems.filter((i) => !i.is_available);
+        const clamped = [];
+        cart.items.forEach((line) => {
+          const server = byId[line.menu_item_id];
+          if (!server) return;
+          const cap = getEffectiveCap({ ...line, ...server }, cart.restaurant);
+          if (line.quantity > cap) clamped.push(line);
+        });
+        if (unavailable.length > 0 || clamped.length > 0) {
+          clampToLimits(byId, cart.restaurant);
           const removedIds = unavailable.map((i) => i.id);
-          removeItems(removedIds);
+          if (removedIds.length > 0) removeItems(removedIds);
           setStaleNotice(
-            unavailable.length === 1
-              ? "1 item was removed — no longer available."
-              : `${unavailable.length} items were removed — no longer available.`
+            unavailable.length > 0
+              ? unavailable.length === 1
+                ? "1 item was removed — no longer available."
+                : `${unavailable.length} items were removed — no longer available.`
+              : "Some quantities were adjusted to the store's per-order / stock limits."
           );
           setTimeout(() => setStaleNotice(""), 4000);
         }
       })
       .catch(() => {});
     return () => { active = false; };
-  }, [open, cart.items, cart.restaurantId, removeItems]);
+  }, [open, cart.items, cart.restaurantId, cart.restaurant, removeItems, clampToLimits]);
 
   const handleAddMore = () => {
     onClose();
@@ -180,6 +193,11 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                   {staleNotice}
                 </div>
               )}
+              {(limitNotice || itemCount > ORDER_LIMITS.maxTotalUnits) && (
+                <div className="mx-6 mb-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-2.5 rounded-xl">
+                  {limitNotice || `Large order (${itemCount} units). The store may need to confirm catering orders.`}
+                </div>
+              )}
 
               {cart.items.length === 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center px-8 py-8 text-center">
@@ -202,7 +220,10 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
               ) : (
                 <>
                   <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4 space-y-3">
-                    {cart.items.map((item) => (
+                    {cart.items.map((item) => {
+                      const cap = getEffectiveCap(item, cart.restaurant);
+                      const atMax = item.quantity >= cap;
+                      return (
                       <div
                         key={item.menu_item_id}
                         className="bg-white rounded-xl border border-zinc-100 shadow-[0_2px_12px_rgba(0,0,0,0.08)] p-4 flex items-center gap-4"
@@ -215,6 +236,9 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm text-zinc-900 truncate">{item.name}</p>
                           <p className="text-[#F97316] font-bold text-sm mt-0.5">৳{parseFloat(item.price).toFixed(2)}</p>
+                          {cap <= 10 && (
+                            <p className="text-[11px] text-zinc-400 mt-0.5">Max {cap} per order{item.stock_quantity != null ? ` · ${item.stock_quantity} left` : ""}</p>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <button
@@ -227,14 +251,17 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                           <span className="text-sm font-semibold w-6 text-center text-zinc-900">{item.quantity}</span>
                           <button
                             onClick={() => updateQuantity(item.menu_item_id, item.quantity + 1)}
+                            disabled={atMax}
+                            title={atMax ? `Max ${cap} per order` : "Increase quantity"}
                             aria-label={`Increase ${item.name} quantity`}
-                            className="w-7 h-7 rounded-full border border-zinc-300 bg-white flex items-center justify-center text-zinc-600 hover:bg-zinc-100 transition-colors"
+                            className="w-7 h-7 rounded-full border border-zinc-300 bg-white flex items-center justify-center text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 transition-colors"
                           >
                             <Plus size={13} strokeWidth={2.4} />
                           </button>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {effectiveMode === "delivery" ? (
                       <div className="bg-white rounded-xl border border-zinc-100 shadow-[0_2px_12px_rgba(0,0,0,0.08)] px-4 py-3.5 space-y-3">

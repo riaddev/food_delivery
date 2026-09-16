@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, Heart, Minus, Plus, Truck, X } from "lucide-react";
 import { formatPrice, restaurantImage } from "../utils/foodImages";
+import { getEffectiveCap, isSoldOut } from "../utils/orderLimits";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop";
 
@@ -24,6 +25,11 @@ export default function DishDetailModal({
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
+    setQty(1);
+    setAdded(false);
+  }, [item?.id]);
+
+  useEffect(() => {
     if (!item) return undefined;
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
@@ -42,14 +48,18 @@ export default function DishDetailModal({
   const showFav = typeof onToggleFav === "function";
   const showRelated = relatedItems.length > 0 && typeof onSelectRelated === "function";
   const showCross = crossRestaurantItems.length > 0 && typeof onSelectCrossRestaurant === "function";
+  const soldOut = isSoldOut(item);
+  const maxQty = Math.max(1, getEffectiveCap(item, restaurantInfo));
+  const cappedQty = Math.min(qty, maxQty);
   const deliveryFee = restaurantInfo?.delivery_fee;
   const deliveryLabel =
     deliveryFee == null ? null : parseFloat(deliveryFee) === 0 ? "Free delivery" : `${formatPrice(deliveryFee)} delivery`;
   const effectivePrice = item.discount_price != null ? parseFloat(item.discount_price) : parseFloat(item.price);
-  const totalPrice = formatPrice(effectivePrice * qty);
+  const totalPrice = formatPrice(effectivePrice * cappedQty);
 
   const handleConfirm = () => {
-    onConfirm(item, qty);
+    if (soldOut) return;
+    onConfirm(item, cappedQty);
     setAdded(true);
   };
 
@@ -127,6 +137,16 @@ export default function DishDetailModal({
             {item.description && (
               <p className="text-sm text-zinc-500 mt-2.5 leading-relaxed">{item.description}</p>
             )}
+            {soldOut ? (
+              <p className="mt-3 text-sm font-bold text-red-500">Sold out right now</p>
+            ) : (
+              (item.stock_quantity != null || item.max_per_order != null) && (
+                <p className="mt-3 text-xs font-semibold text-zinc-500">
+                  {item.stock_quantity != null && <>Only {item.stock_quantity} left · </>}
+                  Max {maxQty} per order
+                </p>
+              )
+            )}
 
             <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between">
               <span className="text-lg font-extrabold text-zinc-900">
@@ -139,7 +159,7 @@ export default function DishDetailModal({
                   formatPrice(item.price)
                 )}
               </span>
-              {orderable && (
+              {orderable && !soldOut && (
                 <div className="flex items-center gap-1 border border-zinc-200 rounded-lg px-1 py-1">
                   <button
                     type="button"
@@ -150,12 +170,14 @@ export default function DishDetailModal({
                   >
                     <Minus size={14} strokeWidth={2.5} />
                   </button>
-                  <span className="w-7 text-center text-sm font-bold text-zinc-900">{qty}</span>
+                  <span className="w-7 text-center text-sm font-bold text-zinc-900">{cappedQty}</span>
                   <button
                     type="button"
-                    onClick={() => setQty((q) => q + 1)}
+                    onClick={() => setQty((q) => Math.min(maxQty, q + 1))}
+                    disabled={cappedQty >= maxQty}
                     aria-label="Increase quantity"
-                    className="w-7 h-7 rounded-md text-[#F97316] hover:bg-orange-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title={cappedQty >= maxQty ? `Max ${maxQty} per order` : "Increase quantity"}
+                    className="w-7 h-7 rounded-md text-[#F97316] hover:bg-orange-50 disabled:opacity-40 flex items-center justify-center transition-colors cursor-pointer"
                   >
                     <Plus size={14} strokeWidth={2.5} />
                   </button>
@@ -247,13 +269,19 @@ export default function DishDetailModal({
               </Link>
             </div>
           ) : orderable ? (
+            soldOut ? (
+              <span className="block w-full text-center bg-zinc-100 text-zinc-400 font-semibold text-sm py-3 rounded-2xl select-none">
+                Sold out
+              </span>
+            ) : (
             <button
               type="button"
               onClick={handleConfirm}
               className="w-full inline-flex items-center justify-center gap-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm py-3 rounded-2xl transition-colors cursor-pointer"
             >
-              Add {qty} to Cart • {totalPrice}
+              Add {cappedQty} to Cart • {totalPrice}
             </button>
+            )
           ) : (
             <span className="block w-full text-center border border-zinc-200 text-zinc-300 font-semibold text-sm py-3 rounded-2xl select-none">
               View Only

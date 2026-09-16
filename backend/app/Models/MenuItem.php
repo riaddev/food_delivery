@@ -18,6 +18,9 @@ class MenuItem extends Model
         'category',
         'category_id',
         'is_available',
+        'stock_quantity',
+        'daily_cap',
+        'max_per_order',
     ];
 
     protected $appends = ['image_url', 'effective_price', 'has_discount'];
@@ -28,7 +31,19 @@ class MenuItem extends Model
             'price' => 'decimal:2',
             'discount_price' => 'decimal:2',
             'is_available' => 'boolean',
+            'stock_quantity' => 'integer',
+            'daily_cap' => 'integer',
+            'max_per_order' => 'integer',
         ];
+    }
+
+    public function isSoldOut(): bool
+    {
+        if (!$this->is_available) {
+            return true;
+        }
+
+        return $this->stock_quantity !== null && (int) $this->stock_quantity <= 0;
     }
 
     public function restaurant(): BelongsTo

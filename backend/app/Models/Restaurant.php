@@ -28,12 +28,24 @@ class Restaurant extends Model
         'delivery_time',
         'status',
         'delivery_fee',
+        'default_max_per_item',
+        'allow_bulk_orders',
         'accepts_dine_in',
         'latitude',
         'longitude',
     ];
 
     protected $appends = ['image_url', 'cover_image_url', 'logo_url'];
+
+    protected function casts(): array
+    {
+        return [
+            'delivery_fee' => 'decimal:2',
+            'accepts_dine_in' => 'boolean',
+            'allow_bulk_orders' => 'boolean',
+            'default_max_per_item' => 'integer',
+        ];
+    }
 
     public function getImageUrlAttribute(): ?string
     {

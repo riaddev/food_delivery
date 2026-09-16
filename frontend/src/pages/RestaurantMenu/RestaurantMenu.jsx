@@ -11,6 +11,7 @@ import ReservationModal from "../../components/ReservationModal";
 import DishDetailModal from "../../components/DishDetailModal";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
 import { getCachedRestaurant, getRestaurantData, getAllRestaurants } from "../../utils/prefetch";
+import { getEffectiveCap, isSoldOut } from "../../utils/orderLimits";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop";
 
@@ -253,20 +254,19 @@ export default function RestaurantMenu() {
   const qtyOf = (item) =>
     cart.items.find((i) => i.menu_item_id === item.id)?.quantity || 0;
 
-  const handleAdd = (item) => {
+  const handleAdd = (item, qty = 1) => {
+    if (isSoldOut(item)) return;
     if (cart.restaurantId && cart.restaurantId !== restaurant.id) {
       const ok = window.confirm(
         `Your cart has items from ${cart.restaurantName || "another restaurant"}. Add items from ${restaurant.restaurant_name} and replace the cart?`
       );
       if (!ok) return;
     }
-    addItem(restaurant.id, restaurant.restaurant_name, item);
+    addItem(restaurant.id, restaurant.restaurant_name, item, undefined, qty, restaurant);
   };
 
   const handleDishConfirm = (item, qty) => {
-    const before = qtyOf(item);
-    handleAdd(item);
-    if (qty > 1) updateQuantity(item.id, before + qty);
+    handleAdd(item, qty);
   };
 
   const toggleWishlist = async (item) => {
@@ -463,6 +463,9 @@ export default function RestaurantMenu() {
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
                   {items.map((item) => {
                     const qty = qtyOf(item);
+                    const soldOut = !useMock && isSoldOut(item);
+                    const cap = getEffectiveCap(item, restaurant);
+                    const atMax = qty >= cap;
                     return (
                       <div
                         key={item.id}
@@ -519,7 +522,9 @@ export default function RestaurantMenu() {
                                 formatPrice(item.price)
                               )}
                             </span>
-                            {canOrder && !useMock && (qty === 0 ? (
+                            {canOrder && !useMock && (soldOut ? (
+                              <span className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">Sold out</span>
+                            ) : qty === 0 ? (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -536,7 +541,7 @@ export default function RestaurantMenu() {
                                   <Minus size={13} strokeWidth={2.5} />
                                 </button>
                                 <span className="w-6 text-center text-sm font-bold text-zinc-900">{qty}</span>
-                                <button onClick={(e) => { e.stopPropagation(); updateQuantity(item.id, qty + 1); }} className="w-6 h-6 rounded-md text-[#F97316] hover:bg-orange-50 flex items-center justify-center transition-colors cursor-pointer" aria-label="Increase">
+                                <button onClick={(e) => { e.stopPropagation(); if (!atMax) updateQuantity(item.id, qty + 1); }} disabled={atMax} title={atMax ? `Max ${cap} per order` : "Increase"} className="w-6 h-6 rounded-md text-[#F97316] hover:bg-orange-50 disabled:opacity-40 flex items-center justify-center transition-colors cursor-pointer" aria-label="Increase">
                                   <Plus size={13} strokeWidth={2.5} />
                                 </button>
                               </div>

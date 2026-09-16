@@ -12,11 +12,14 @@ use App\Models\Restaurant;
 use App\Models\Review;
 use App\Models\WishlistItem;
 use App\Support\Geocoder;
+use App\Support\OrderLimits;
 use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class CustomerController extends Controller
 {
@@ -155,11 +158,14 @@ class CustomerController extends Controller
 
     public function placeOrder(Request $request): JsonResponse
     {
+        $hardMaxPerItem = OrderLimits::hardMaxPerItem();
+        $maxDistinct = OrderLimits::maxDistinctItems();
+
         $validated = $request->validate([
             'restaurant_id' => 'required|exists:restaurants,id',
-            'items' => 'required|array|min:1',
+            'items' => "required|array|min:1|max:{$maxDistinct}",
             'items.*.menu_item_id' => 'required|exists:menu_items,id',
-            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.quantity' => "required|integer|min:1|max:{$hardMaxPerItem}",
             'delivery_address' => 'nullable|string|max:255',
             'delivery_instructions' => 'nullable|string|max:255',
             'payment_method' => 'nullable|string|in:cash,bkash,nagad,card',
@@ -167,46 +173,65 @@ class CustomerController extends Controller
             'table_number' => 'nullable|string|max:50',
         ]);
 
+        // No duplicate lines for the same menu item (prevents quantity bypass).
+        $menuItemIds = collect($validated['items'])->pluck('menu_item_id');
+        if ($menuItemIds->count() !== $menuItemIds->unique()->count()) {
+            return response()->json(['message' => 'Duplicate items are not allowed. Combine them into a single line with the total quantity.'], 422);
+        }
+
+        // One customer shouldn't juggle unlimited concurrent orders.
+        $activeCount = $request->user()->orders()
+            ->whereIn('status', OrderStatuses::ACTIVE_STATUSES)
+            ->count();
+        if ($activeCount >= OrderLimits::maxActiveOrders()) {
+            return response()->json([
+                'message' => 'You already have ' . $activeCount . ' active orders. Please wait for one to complete before placing another.',
+            ], 422);
+        }
+
+        $totalUnits = collect($validated['items'])->sum('quantity');
+        if ($totalUnits > OrderLimits::hardMaxTotalUnits()) {
+            return response()->json([
+                'message' => 'Order is too large (' . $totalUnits . ' units). Maximum ' . OrderLimits::hardMaxTotalUnits() . ' units per order — please split it or contact the restaurant for catering.',
+            ], 422);
+        }
+
         $restaurant = Restaurant::findOrFail($validated['restaurant_id']);
 
-        $menuItemIds = collect($validated['items'])->pluck('menu_item_id');
-        $menuItems = MenuItem::whereIn('id', $menuItemIds)->get()->keyBy('id');
-
-        $subtotal = 0;
-        $orderItems = [];
-
-        foreach ($validated['items'] as $item) {
-            $menuItem = $menuItems->get($item['menu_item_id']);
-
-            if (!$menuItem || !$menuItem->is_available) {
-                return response()->json([
-                    'message' => "Menu item #{$item['menu_item_id']} is not available.",
-                ], 422);
-            }
-
-            $subtotal += $menuItem->effective_price * $item['quantity'];
-
-            $orderItems[] = [
-                'menu_item_id' => $menuItem->id,
-                'name' => $menuItem->name,
-                'quantity' => $item['quantity'],
-                'price' => $menuItem->effective_price,
-            ];
+        if (!$restaurant->allow_bulk_orders && $totalUnits > OrderLimits::maxTotalUnits()) {
+            return response()->json([
+                'message' => 'Order is too large (' . $totalUnits . ' units). This store allows up to ' . OrderLimits::maxTotalUnits() . ' units per order — contact them directly for catering / bulk orders.',
+            ], 422);
         }
+
+        try {
+            $built = DB::transaction(function () use ($validated, $restaurant) {
+                return $this->buildOrderLines($restaurant, $validated['items']);
+            });
+        } catch (ValidationException $e) {
+            $messages = collect($e->errors())->flatten()->implode(' ');
+            return response()->json(['message' => $messages ?: 'Order could not be placed.', 'errors' => $e->errors()], 422);
+        }
+
+        [$orderItems, $subtotal, $totalUnits] = $built;
 
         $orderType = $validated['order_type'] ?? 'delivery';
         $deliveryFee = in_array($orderType, ['dine_in', 'takeout']) ? 0 : (float) $restaurant->delivery_fee;
         $paymentMethod = $validated['payment_method'] ?? 'cash';
+        $grandTotal = $subtotal + $deliveryFee;
+        $needsReview = OrderLimits::needsReview($totalUnits, $grandTotal);
 
         $order = Order::create([
             'user_id' => $request->user()->id,
             'restaurant_id' => $validated['restaurant_id'],
             'status' => 'pending',
             'order_type' => $orderType,
-            'total' => $subtotal + $deliveryFee,
+            'total' => $grandTotal,
             'delivery_fee' => $deliveryFee,
             'payment_method' => $paymentMethod,
             'payment_status' => 'pending',
+            'needs_review' => $needsReview,
+            'review_reason' => $needsReview ? OrderLimits::reviewReason($totalUnits, $grandTotal) : null,
             'delivery_address' => in_array($orderType, ['dine_in', 'takeout']) ? null : ($validated['delivery_address'] ?? $request->user()->address),
             'delivery_instructions' => $validated['delivery_instructions'] ?? null,
             'table_number' => $validated['table_number'] ?? null,
@@ -245,7 +270,7 @@ class CustomerController extends Controller
 
         ActivityLog::create([
             'type' => 'order_placed',
-            'description' => "Order #{$order->id} was placed at \"{$restaurant->restaurant_name}\".",
+            'description' => "Order #{$order->id} ({$totalUnits} units) was placed at \"{$restaurant->restaurant_name}\".",
         ]);
 
         $order->load('restaurant', 'items');
@@ -253,52 +278,146 @@ class CustomerController extends Controller
         return response()->json(['order' => $order], 201);
     }
 
-    public function reorder(Request $request, $id): JsonResponse
+    /**
+     * Validate lines against availability / per-item caps / stock / daily caps
+     * inside a transaction (caller wraps in DB::transaction with row locks).
+     *
+     * @return array{0: array, 1: float, 2: int}
+     *
+     * @throws ValidationException
+     */
+    private function buildOrderLines(Restaurant $restaurant, array $requested): array
     {
-        $previousOrder = $request->user()->orders()->with('items')->findOrFail($id);
+        $ids = collect($requested)->pluck('menu_item_id')->all();
+        $menuItems = MenuItem::whereIn('id', $ids)->lockForUpdate()->get()->keyBy('id');
 
-        $menuItemIds = $previousOrder->items->pluck('menu_item_id');
-        $menuItems = MenuItem::whereIn('id', $menuItemIds)->where('is_available', true)->get()->keyBy('id');
-
-        if ($menuItems->isEmpty()) {
-            return response()->json(['message' => 'None of the items from the previous order are available.'], 422);
-        }
-
-        $total = 0;
+        $subtotal = 0;
+        $totalUnits = 0;
         $orderItems = [];
 
-        foreach ($previousOrder->items as $prevItem) {
-            $menuItem = $menuItems->get($prevItem->menu_item_id);
-            if (!$menuItem) continue;
+        foreach ($requested as $item) {
+            $menuItem = $menuItems->get($item['menu_item_id']);
+            $qty = (int) $item['quantity'];
 
-            $lineTotal = $menuItem->effective_price * $prevItem->quantity;
-            $total += $lineTotal;
+            if (!$menuItem || $menuItem->restaurant_id !== $restaurant->id) {
+                throw ValidationException::withMessages([
+                    'items' => ["Menu item #{$item['menu_item_id']} does not belong to this restaurant."],
+                ]);
+            }
+
+            if (!$menuItem->is_available || $menuItem->isSoldOut()) {
+                throw ValidationException::withMessages([
+                    'items' => ["\"{$menuItem->name}\" is sold out right now."],
+                ]);
+            }
+
+            $effectiveMax = OrderLimits::effectiveMaxPerItem($menuItem, $restaurant);
+            if ($qty > $effectiveMax && !$restaurant->allow_bulk_orders) {
+                throw ValidationException::withMessages([
+                    'items' => ["\"{$menuItem->name}\" allows max {$effectiveMax} per order. Contact the restaurant for larger quantities."],
+                ]);
+            }
+            if ($qty > OrderLimits::hardMaxPerItem()) {
+                throw ValidationException::withMessages([
+                    'items' => ["\"{$menuItem->name}\" quantity is too large (max " . OrderLimits::hardMaxPerItem() . ")."],
+                ]);
+            }
+
+            if ($menuItem->stock_quantity !== null && $qty > (int) $menuItem->stock_quantity) {
+                throw ValidationException::withMessages([
+                    'items' => ["Only {$menuItem->stock_quantity} × \"{$menuItem->name}\" left in stock."],
+                ]);
+            }
+
+            if ($menuItem->daily_cap !== null) {
+                $soldToday = \App\Models\OrderItem::where('menu_item_id', $menuItem->id)
+                    ->whereHas('order', fn ($q) => $q
+                        ->where('restaurant_id', $restaurant->id)
+                        ->whereDate('created_at', today())
+                        ->where('status', '!=', 'cancelled'))
+                    ->sum('quantity');
+                $remaining = (int) $menuItem->daily_cap - (int) $soldToday;
+                if ($qty > $remaining) {
+                    throw ValidationException::withMessages([
+                        'items' => $remaining <= 0
+                            ? ["\"{$menuItem->name}\" has reached today's limit ({$menuItem->daily_cap}/day). Try again tomorrow."]
+                            : ["Only {$remaining} more × \"{$menuItem->name}\" available today (daily limit {$menuItem->daily_cap})."],
+                    ]);
+                }
+            }
+
+            $subtotal += $menuItem->effective_price * $qty;
+            $totalUnits += $qty;
 
             $orderItems[] = [
                 'menu_item_id' => $menuItem->id,
                 'name' => $menuItem->name,
-                'quantity' => $prevItem->quantity,
+                'quantity' => $qty,
                 'price' => $menuItem->effective_price,
             ];
         }
 
-        if (empty($orderItems)) {
+        // Decrement stock only after every line passed validation.
+        foreach ($orderItems as $line) {
+            $menuItem = $menuItems->get($line['menu_item_id']);
+            if ($menuItem && $menuItem->stock_quantity !== null) {
+                $menuItem->decrement('stock_quantity', $line['quantity']);
+            }
+        }
+
+        return [$orderItems, $subtotal, $totalUnits];
+    }
+
+    public function reorder(Request $request, $id): JsonResponse
+    {
+        $previousOrder = $request->user()->orders()->with('items')->findOrFail($id);
+        $restaurant = Restaurant::findOrFail($previousOrder->restaurant_id);
+
+        $activeCount = $request->user()->orders()
+            ->whereIn('status', OrderStatuses::ACTIVE_STATUSES)
+            ->count();
+        if ($activeCount >= OrderLimits::maxActiveOrders()) {
+            return response()->json([
+                'message' => 'You already have ' . $activeCount . ' active orders. Please wait for one to complete before reordering.',
+            ], 422);
+        }
+
+        $requested = $previousOrder->items->map(fn ($i) => [
+            'menu_item_id' => $i->menu_item_id,
+            'quantity' => (int) $i->quantity,
+        ])->all();
+
+        if (empty($requested)) {
             return response()->json(['message' => 'None of the items from the previous order are available.'], 422);
         }
 
-        $restaurant = Restaurant::findOrFail($previousOrder->restaurant_id);
+        try {
+            $built = DB::transaction(function () use ($restaurant, $requested) {
+                return $this->buildOrderLines($restaurant, $requested);
+            });
+        } catch (ValidationException $e) {
+            $messages = collect($e->errors())->flatten()->implode(' ');
+            return response()->json(['message' => $messages ?: 'Reorder could not be placed.', 'errors' => $e->errors()], 422);
+        }
+
+        [$orderItems, $subtotal, $totalUnits] = $built;
+
         $orderType = $previousOrder->order_type ?? 'delivery';
         $deliveryFee = in_array($orderType, ['dine_in', 'takeout']) ? 0 : (float) $restaurant->delivery_fee;
+        $grandTotal = $subtotal + $deliveryFee;
+        $needsReview = OrderLimits::needsReview($totalUnits, $grandTotal);
 
         $order = Order::create([
             'user_id' => $request->user()->id,
             'restaurant_id' => $previousOrder->restaurant_id,
             'status' => 'pending',
             'order_type' => $orderType,
-            'total' => $total + $deliveryFee,
+            'total' => $grandTotal,
             'delivery_fee' => $deliveryFee,
             'payment_method' => $previousOrder->payment_method ?? 'cash',
             'payment_status' => 'pending',
+            'needs_review' => $needsReview,
+            'review_reason' => $needsReview ? OrderLimits::reviewReason($totalUnits, $grandTotal) : null,
             'delivery_address' => $previousOrder->delivery_address,
             'table_number' => $previousOrder->table_number,
         ]);

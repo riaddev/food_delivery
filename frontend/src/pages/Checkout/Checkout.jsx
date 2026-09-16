@@ -9,6 +9,7 @@ import { customerApi, paymentApi, restaurantApi } from "../../features/api/apiSl
 import api from "../../features/api/apiSlice";
 import { useAuth } from "../../features/auth/AuthContext";
 import BackToHome from "../../components/BackToHome";
+import { ORDER_LIMITS, formatLimitError, getEffectiveCap } from "../../utils/orderLimits";
 
 const PAYMENT_METHODS = [
   { id: "cash", label: "Cash on Delivery", desc: "Pay in cash when your order arrives", icon: Banknote },
@@ -32,7 +33,7 @@ const modeDesc = (id, restaurantName) => {
 const formatAddress = (addr) => [addr.address, addr.city].filter(Boolean).join(", ");
 
 export default function Checkout() {
-  const { cart, total, updateQuantity, removeItem, removeItems, clearCart } = useCart();
+  const { cart, total, itemCount, updateQuantity, removeItem, removeItems, clampToLimits, setRestaurant, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [deliveryAddress, setDeliveryAddress] = useState(user?.address || "");
@@ -66,13 +67,14 @@ export default function Checkout() {
         if (!active) return;
         setDeliveryFee(parseFloat(res.data.restaurant?.delivery_fee) || 0);
         setAcceptsDineIn(res.data.restaurant?.accepts_dine_in === true);
+        setRestaurant(res.data.restaurant || null);
         setFeeStatus("ready");
       })
       .catch(() => {
         if (active) setFeeStatus("error");
       });
     return () => { active = false; };
-  }, [cart.restaurantId]);
+  }, [cart.restaurantId, setRestaurant]);
 
   useEffect(() => {
     if (!user) return;
@@ -115,20 +117,32 @@ export default function Checkout() {
       .checkAvailability({ menu_item_ids: ids })
       .then((res) => {
         if (!active) return;
-        const unavailable = (res.data.items || []).filter((i) => !i.is_available);
-        if (unavailable.length > 0) {
-          const removedIds = unavailable.map((i) => i.id);
-          removeItems(removedIds);
+        const serverItems = res.data.items || [];
+        const byId = Object.fromEntries(serverItems.map((i) => [i.id, i]));
+        const unavailable = serverItems.filter((i) => !i.is_available);
+        const overLimit = cart.items.some((line) => {
+          const server = byId[line.menu_item_id];
+          if (!server) return false;
+          return line.quantity > getEffectiveCap({ ...line, ...server }, cart.restaurant);
+        });
+        if (unavailable.length > 0 || overLimit) {
+          clampToLimits(byId, cart.restaurant);
+          if (unavailable.length > 0) {
+            const removedIds = unavailable.map((i) => i.id);
+            removeItems(removedIds);
+          }
           setError(
-            unavailable.length === 1
-              ? "1 item was removed — no longer available."
-              : `${unavailable.length} items were removed — no longer available.`
+            unavailable.length > 0
+              ? unavailable.length === 1
+                ? "1 item was removed — no longer available."
+                : `${unavailable.length} items were removed — no longer available.`
+              : "Some quantities were adjusted to the store's per-order / stock limits."
           );
         }
       })
       .catch(() => {});
     return () => { active = false; };
-  }, [cart.items, cart.restaurantId, removeItems]);
+  }, [cart.items, cart.restaurantId, cart.restaurant, removeItems, clampToLimits]);
 
   if (cart.items.length === 0) {
     return (
@@ -226,7 +240,7 @@ export default function Checkout() {
       clearCart();
       navigate(`/order/tracking/${res.data.order.id}`, { replace: true });
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to place order");
+      setError(formatLimitError(err));
       setPlacing(false);
     }
   };
@@ -252,7 +266,15 @@ export default function Checkout() {
                 <span className="text-sm font-semibold text-[#F97316]">{cart.restaurantName || "Swift Bite"}</span>
               </div>
               <div className="divide-y divide-zinc-100">
-                {cart.items.map((item) => (
+                {itemCount > ORDER_LIMITS.reviewAtUnits && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-3 rounded-xl mb-3">
+                    Large order ({itemCount} units) — the restaurant will confirm it before preparing. For catering, consider contacting them directly.
+                  </div>
+                )}
+                {cart.items.map((item) => {
+                  const cap = getEffectiveCap(item, cart.restaurant);
+                  const atMax = item.quantity >= cap;
+                  return (
                   <div key={item.menu_item_id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
                     {item.image_url && (
                       <img src={item.image_url} alt={item.name} className="w-14 h-14 object-cover rounded-xl shrink-0" />
@@ -260,6 +282,9 @@ export default function Checkout() {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm text-zinc-900 truncate">{item.name}</p>
                       <p className="text-[#F97316] text-sm font-medium mt-0.5">৳{parseFloat(item.price).toFixed(2)}</p>
+                      {cap <= 20 && (
+                        <p className="text-[11px] text-zinc-400 mt-0.5">Max {cap} per order</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
@@ -270,8 +295,10 @@ export default function Checkout() {
                       <span className="text-sm font-semibold w-6 text-center text-zinc-900">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item.menu_item_id, item.quantity + 1)}
+                        disabled={atMax}
+                        title={atMax ? `Max ${cap} per order` : "Increase quantity"}
                         aria-label={`Increase ${item.name} quantity`}
-                        className="w-7 h-7 rounded-full border border-zinc-300 bg-white flex items-center justify-center text-zinc-600 hover:bg-zinc-100 transition-colors"
+                        className="w-7 h-7 rounded-full border border-zinc-300 bg-white flex items-center justify-center text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 transition-colors"
                       >+</button>
                     </div>
                     <p className="font-semibold text-sm text-zinc-900 w-20 text-right shrink-0">
@@ -283,7 +310,8 @@ export default function Checkout() {
                       className="text-zinc-400 hover:text-red-500 ml-1 shrink-0"
                     >&times;</button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

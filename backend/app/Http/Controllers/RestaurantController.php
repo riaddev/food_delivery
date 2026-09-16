@@ -38,6 +38,8 @@ class RestaurantController extends Controller
             'delivery_fee' => 'nullable|numeric|min:0',
             'delivery_time' => 'nullable|string|max:255',
             'accepts_dine_in' => 'boolean',
+            'default_max_per_item' => 'nullable|integer|min:1|max:100',
+            'allow_bulk_orders' => 'boolean',
             'cover_image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:4096',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'cover_image_url' => 'nullable|string|url|max:2048',
@@ -92,6 +94,9 @@ class RestaurantController extends Controller
             'category' => 'nullable|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
+            'stock_quantity' => 'nullable|integer|min:0|max:100000',
+            'daily_cap' => 'nullable|integer|min:1|max:100000',
+            'max_per_order' => 'nullable|integer|min:1|max:100',
             'image' => 'nullable',
             'image_url' => 'nullable|string|url|max:2048',
         ]);
@@ -102,6 +107,12 @@ class RestaurantController extends Controller
 
         if (empty($validated['discount_price'])) {
             $validated['discount_price'] = null;
+        }
+
+        foreach (['stock_quantity', 'daily_cap', 'max_per_order', 'category_id'] as $nullableInt) {
+            if (array_key_exists($nullableInt, $validated) && ($validated[$nullableInt] === '' || $validated[$nullableInt] === null)) {
+                $validated[$nullableInt] = null;
+            }
         }
 
         $validated['restaurant_id'] = $request->user()->restaurant->id;
@@ -131,6 +142,9 @@ class RestaurantController extends Controller
             'category' => 'nullable|string|max:255',
             'category_id' => 'nullable|exists:categories,id',
             'is_available' => 'boolean',
+            'stock_quantity' => 'nullable|integer|min:0|max:100000',
+            'daily_cap' => 'nullable|integer|min:1|max:100000',
+            'max_per_order' => 'nullable|integer|min:1|max:100',
             'image' => 'nullable',
             'image_url' => 'nullable|string|url|max:2048',
             'remove_image' => 'boolean',
@@ -143,6 +157,12 @@ class RestaurantController extends Controller
 
         if (array_key_exists('discount_price', $validated) && empty($validated['discount_price'])) {
             $validated['discount_price'] = null;
+        }
+
+        foreach (['stock_quantity', 'daily_cap', 'max_per_order', 'category_id'] as $nullableInt) {
+            if (array_key_exists($nullableInt, $validated) && ($validated[$nullableInt] === '' || $validated[$nullableInt] === null)) {
+                $validated[$nullableInt] = null;
+            }
         }
 
         if ($request->hasFile('image')) {
@@ -207,13 +227,33 @@ class RestaurantController extends Controller
         ]);
 
         $items = MenuItem::whereIn('id', $validated['menu_item_ids'])
+            ->with('restaurant:id,default_max_per_item,allow_bulk_orders')
             ->get()
-            ->map(fn($item) => [
-                'id' => $item->id,
-                'is_available' => $item->is_available,
-                'price' => (float) $item->price,
-                'discount_price' => $item->discount_price !== null ? (float) $item->discount_price : null,
-            ]);
+            ->map(function ($item) {
+                $effectiveMax = \App\Support\OrderLimits::effectiveMaxPerItem($item, $item->restaurant);
+                $remainingDaily = null;
+                if ($item->daily_cap !== null) {
+                    $soldToday = \App\Models\OrderItem::where('menu_item_id', $item->id)
+                        ->whereHas('order', fn ($q) => $q
+                            ->where('restaurant_id', $item->restaurant_id)
+                            ->whereDate('created_at', today())
+                            ->where('status', '!=', 'cancelled'))
+                        ->sum('quantity');
+                    $remainingDaily = max(0, (int) $item->daily_cap - (int) $soldToday);
+                }
+
+                return [
+                    'id' => $item->id,
+                    'is_available' => $item->is_available && !$item->isSoldOut() && $remainingDaily !== 0,
+                    'price' => (float) $item->price,
+                    'discount_price' => $item->discount_price !== null ? (float) $item->discount_price : null,
+                    'stock_quantity' => $item->stock_quantity !== null ? (int) $item->stock_quantity : null,
+                    'daily_cap' => $item->daily_cap !== null ? (int) $item->daily_cap : null,
+                    'remaining_daily' => $remainingDaily,
+                    'max_per_order' => $effectiveMax,
+                    'allow_bulk_orders' => (bool) ($item->restaurant?->allow_bulk_orders ?? false),
+                ];
+            });
 
         return response()->json(['items' => $items]);
     }
@@ -347,6 +387,8 @@ class RestaurantController extends Controller
                     'delivery_address' => $o->delivery_address,
                     'delivery_instructions' => $o->delivery_instructions,
                     'order_type' => $o->order_type,
+                    'needs_review' => (bool) $o->needs_review,
+                    'review_reason' => $o->review_reason,
                     'table_number' => $o->table_number,
                     'tracking_code' => $o->tracking_code,
                     'items' => $o->items,
@@ -448,6 +490,8 @@ class RestaurantController extends Controller
             'delivery_fee' => (float) $o->delivery_fee,
             'payment_method' => $o->payment_method,
             'payment_status' => $o->payment_status,
+            'needs_review' => (bool) $o->needs_review,
+            'review_reason' => $o->review_reason,
             'order_type' => $o->order_type,
             'delivery_address' => $o->delivery_address,
             'items' => $o->items,
@@ -535,6 +579,8 @@ class RestaurantController extends Controller
                     'delivery_time' => $r->delivery_time,
                     'delivery_fee' => (float) $r->delivery_fee,
                     'accepts_dine_in' => (bool) $r->accepts_dine_in,
+                    'default_max_per_item' => $r->default_max_per_item !== null ? (int) $r->default_max_per_item : null,
+                    'allow_bulk_orders' => (bool) $r->allow_bulk_orders,
                     'menu_items' => $r->menuItems
                         ->where('is_available', true)
                         ->values()
@@ -546,6 +592,10 @@ class RestaurantController extends Controller
                             'effective_price' => $m->effective_price,
                             'image_url' => $m->image_url,
                             'category' => $m->category,
+                            'stock_quantity' => $m->stock_quantity !== null ? (int) $m->stock_quantity : null,
+                            'daily_cap' => $m->daily_cap !== null ? (int) $m->daily_cap : null,
+                            'max_per_order' => \App\Support\OrderLimits::effectiveMaxPerItem($m, $r),
+                            'is_sold_out' => $m->isSoldOut(),
                         ]),
                     'menu_categories' => $r->menuItems
                         ->where('is_available', true)
@@ -620,10 +670,15 @@ class RestaurantController extends Controller
                 'delivery_time' => $restaurant->delivery_time,
                 'delivery_fee' => (float) $restaurant->delivery_fee,
                 'accepts_dine_in' => (bool) $restaurant->accepts_dine_in,
+                'default_max_per_item' => $restaurant->default_max_per_item !== null ? (int) $restaurant->default_max_per_item : null,
+                'allow_bulk_orders' => (bool) $restaurant->allow_bulk_orders,
                 'avg_rating' => $restaurant->reviews_avg_rating ? round((float) $restaurant->reviews_avg_rating, 1) : null,
                 'review_count' => $restaurant->reviews_count,
             ],
-            'menu_items' => $menuItems,
+            'menu_items' => $menuItems->map(fn ($m) => array_merge($m->toArray(), [
+                'max_per_order' => \App\Support\OrderLimits::effectiveMaxPerItem($m, $restaurant),
+                'is_sold_out' => $m->isSoldOut(),
+            ])),
             'review_count' => $restaurant->reviews_count,
             'reviews' => $reviews,
         ]);
