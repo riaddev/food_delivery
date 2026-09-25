@@ -116,6 +116,7 @@ export const PAYMENT_STATUS_TONE = {
   failed: "red",
   cancelled: "zinc",
   refunded: "purple",
+  refund_pending: "purple",
 };
 
 export const paymentMethodLabel = (method) => {

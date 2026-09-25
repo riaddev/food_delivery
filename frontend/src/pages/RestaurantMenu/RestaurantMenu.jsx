@@ -7,6 +7,8 @@ import {
 import { customerApi } from "../../features/api/apiSlice";
 import { useCart } from "../../context/CartContext";
 import { useAuth } from "../../features/auth/AuthContext";
+import CartDrawer from "../../components/CartDrawer";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import ReservationModal from "../../components/ReservationModal";
 import DishDetailModal from "../../components/DishDetailModal";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
@@ -14,38 +16,6 @@ import { getCachedRestaurant, getRestaurantData, getAllRestaurants } from "../..
 import { getEffectiveCap, isSoldOut } from "../../utils/orderLimits";
 
 const FALLBACK_IMG = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop";
-
-const MOCK_RESTAURANT = {
-  id: "mock-1",
-  restaurant_name: "The Burger Republic",
-  cuisine_type: "Burgers",
-  city: "Dhaka",
-  address: "Dhanmondi 27, Road 6",
-  description: "Hand-picked smash burgers, flame-grilled wings and loaded fries — cooked fresh to order since 2019.",
-  image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1600&auto=format&fit=crop",
-  cover_image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=1600&auto=format&fit=crop",
-  logo: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=400&auto=format&fit=crop",
-  rating: 4.8,
-  delivery_time: "25-30 mins",
-  delivery_fee: 60,
-  accepts_dine_in: true,
-};
-
-const MOCK_MENU_ITEMS = [
-  { id: 101, name: "Classic Cheeseburger", description: "Flame-grilled beef patty, melted cheddar, crisp lettuce & our secret sauce.", price: 450, category: "Burgers", image_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
-  { id: 102, name: "Spicy Chicken Wings", description: "Crispy wings tossed in our signature chilli-garlic glaze.", price: 320, category: "Recommended", image_url: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800&auto=format&fit=crop" },
-  { id: 103, name: "Double Smokehouse Burger", description: "Two beef patties, smoky bacon, onion rings & BBQ mayo.", price: 620, category: "Burgers", image_url: "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
-  { id: 104, name: "Loaded Cheese Fries", description: "Crispy fries smothered in molten cheese sauce & spring onions.", price: 190, category: "Sides", image_url: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?q=80&w=800&auto=format&fit=crop" },
-  { id: 105, name: "Crispy Garden Salad", description: "Fresh greens, cherry tomatoes, olives, grilled chicken & ranch.", price: 150, category: "Sides", image_url: "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe?q=80&w=800&auto=format&fit=crop" },
-  { id: 106, name: "Chilled Coca-Cola", description: "An ice-cold 300ml can to wash it all down.", price: 55, category: "Drinks", image_url: "https://images.unsplash.com/photo-1554866585-cd94860890b7?q=80&w=800&auto=format&fit=crop" },
-  { id: 107, name: "Molten Chocolate Lava", description: "Warm chocolate cake with a gooey centre, served with a scoop of ice cream.", price: 280, category: "Desserts", image_url: "https://images.unsplash.com/photo-1551024506-0bccd828d307?q=80&w=800&auto=format&fit=crop", is_bestseller: true },
-];
-
-const MOCK_REVIEWS = [
-  { name: "Riad Hossain", rating: 5, comment: "The Classic Cheeseburger is insanely juicy. It arrived in 22 minutes flat!" },
-  { name: "Nabila Rahman", rating: 4, comment: "Crispy wings and great value. Just wish there were a few more drink options." },
-  { name: "Tanvir Ahmed", rating: 5, comment: "Easily the best smash burger in Dhanmondi. The loaded fries are addictive." },
-];
 
 const AVATAR_COLORS = ["from-red-500 to-rose-400", "from-amber-500 to-orange-400", "from-emerald-500 to-teal-400", "from-violet-500 to-purple-400"];
 
@@ -81,14 +51,17 @@ export default function RestaurantMenu() {
   const [reserveOpen, setReserveOpen] = useState(false);
   const [selectedDishId, setSelectedDishId] = useState(() => searchParams.get("dish"));
   const [allRestaurants, setAllRestaurants] = useState([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [replaceTarget, setReplaceTarget] = useState(null);
 
   useEffect(() => {
     let active = true;
     getRestaurantData(id)
-      .then((res) => { if (active) setPayload(res); })
+      .then((res) => { if (active) { setPayload(res); setFailed(false); } })
       .catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
-  }, [id]);
+  }, [id, retryKey]);
 
   useEffect(() => {
     if (!sessionStorage.getItem("currentRole")) return;
@@ -119,21 +92,78 @@ export default function RestaurantMenu() {
   }, [highlightId, payload]);
 
   const loading = !payload && !failed;
-  const useMock = failed;
-  const demoTarget = useMock || loading;
 
-  const restaurant = {
-    ...MOCK_RESTAURANT,
-    ...(demoTarget ? {} : payload.restaurant),
-  };
+  if (failed && !payload) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-2xl font-bold tracking-tight text-zinc-900 mb-2">Couldn't load this restaurant</p>
+        <p className="text-zinc-500 text-sm mb-6">Check your connection and try again.</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate("/restaurants", { replace: true })}
+            className="inline-flex items-center gap-1.5 bg-white hover:bg-zinc-100 text-zinc-900 text-sm font-semibold px-5 py-2.5 rounded-full shadow-lg transition-all cursor-pointer"
+          >
+            <ArrowLeft size={15} /> Back
+          </button>
+          <button
+            onClick={() => { setFailed(false); setRetryKey((k) => k + 1); }}
+            className="inline-flex items-center gap-1.5 bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-bold px-5 py-2.5 rounded-full shadow-lg transition-all cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const tagline = demoTarget
-    ? "Burgers • American • Fast Food"
-    : [payload.restaurant.cuisine_type, payload.restaurant.city].filter(Boolean).join(" • ");
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA] pb-28">
+        <div className="h-48 w-full bg-zinc-200 animate-pulse" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-10 relative z-10">
+          <div className="bg-white rounded-2xl p-5 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
+            <div className="flex items-start gap-4">
+              <div className="w-16 h-16 rounded-full bg-zinc-200 animate-pulse shrink-0" />
+              <div className="flex-1 pt-1 space-y-3">
+                <div className="h-6 w-56 max-w-full bg-zinc-200 rounded-lg animate-pulse" />
+                <div className="h-4 w-40 bg-zinc-200 rounded-lg animate-pulse" />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <div className="h-8 w-24 bg-zinc-200 rounded-lg animate-pulse" />
+              <div className="h-8 w-28 bg-zinc-200 rounded-lg animate-pulse" />
+              <div className="h-8 w-32 bg-zinc-200 rounded-lg animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-10 mb-6 space-y-3">
+            <div className="h-7 w-40 bg-zinc-200 rounded-lg animate-pulse" />
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
+                  <div className="aspect-[4/3] bg-zinc-200 animate-pulse" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 w-3/4 bg-zinc-200 rounded animate-pulse" />
+                    <div className="h-3 w-full bg-zinc-200 rounded animate-pulse" />
+                    <div className="h-3 w-2/3 bg-zinc-200 rounded animate-pulse" />
+                    <div className="flex items-center justify-between pt-3">
+                      <div className="h-4 w-14 bg-zinc-200 rounded animate-pulse" />
+                      <div className="h-7 w-16 bg-zinc-200 rounded-lg animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  const menuItems = demoTarget
-    ? MOCK_MENU_ITEMS
-    : payload.menu_items.filter((i) => i.is_available !== false);
+  const restaurant = payload.restaurant;
+
+  const tagline = [payload.restaurant.cuisine_type, payload.restaurant.city].filter(Boolean).join(" • ");
+
+  const menuItems = payload.menu_items.filter((i) => i.is_available !== false);
 
   const selectedDish = menuItems.find((i) => String(i.id) === String(selectedDishId)) || null;
 
@@ -144,7 +174,7 @@ export default function RestaurantMenu() {
     : [];
 
   const crossRestaurantDishes = (() => {
-    if (!selectedDish || demoTarget || allRestaurants.length === 0) return [];
+    if (!selectedDish || allRestaurants.length === 0) return [];
     const LIMIT = 6;
     const tag = (m, r) => ({ ...m, restaurant_id: r.id, restaurant_name: r.restaurant_name });
     const others = allRestaurants
@@ -171,28 +201,22 @@ export default function RestaurantMenu() {
     return [...sameCat, ...fill].slice(0, LIMIT);
   })();
 
-  const displayRating = demoTarget
-    ? MOCK_RESTAURANT.rating
-    : (payload.restaurant.avg_rating ?? MOCK_RESTAURANT.rating);
+  const displayRating = payload.restaurant.avg_rating ?? 0;
 
-  const reviewCount = demoTarget
-    ? MOCK_REVIEWS.length
-    : (payload.restaurant.review_count ?? 0);
+  const reviewCount = payload.restaurant.review_count ?? 0;
 
   const coverSrc = restaurant.cover_image_url || restaurant.cover_image || restaurant.image_url || restaurant.image || restaurantImage(restaurant.restaurant_name);
   const logoSrc = restaurant.logo_url || restaurant.logo || restaurant.image_url || restaurant.image || restaurantImage(restaurant.restaurant_name);
 
-  const displayReviews = demoTarget
-    ? MOCK_REVIEWS
-    : (payload.reviews || []).map((r) => ({
-        name: r.user?.name || "Customer",
-        rating: r.rating,
-        comment: r.comment || "",
-        userId: r.user?.id || null,
-        menuItem: r.menu_item || null,
-      }));
+  const displayReviews = (payload.reviews || []).map((r) => ({
+      name: r.user?.name || "Customer",
+      rating: r.rating,
+      comment: r.comment || "",
+      userId: r.user?.id || null,
+      menuItem: r.menu_item || null,
+    }));
 
-  const existingReview = user && !demoTarget
+  const existingReview = user
     ? (payload.reviews || []).find((r) => r.user?.id === user.id && !r.menu_item)
     : null;
   const hasUserReview = !!existingReview;
@@ -257,10 +281,8 @@ export default function RestaurantMenu() {
   const handleAdd = (item, qty = 1) => {
     if (isSoldOut(item)) return;
     if (cart.restaurantId && cart.restaurantId !== restaurant.id) {
-      const ok = window.confirm(
-        `Your cart has items from ${cart.restaurantName || "another restaurant"}. Add items from ${restaurant.restaurant_name} and replace the cart?`
-      );
-      if (!ok) return;
+      setReplaceTarget({ item, qty });
+      return;
     }
     addItem(restaurant.id, restaurant.restaurant_name, item, undefined, qty, restaurant);
   };
@@ -312,49 +334,6 @@ export default function RestaurantMenu() {
     const el = document.getElementById(`menu-${cat.toLowerCase()}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#F8F9FA] pb-28">
-        <div className="h-48 w-full bg-zinc-200 animate-pulse" />
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-10 relative z-10">
-          <div className="bg-white rounded-2xl p-5 shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-full bg-zinc-200 animate-pulse shrink-0" />
-              <div className="flex-1 pt-1 space-y-3">
-                <div className="h-6 w-56 max-w-full bg-zinc-200 rounded-lg animate-pulse" />
-                <div className="h-4 w-40 bg-zinc-200 rounded-lg animate-pulse" />
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 mt-4">
-              <div className="h-8 w-24 bg-zinc-200 rounded-lg animate-pulse" />
-              <div className="h-8 w-28 bg-zinc-200 rounded-lg animate-pulse" />
-              <div className="h-8 w-32 bg-zinc-200 rounded-lg animate-pulse" />
-            </div>
-          </div>
-          <div className="mt-10 mb-6 space-y-3">
-            <div className="h-7 w-40 bg-zinc-200 rounded-lg animate-pulse" />
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="bg-white rounded-2xl border border-zinc-100 overflow-hidden">
-                  <div className="aspect-[4/3] bg-zinc-200 animate-pulse" />
-                  <div className="p-4 space-y-3">
-                    <div className="h-4 w-3/4 bg-zinc-200 rounded animate-pulse" />
-                    <div className="h-3 w-full bg-zinc-200 rounded animate-pulse" />
-                    <div className="h-3 w-2/3 bg-zinc-200 rounded animate-pulse" />
-                    <div className="flex items-center justify-between pt-3">
-                      <div className="h-4 w-14 bg-zinc-200 rounded animate-pulse" />
-                      <div className="h-7 w-16 bg-zinc-200 rounded-lg animate-pulse" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] pb-28">
@@ -463,7 +442,7 @@ export default function RestaurantMenu() {
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-5">
                   {items.map((item) => {
                     const qty = qtyOf(item);
-                    const soldOut = !useMock && isSoldOut(item);
+                    const soldOut = isSoldOut(item);
                     const cap = getEffectiveCap(item, restaurant);
                     const atMax = qty >= cap;
                     return (
@@ -486,8 +465,7 @@ export default function RestaurantMenu() {
                             decoding="async"
                             className="aspect-[4/3] w-full object-cover"
                           />
-                          {!useMock && (
-                            <button
+                          <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleWishlist(item);
@@ -504,7 +482,6 @@ export default function RestaurantMenu() {
                                 <Heart size={14} fill={wishlist.has(item.id) ? "currentColor" : "none"} strokeWidth={2} />
                               )}
                             </button>
-                          )}
                         </div>
                         <div className="p-4 flex flex-col flex-1">
                           <h3 className="font-bold text-zinc-900 text-base">{item.name}</h3>
@@ -522,7 +499,7 @@ export default function RestaurantMenu() {
                                 formatPrice(item.price)
                               )}
                             </span>
-                            {canOrder && !useMock && (soldOut ? (
+                            {canOrder && (soldOut ? (
                               <span className="text-xs font-bold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">Sold out</span>
                             ) : qty === 0 ? (
                               <button
@@ -561,7 +538,7 @@ export default function RestaurantMenu() {
         <section className="mt-4 mb-8">
           <div className="flex items-center gap-3 flex-wrap">
             <h2 className="text-xl font-extrabold tracking-tight text-zinc-900">What people are saying</h2>
-            {!useMock && user && (
+            {user && (
               <button
                 onClick={() => {
                   if (hasUserReview) {
@@ -580,7 +557,7 @@ export default function RestaurantMenu() {
                 <Star size={13} className="text-amber-400" fill="currentColor" /> {hasUserReview ? "Edit your review" : "Rate this restaurant"}
               </button>
             )}
-            {!useMock && !user && (
+            {!user && (
               <Link
                 to="/login"
                 className="inline-flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-[0_8px_20px_rgba(0,0,0,0.15)] transition-colors ml-auto"
@@ -644,10 +621,10 @@ export default function RestaurantMenu() {
         item={selectedDish}
         restaurantName={restaurant.restaurant_name}
         restaurantInfo={restaurant}
-        canOrder={canOrder && !useMock}
+        canOrder={canOrder}
         isSaved={selectedDish ? wishlist.has(selectedDish.id) : false}
         favBusy={selectedDish ? wishlistBusy.has(selectedDish.id) : false}
-        onToggleFav={!useMock ? toggleWishlist : undefined}
+        onToggleFav={toggleWishlist}
         relatedItems={relatedDishes}
         onSelectRelated={(dish) => setSelectedDishId(dish.id)}
         crossRestaurantItems={crossRestaurantDishes}
@@ -729,7 +706,8 @@ export default function RestaurantMenu() {
         </div>
       )}
 
-      {/* Floating cart bar */}
+      {/* Floating cart bar — opens the cart drawer for guests and customers alike.
+          Checkout gating happens inside the drawer / on the checkout page. */}
       {canOrder && itemCount > 0 && (
         <div className="fixed bottom-0 inset-x-0 z-40 bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
@@ -739,16 +717,31 @@ export default function RestaurantMenu() {
               </p>
               <p className="text-xs text-zinc-400 truncate">{cart.restaurantName}</p>
             </div>
-            <Link
-              to="/checkout"
-              className="inline-flex items-center gap-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-[0_12px_30px_-10px_rgba(249,115,22,0.7)] transition-all hover:-translate-y-0.5 shrink-0"
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="inline-flex items-center gap-2 bg-[#F97316] hover:bg-[#EA580C] text-white font-bold text-sm px-7 py-3.5 rounded-full shadow-[0_12px_30px_-10px_rgba(249,115,22,0.7)] transition-all hover:-translate-y-0.5 shrink-0 cursor-pointer"
             >
               <ShoppingCart size={17} /> View Cart
               <span className="bg-white/20 rounded-full px-2 py-0.5 text-xs">{itemCount}</span>
-            </Link>
+            </button>
           </div>
         </div>
       )}
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      <ConfirmDialog
+        open={replaceTarget !== null}
+        title="Replace cart?"
+        message={replaceTarget ? `Your cart has items from ${cart.restaurantName || "another restaurant"}. Add items from ${restaurant.restaurant_name} and replace the cart?` : ""}
+        confirmLabel="Replace cart"
+        onConfirm={() => {
+          if (replaceTarget) {
+            addItem(restaurant.id, restaurant.restaurant_name, replaceTarget.item, undefined, replaceTarget.qty, restaurant);
+          }
+          setReplaceTarget(null);
+        }}
+        onClose={() => setReplaceTarget(null)}
+      />
     </div>
   );
 }

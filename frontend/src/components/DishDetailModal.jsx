@@ -23,11 +23,15 @@ export default function DishDetailModal({
 }) {
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const [seenId, setSeenId] = useState(item?.id);
 
-  useEffect(() => {
+  // Reset per-dish state when navigating between dishes inside the modal
+  // (render-time adjustment avoids a cascading-renders effect).
+  if (item?.id !== seenId) {
+    setSeenId(item?.id);
     setQty(1);
     setAdded(false);
-  }, [item?.id]);
+  }
 
   useEffect(() => {
     if (!item) return undefined;

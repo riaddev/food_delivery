@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
-  Banknote, CreditCard, Landmark, Lock, MapPin, Pencil, Plus,
-  Smartphone, Store, Truck, Utensils,
+  Banknote, CreditCard, Landmark, Lock, LogIn, MapPin, Pencil, Plus,
+  Smartphone, Store, Truck, UserPlus, Utensils,
 } from "lucide-react";
 import { useCart } from "../../context/CartContext";
 import { customerApi, paymentApi, restaurantApi } from "../../features/api/apiSlice";
 import api from "../../features/api/apiSlice";
 import { useAuth } from "../../features/auth/AuthContext";
 import BackToHome from "../../components/BackToHome";
+import { toNumber } from "../../utils/foodImages";
 import { ORDER_LIMITS, formatLimitError, getEffectiveCap } from "../../utils/orderLimits";
 
 const PAYMENT_METHODS = [
@@ -58,11 +59,12 @@ export default function Checkout() {
   const [tableNumber, setTableNumber] = useState("");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState(null);
+  const [feeReloadKey, setFeeReloadKey] = useState(0);
 
   useEffect(() => {
     if (!Number.isInteger(cart.restaurantId) || cart.restaurantId <= 0) return;
     let active = true;
-    api.get(`/restaurants/${cart.restaurantId}`)
+    api.get(`/restaurants/${cart.restaurantId}`, { skipAuthRedirect: true })
       .then((res) => {
         if (!active) return;
         setDeliveryFee(parseFloat(res.data.restaurant?.delivery_fee) || 0);
@@ -74,7 +76,7 @@ export default function Checkout() {
         if (active) setFeeStatus("error");
       });
     return () => { active = false; };
-  }, [cart.restaurantId, setRestaurant]);
+  }, [cart.restaurantId, setRestaurant, feeReloadKey]);
 
   useEffect(() => {
     if (!user) return;
@@ -191,6 +193,17 @@ export default function Checkout() {
   };
 
   const handlePlaceOrder = async () => {
+    // Soft gate: guests can review everything on this page; sign-in is only
+    // required when actually placing the order. Cart is preserved in
+    // localStorage so it survives the login round-trip.
+    if (!user) {
+      navigate("/login", { state: { from: "/checkout" } });
+      return;
+    }
+    if (user.role !== "customer") {
+      setError("Please use a customer account to place orders.");
+      return;
+    }
     setPlacing(true);
     setError(null);
     if (orderType === "delivery" && !deliveryAddress.trim()) {
@@ -225,7 +238,7 @@ export default function Checkout() {
       if (paymentMethod !== "cash") {
         const pay = await paymentApi.initiatePayment({
           order_id: res.data.order.id,
-          amount: parseFloat(res.data.order.total),
+          amount: toNumber(res.data.order.total),
         });
         const gatewayUrl = pay.data?.url;
         if (!gatewayUrl) {
@@ -245,7 +258,7 @@ export default function Checkout() {
     }
   };
 
-  const buttonLabel = paymentMethod === "cash" ? "Place Order" : "Pay";
+  const buttonLabel = !user ? "Sign in to Place Order" : paymentMethod === "cash" ? "Place Order" : "Pay";
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -531,6 +544,14 @@ export default function Checkout() {
                       : feeStatus === "error" ? "Unavailable" : "—"}
                 </span>
               </div>
+              {orderType === "delivery" && feeStatus === "error" && (
+                <button
+                  onClick={() => { setFeeStatus("loading"); setFeeReloadKey((k) => k + 1); }}
+                  className="text-xs font-semibold text-[#F97316] hover:underline cursor-pointer"
+                >
+                  Retry loading delivery fee
+                </button>
+              )}
               <div className="flex justify-between items-center border-t border-zinc-100 pt-3">
                 <span className="text-base font-extrabold text-zinc-900">Total</span>
                 <span className="text-2xl font-extrabold text-[#F97316]">
@@ -543,9 +564,37 @@ export default function Checkout() {
               <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">{error}</div>
             )}
 
+            {!user && (
+              <div className="mt-4 bg-orange-50 border border-orange-200 px-4 py-3.5 rounded-xl">
+                <p className="text-sm font-bold text-zinc-900">Sign in to complete your order</p>
+                <p className="text-xs text-zinc-500 mt-1">Your cart is saved — you'll return here after signing in.</p>
+                <div className="flex gap-2 mt-3">
+                  <Link
+                    to="/login"
+                    state={{ from: "/checkout" }}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
+                  >
+                    <LogIn size={14} strokeWidth={2.4} /> Sign In
+                  </Link>
+                  <Link
+                    to="/register"
+                    state={{ from: "/checkout" }}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 bg-white border border-orange-300 text-[#EA580C] hover:bg-orange-100/50 text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
+                  >
+                    <UserPlus size={14} strokeWidth={2.4} /> Sign Up
+                  </Link>
+                </div>
+              </div>
+            )}
+            {user && user.role !== "customer" && (
+              <div className="mt-4 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-sm">
+                You're signed in as {user.role}. Please use a customer account to place orders.
+              </div>
+            )}
+
             <button
               onClick={handlePlaceOrder}
-              disabled={placing || !feeReady}
+              disabled={placing || !feeReady || (user && user.role !== "customer")}
               className="w-full mt-5 bg-[#F97316] hover:bg-[#EA580C] disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed disabled:hover:bg-zinc-200 disabled:[&>span]:bg-zinc-300 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
             >
               {placing ? "Placing Order..." : buttonLabel}

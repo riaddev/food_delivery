@@ -53,4 +53,26 @@ trait SendsSetupOtp
             return false;
         }
     }
+
+    public function sendPasswordResetOtp(User $user, string $otp): bool
+    {
+        try {
+            Mail::raw(
+                "Dear {$user->name},\n\n" .
+                "We received a request to reset your SwiftBite password.\n\n" .
+                "Use this one-time code to reset your password: {$otp}\n\n" .
+                "The code expires in 10 minutes. If you did not request this, you can ignore this email.",
+                function ($message) use ($user) {
+                    $message->to($user->email, $user->name)
+                        ->subject("Your SwiftBite password reset code");
+                }
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::warning("Failed to send password reset OTP to {$user->email}: {$e->getMessage()}");
+
+            return false;
+        }
+    }
 }

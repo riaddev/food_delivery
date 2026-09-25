@@ -23,6 +23,8 @@ Route::post('/payment/ipn', [SslCommerzController::class, 'ipnListener']);
 
 Route::post('/owner/verify-otp', [AuthController::class, 'verifySetupOtp'])->middleware('throttle:5,1');
 Route::post('/owner/resend-otp', [AuthController::class, 'resendSetupOtp'])->middleware('throttle:3,1');
+Route::post('/password/forgot', [AuthController::class, 'forgotPassword'])->middleware('throttle:3,1');
+Route::post('/password/verify-otp', [AuthController::class, 'verifyResetOtp'])->middleware('throttle:5,1');
 
 Route::get('/restaurants', [RestaurantController::class, 'publicList']);
 Route::get('/restaurants/{id}', [RestaurantController::class, 'publicShow']);
@@ -30,6 +32,10 @@ Route::get('/restaurants/{id}/reviews', [RestaurantController::class, 'publicRev
 Route::get('/reviews/featured', [RestaurantController::class, 'featuredReviews']);
 Route::get('/menu-items/{id}/reviews', [RestaurantController::class, 'menuItemReviews']);
 Route::get('/categories', [RestaurantController::class, 'publicCategories']);
+// Public availability check for guest/customer carts (returns only
+// public pricing + availability data). The restaurant-scoped route below
+// is kept for backwards compatibility.
+Route::post('/menu-items/check-availability', [RestaurantController::class, 'checkAvailability'])->middleware('throttle:60,1');
 Route::post('/reservations', [ReservationController::class, 'store']);
 Route::post('/chat', [ChatController::class, 'send'])->middleware('throttle:30,1');
 Route::get('/track/{trackingCode}', [TrackingController::class, 'track']);
@@ -37,6 +43,7 @@ Route::get('/track/{trackingCode}/route', [TrackingController::class, 'route']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/owner/set-password', [AuthController::class, 'setSetupPassword']);
+    Route::post('/password/reset', [AuthController::class, 'resetPassword'])->middleware('throttle:5,1');
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         $user = $request->user();
@@ -113,12 +120,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/menu-items/check-availability', [RestaurantController::class, 'checkAvailability']);
         Route::post('/category-requests', [RestaurantController::class, 'storeCategoryRequest']);
         Route::get('/category-requests', [RestaurantController::class, 'categoryRequests']);
+        Route::get('/expenses', [RestaurantController::class, 'expenses']);
+        Route::post('/expenses', [RestaurantController::class, 'storeExpense']);
+        Route::put('/expenses/{id}', [RestaurantController::class, 'updateExpense']);
+        Route::delete('/expenses/{id}', [RestaurantController::class, 'deleteExpense']);
+        Route::get('/expenses/count', [RestaurantController::class, 'countExpense']);
     });
 
     Route::middleware('role:rider')->prefix('/rider')->group(function () {
         Route::put('/availability', [RiderController::class, 'setAvailability']);
         Route::post('/location', [RiderController::class, 'updateLocation']);
         Route::get('/orders', [RiderController::class, 'orders']);
+        Route::get('/earnings', [RiderController::class, 'earnings']);
         Route::post('/orders/{id}/accept', [RiderController::class, 'acceptOrder']);
         Route::put('/orders/{id}/status', [RiderController::class, 'updateStatus']);
     });
@@ -173,5 +186,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/reviews/{id}/reject', [App\Http\Controllers\AdminController::class, 'rejectReview']);
         Route::post('/reviews/{id}/feature', [App\Http\Controllers\AdminController::class, 'setReviewFeatured']);
         Route::delete('/reviews/{id}', [App\Http\Controllers\AdminController::class, 'deleteReview']);
+
     });
 });
+
+

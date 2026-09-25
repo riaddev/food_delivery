@@ -137,6 +137,8 @@ class ChatController extends Controller
     /**
      * Call Gemini with one automatic retry on timeouts and transient
      * upstream errors. Returns null when every attempt timed out.
+     * 429 is NOT retried — refiring into a rate-limit window only
+     * adds latency and guarantees a second 429.
      */
     private function askGemini(string $model, string $apiKey, array $payload): mixed
     {
@@ -149,7 +151,7 @@ class ChatController extends Controller
             }
 
             try {
-                $response = Http::timeout(30)->post($url . '?key=' . $apiKey, $payload);
+                $response = Http::timeout(15)->post($url . '?key=' . $apiKey, $payload);
             } catch (ConnectionException $e) {
                 Log::warning('Gemini request timed out', [
                     'attempt' => $attempt,
@@ -175,7 +177,7 @@ class ChatController extends Controller
 
     private function isRetryable(int $status): bool
     {
-        return in_array($status, [408, 429, 500, 502, 503, 504], true);
+        return in_array($status, [408, 500, 502, 503, 504], true);
     }
 
     private function failure(string $reply, string $code, int $status): JsonResponse
@@ -208,14 +210,15 @@ You are "Swift AI", the friendly assistant for SwiftBite, a food delivery platfo
 STRICT GROUNDING RULES (you must never break these):
 1. ONLY recommend dishes, restaurants and prices that appear in the MENU CATALOG below.
 2. NEVER invent or imagine dishes, restaurant names, prices, discounts or availability.
-3. If a dish or restaurant is not in the catalog, say it is currently not available on SwiftBite.
+3. If a dish or restaurant is not in the catalog, say it is currently not available on SwiftBite and suggest a similar available alternative.
 4. Quote prices exactly as they appear in the catalog, in BDT (৳).
 5. Only describe items marked available; ignore or skip unavailable ones.
 6. If asked something unrelated to food, restaurants or ordering, answer briefly and steer back to helping with an order.
-7. Keep answers short and helpful: 2-5 sentences maximum.
-8. Each catalog line starts with its dish ID like "#12". When you recommend specific dishes, end your reply with one final line listing their IDs in exactly this format:
+7. If asked about order status, tracking, or delivery time: you cannot see live orders — tell them to open My Orders / use the tracking link, then offer food help.
+8. Keep answers short and helpful: 2-5 sentences maximum. Never reply with only "sorry" — always offer an alternative or next step.
+9. Each catalog line starts with its dish ID like "#12". When you recommend specific dishes, end your reply with one final line listing their IDs in exactly this format:
 DISHES: 12, 45
-Use at most 4 IDs, only IDs that appear in the catalog, and never mention or explain this line to the user. If your answer does not recommend specific dishes, omit the line.
+Use at most 4 IDs, only IDs that appear in the catalog, and never mention or explain this line to the user. Do not add a period after the IDs. If your answer does not recommend specific dishes, omit the line.
 TXT;
 
         if ($catalog === '') {
@@ -227,16 +230,18 @@ TXT;
 
     private function menuCatalog(): string
     {
-        // Cached + trimmed: the full 300-item catalog on every message made
-        // requests slow and prone to upstream timeouts. Dish cards are still
-        // validated live in extractDishes(), so a 10-minute-old catalog is safe.
+        // Cached + trimmed: the full catalog on every message made
+        // requests slow and prone to upstream timeouts (the main cause of
+        // "sorry" replies). 100 items keeps the prompt small and fast.
+        // Dish cards are still validated live in extractDishes(), so a
+        // 30-minute-old catalog is safe.
         try {
-            $lines = Cache::remember('chat_menu_catalog', now()->addMinutes(10), function () {
+            $lines = Cache::remember('chat_menu_catalog', now()->addMinutes(30), function () {
                 return MenuItem::query()
                     ->where('is_available', true)
                     ->with('restaurant:id,restaurant_name')
                     ->orderBy('restaurant_id')
-                    ->limit(150)
+                    ->limit(100)
                     ->get()
                     ->map(function (MenuItem $item) {
                         $line = sprintf(
@@ -264,11 +269,13 @@ TXT;
 
     private function extractDishes(string &$reply): array
     {
-        if (!preg_match('/DISHES:\s*([\d\s,]+)\s*$/i', $reply, $matches)) {
+        // Tolerant: model sometimes adds a trailing period ("DISHES: 12.")
+        // or extra whitespace. Old strict regex dropped the cards entirely.
+        if (!preg_match('/DISHES:\s*([\d\s,]+)[\s.]*$/i', $reply, $matches)) {
             return [];
         }
 
-        $reply = trim(substr($reply, 0, strlen($reply) - strlen($matches[0])));
+        $reply = trim((string) preg_replace('/\s*DISHES:\s*[\d\s,\.]+\s*$/i', '', $reply));
 
         $ids = collect(explode(',', $matches[1]))
             ->map(fn ($id) => (int) trim($id))

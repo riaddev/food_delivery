@@ -498,4 +498,136 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Logged out successfully.']);
     }
+
+    /**
+     * Forgot password — step 1: email a 6-digit OTP (all roles).
+     * Always returns a generic message to avoid email enumeration.
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
+        ]);
+
+        $user = User::where('email', $validated['email'])->first();
+
+        if ($user && $this->canReceiveResetOtp($user)) {
+            $otp = (string) random_int(100000, 999999);
+
+            $user->update([
+                'reset_otp' => Hash::make($otp),
+                'reset_otp_expires_at' => now()->addMinutes(10),
+                'reset_otp_attempts' => 0,
+            ]);
+
+            $this->sendPasswordResetOtp($user, $otp);
+        }
+
+        return response()->json(['message' => 'If an account exists for this email, a reset code has been sent.']);
+    }
+
+    /**
+     * Forgot password — step 2: verify OTP, issue a short-lived reset token.
+     */
+    public function verifyResetOtp(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email',
+            'otp' => 'required|digits:6',
+        ]);
+
+        $user = User::where('email', $validated['email'])->first();
+
+        if (!$user || !$user->reset_otp || !$user->reset_otp_expires_at || $user->reset_otp_expires_at->isPast()) {
+            throw ValidationException::withMessages([
+                'otp' => ['This code has expired. Request a new one.'],
+            ]);
+        }
+
+        if (($user->reset_otp_attempts ?? 0) >= 5) {
+            $user->update([
+                'reset_otp' => null,
+                'reset_otp_expires_at' => null,
+                'reset_otp_attempts' => 0,
+            ]);
+
+            throw ValidationException::withMessages([
+                'otp' => ['Too many incorrect attempts. Request a new code.'],
+            ]);
+        }
+
+        if (!Hash::check($validated['otp'], $user->reset_otp)) {
+            $user->increment('reset_otp_attempts');
+
+            throw ValidationException::withMessages([
+                'otp' => ['The code is incorrect.'],
+            ]);
+        }
+
+        $token = $user->createToken('password-reset')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'message' => 'Code verified. Choose your new password.',
+        ]);
+    }
+
+    /**
+     * Forgot password — step 3: set a new password with the reset token.
+     * Revokes all tokens so the user signs in fresh (go-to-login flow).
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (!$user || $request->user()->currentAccessToken()->name !== 'password-reset') {
+            throw ValidationException::withMessages([
+                'password' => ['Reset session is invalid. Please request a new code.'],
+            ]);
+        }
+
+        if (!$user->reset_otp || !$user->reset_otp_expires_at || $user->reset_otp_expires_at->isPast()) {
+            throw ValidationException::withMessages([
+                'password' => ['Reset session has expired. Please request a new code.'],
+            ]);
+        }
+
+        $user->update([
+            'password' => Hash::make($validated['password']),
+            'reset_otp' => null,
+            'reset_otp_expires_at' => null,
+            'reset_otp_attempts' => 0,
+        ]);
+
+        // Log out everywhere (including this reset token) — user signs in fresh.
+        $user->tokens()->delete();
+
+        return response()->json(['message' => 'Password reset successfully. Please login with your new password.']);
+    }
+
+    /**
+     * Only active, set-up accounts can receive a reset code.
+     * Pending / rejected / suspended partners and not-yet-setup accounts
+     * fall through silently (generic response above).
+     */
+    private function canReceiveResetOtp(User $user): bool
+    {
+        if (($user->status ?? null) === 'suspended') {
+            return false;
+        }
+
+        if ($user->isRestaurant()) {
+            return $user->restaurant?->status === 'approved' && $user->setup_otp === null;
+        }
+
+        if ($user->isRider()) {
+            return $user->rider?->status === 'approved' && $user->setup_otp === null;
+        }
+
+        return true;
+    }
 }

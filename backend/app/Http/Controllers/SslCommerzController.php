@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -166,11 +167,15 @@ class SslCommerzController extends Controller
             return;
         }
 
-        $order = Order::where('tran_id', $tranId)->first();
+        // Locked write: concurrent fail/cancel callbacks for the same tran_id
+        // collapse into a single pending -> failed transition.
+        DB::transaction(function () use ($tranId) {
+            $order = Order::where('tran_id', $tranId)->lockForUpdate()->first();
 
-        if ($order && $order->payment_status === 'pending') {
-            $order->update(['payment_status' => 'failed']);
-        }
+            if ($order && $order->payment_status === 'pending') {
+                $order->update(['payment_status' => 'failed']);
+            }
+        });
     }
 
     public function ipnListener(Request $request): Response
@@ -227,10 +232,28 @@ class SslCommerzController extends Controller
         $data = $verification->json();
 
         if (($data['status'] ?? '') === 'VALIDATED' && abs((float) ($data['amount'] ?? 0) - (float) $order->total) <= 0.01) {
-            $order->update([
-                'payment_status' => 'paid',
-                'val_id' => $valId,
-            ]);
+            // Locked write AFTER gateway validation (never hold a row lock
+            // across the HTTP call): concurrent success + IPN callbacks for
+            // the same tran_id collapse into a single write. A retry that
+            // superseded this tran_id also makes this a no-op.
+            $orderId = $order->id;
+            $tranId = $order->tran_id;
+            DB::transaction(function () use ($orderId, $tranId, $valId) {
+                $fresh = Order::whereKey($orderId)->lockForUpdate()->first();
+
+                if (!$fresh || $fresh->payment_status === 'paid') {
+                    return;
+                }
+
+                if ($fresh->tran_id !== $tranId) {
+                    return;
+                }
+
+                $fresh->update([
+                    'payment_status' => 'paid',
+                    'val_id' => $valId,
+                ]);
+            });
         }
     }
 }

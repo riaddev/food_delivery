@@ -23,8 +23,13 @@ export function restaurantImage(name) {
   return RESTAURANT_IMAGES[name] || FALLBACK_FOOD[name?.length % FALLBACK_FOOD.length] || FALLBACK_FOOD[0];
 }
 
+export function toNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function formatPrice(price) {
-  return `\u09F3${parseFloat(price).toFixed(2)}`;
+  return `৳${toNumber(price).toFixed(2)}`;
 }
 
 export function formatDate(date) {

@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Link } from "react-router-dom";
 import Home from "../pages/Home/Home";
 import Login from "../pages/Login/Login";
+import ForgotPassword from "../pages/Auth/ForgotPassword";
 import Register from "../pages/Register/Register";
 import SignupRestaurant from "../pages/SignupRestaurant/SignupRestaurant";
 import SignupRider from "../pages/SignupRider/SignupRider";
@@ -26,12 +27,35 @@ import MenuManagement from "../pages/RestaurantDashboard/MenuManagement";
 import EditProfile from "../pages/RestaurantDashboard/EditProfile";
 import Reservations from "../pages/RestaurantDashboard/Reservations";
 import TableManagement from "../pages/RestaurantDashboard/TableManagement";
+import Expenses from "../pages/RestaurantDashboard/Expenses";
 import {
-  AboutPage, CareersPage, PressPage, BlogPage, GiftCardsPage,
-  BecomeRiderPage, RiderAppPage, EarningsPage, CommunityPage,
   SupportPage, PrivacyPage, TermsPage, CookiesPage,
 } from "../pages/StaticPages";
 import ChatWidget from "../components/ChatWidget";
+
+function NotFound() {
+  return (
+    <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center px-6 text-center">
+      <p className="text-6xl font-extrabold tracking-tight text-zinc-900">404</p>
+      <p className="text-xl font-bold text-zinc-900 mt-2 mb-1">Page not found</p>
+      <p className="text-sm text-zinc-500 mb-6">The page you're looking for doesn't exist or was moved.</p>
+      <div className="flex items-center gap-3">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-bold px-5 py-2.5 rounded-full transition-colors"
+        >
+          Back to Home
+        </Link>
+        <Link
+          to="/restaurants"
+          className="inline-flex items-center gap-1.5 bg-white hover:bg-zinc-100 text-zinc-900 text-sm font-semibold px-5 py-2.5 rounded-full border border-zinc-200 transition-colors"
+        >
+          Browse Food
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export default function Routers() {
   return (
@@ -39,6 +63,7 @@ export default function Routers() {
       <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
       <Route path="/signup/customer" element={<Register />} />
       <Route path="/signup/restaurant" element={<SignupRestaurant />} />
@@ -47,15 +72,6 @@ export default function Routers() {
       <Route path="/rider/setup" element={<RiderSetup />} />
       <Route path="/restaurants" element={<Restaurants />} />
       <Route path="/restaurants/:id" element={<RestaurantMenu />} />
-      <Route path="/about" element={<AboutPage />} />
-      <Route path="/careers" element={<CareersPage />} />
-      <Route path="/press" element={<PressPage />} />
-      <Route path="/blog" element={<BlogPage />} />
-      <Route path="/gift-cards" element={<GiftCardsPage />} />
-      <Route path="/become-a-rider" element={<BecomeRiderPage />} />
-      <Route path="/rider-app" element={<RiderAppPage />} />
-      <Route path="/earnings" element={<EarningsPage />} />
-      <Route path="/community" element={<CommunityPage />} />
       <Route path="/support" element={<SupportPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
@@ -63,14 +79,10 @@ export default function Routers() {
       <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/payment/failed" element={<PaymentFailed />} />
       <Route path="/track/:trackingCode" element={<PublicTracking />} />
-      <Route
-        path="/checkout"
-        element={
-          <ProtectedRoute allowedRoles={["customer"]}>
-            <Checkout />
-          </ProtectedRoute>
-        }
-      />
+
+      {/* Public checkout (soft gate): guests can review their cart; sign-in is
+          enforced inside Checkout at Place Order. Cart survives login via localStorage. */}
+      <Route path="/checkout" element={<Checkout />} />
       <Route
         path="/order/tracking/:id"
         element={
@@ -116,6 +128,7 @@ export default function Routers() {
         <Route path="reservations" element={<Reservations />} />
         <Route path="tables" element={<TableManagement />} />
         <Route path="menu" element={<MenuManagement />} />
+        <Route path="expenses" element={<Expenses />} />
         <Route path="profile" element={<EditProfile />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<SettingsPage />} />
@@ -128,6 +141,7 @@ export default function Routers() {
           </ProtectedRoute>
         }
       />
+      <Route path="*" element={<NotFound />} />
       </Routes>
       <ChatWidget />
     </>

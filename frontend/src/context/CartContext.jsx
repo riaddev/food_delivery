@@ -1,4 +1,5 @@
-import { createContext, useContext, useReducer, useEffect, useCallback, useState } from "react";
+/* eslint-disable react-refresh/only-export-components -- provider + hook intentionally colocated (same pattern across the app) */
+import { createContext, useContext, useReducer, useEffect, useCallback, useState, useRef } from "react";
 import { ORDER_LIMITS, getEffectiveCap } from "../utils/orderLimits";
 
 const CartContext = createContext();
@@ -135,11 +136,22 @@ export function CartProvider({ children }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
   }, [cart]);
 
+  // Clear the (shared guest/customer) cart on logout so the next visitor on a
+  // shared device doesn't see the previous customer's items. Login intentionally
+  // preserves the cart so a guest's items survive sign-in.
+  useEffect(() => {
+    const onClear = () => dispatch({ type: "CLEAR_CART" });
+    window.addEventListener("swiftbite:clear-cart", onClear);
+    return () => window.removeEventListener("swiftbite:clear-cart", onClear);
+  }, []);
+
+  const noticeTimer = useRef(null);
+
   const flashNotice = useCallback((msg) => {
     if (!msg) return;
     setLimitNotice(msg);
-    window.clearTimeout(flashNotice._t);
-    flashNotice._t = window.setTimeout(() => setLimitNotice(""), 3500);
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setLimitNotice(""), 3500);
   }, []);
 
   const addItem = useCallback((restaurantId, restaurantName, item, mode, quantity = 1, restaurant = null) =>

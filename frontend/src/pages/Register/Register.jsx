@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 import BackToHome from "../../components/BackToHome";
 import Logo from "../../components/Logo";
@@ -7,6 +7,7 @@ import Logo from "../../components/Logo";
 const RegisterPage = () => {
   const { registerCustomer } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm] = useState({ name: "", email: "", phone: "", password: "", password_confirmation: "" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -18,7 +19,7 @@ const RegisterPage = () => {
     setSubmitting(true);
     try {
       await registerCustomer(form.name, form.email, form.password, form.phone);
-      navigate("/customer/dashboard");
+      navigate(location.state?.from || "/customer/dashboard", { replace: true });
     } catch (err) {
       const errors = err.response?.data?.errors;
       setError(errors ? Object.values(errors)[0]?.[0] : err.response?.data?.message || "Registration failed.");
@@ -47,6 +48,11 @@ const RegisterPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-[20px] p-5 sm:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+          {location.state?.from === "/checkout" && (
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-3.5 py-2.5 rounded-[10px] mb-4">
+              Create your account to complete your order — your cart is saved.
+            </div>
+          )}
           {error && <div className="bg-red-50 text-red-600 text-sm px-3.5 py-2.5 rounded-[10px] mb-4">{error}</div>}
 
           {["name", "email", "phone"].map((field) => (
@@ -74,7 +80,7 @@ const RegisterPage = () => {
 
           <p className="text-center mt-[18px] text-sm text-gray-500">
             Already have an account?{" "}
-            <Link to="/login" className="text-[#ff6b35] font-semibold no-underline">Sign in</Link>
+            <Link to="/login" state={location.state?.from ? { from: location.state.from } : undefined} className="text-[#ff6b35] font-semibold no-underline">Sign in</Link>
           </p>
 
           <div className="border-t border-gray-200 mt-5 pt-5 text-center">

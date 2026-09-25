@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Armchair, BarChart3, CalendarClock, ClipboardList, ExternalLink, LayoutDashboard,
-  Settings, Store, UtensilsCrossed,
+  Settings, Store, UtensilsCrossed, Wallet,
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { resolveAssetUrl, restaurantImage } from "../../utils/foodImages";
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { key: "reservations", label: "Reservations", path: "/restaurant/dashboard/reservations", icon: CalendarClock },
   { key: "tables", label: "Tables", path: "/restaurant/dashboard/tables", icon: Armchair },
   { key: "menu", label: "Food Menu", path: "/restaurant/dashboard/menu", icon: UtensilsCrossed },
+  { key: "expenses", label: "Expenses", path: "/restaurant/dashboard/expenses", icon: Wallet },
   { key: "profile", label: "Restaurant Profile", path: "/restaurant/dashboard/profile", icon: Store },
   { key: "analytics", label: "Analytics", path: "/restaurant/dashboard/analytics", icon: BarChart3 },
   { key: "settings", label: "Settings", path: "/restaurant/dashboard/settings", icon: Settings },
@@ -25,6 +26,7 @@ const TITLES = {
   reservations: { title: "Reservations", subtitle: "Manage table bookings for your restaurant." },
   tables: { title: "Tables", subtitle: "Manage your restaurant tables and seating capacity." },
   menu: { title: "Food Menu", subtitle: "Curate your dishes, prices and availability." },
+  expenses: { title: "Expenses", subtitle: "Track rent, salaries and daily running costs." },
   profile: { title: "Restaurant Profile", subtitle: "Keep your store details up to date." },
   analytics: { title: "Analytics", subtitle: "A snapshot of how your restaurant is performing." },
   settings: { title: "Settings", subtitle: "Configure how your restaurant works." },

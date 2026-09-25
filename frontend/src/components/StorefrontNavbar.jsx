@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, ShoppingBag, X } from "lucide-react";
 import { useAuth } from "../features/auth/AuthContext";
+import { useCart } from "../context/CartContext";
 import { resolveAssetUrl } from "../utils/foodImages";
+import CartDrawer from "./CartDrawer";
 import Logo from "./Logo";
 
 const NAV_LINKS = [
@@ -14,8 +16,11 @@ const NAV_LINKS = [
 
 export default function StorefrontNavbar() {
   const { user } = useAuth();
+  const { itemCount } = useCart();
   const { pathname } = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+  const canShop = !user || user.role === "customer";
 
   const linkCls = (active) =>
     `flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${
@@ -57,6 +62,20 @@ export default function StorefrontNavbar() {
           >
             {mobileOpen ? <X size={19} strokeWidth={2} /> : <Menu size={19} strokeWidth={2} />}
           </button>
+          {canShop && (
+            <button
+              onClick={() => setCartOpen(true)}
+              aria-label="Open cart"
+              className="relative w-[38px] h-[38px] rounded-full flex items-center justify-center text-zinc-900 hover:bg-zinc-100 transition"
+            >
+              <ShoppingBag size={19} strokeWidth={2} />
+              {itemCount > 0 && (
+                <span className="absolute top-0.5 right-0.5 bg-[#FF6B00] text-white text-xs font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                  {itemCount}
+                </span>
+              )}
+            </button>
+          )}
           {user ? (
             <Link
               to="/customer/dashboard?tab=profile"
@@ -129,6 +148,7 @@ export default function StorefrontNavbar() {
           )}
         </div>
       )}
+      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
     </header>
   );
 }

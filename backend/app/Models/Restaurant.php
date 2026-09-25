@@ -111,4 +111,9 @@ class Restaurant extends Model
     {
         return $this->hasMany(RestaurantTable::class);
     }
+
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
 }

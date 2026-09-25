@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- provider + hook intentionally colocated (same pattern across the app) */
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi, setNavigate } from "../api/apiSlice";
@@ -40,7 +41,9 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Fetch-on-mount: syncs the persisted session with the auth server (external system).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount sync with auth server
     fetchUser();
   }, [fetchUser]);
 
@@ -74,6 +77,11 @@ export const AuthProvider = ({ children }) => {
     }
     sessionStorage.removeItem("currentRole");
     setUser(null);
+    // Guest cart is shared via localStorage — clear it on logout so a shared
+    // device doesn't leak the previous customer's items. CartContext listens
+    // for this event and resets its in-memory state too.
+    localStorage.removeItem("swiftbite_cart");
+    window.dispatchEvent(new Event("swiftbite:clear-cart"));
   };
 
   const refreshUser = useCallback(async () => {

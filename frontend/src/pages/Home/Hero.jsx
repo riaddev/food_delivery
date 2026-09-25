@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, X, Zap, ArrowRight } from "lucide-react";
+import { Search, X, MapPin, ArrowRight } from "lucide-react";
 import api from "../../features/api/apiSlice";
 import { formatPrice, restaurantImage } from "../../utils/foodImages";
 
@@ -38,7 +38,7 @@ const Hero = () => {
 
   useEffect(() => {
     let alive = true;
-    api.get("/restaurants")
+    api.get("/restaurants", { skipAuthRedirect: true })
       .then((res) => { if (alive) setRestaurants(res.data.restaurants || []); })
       .catch(() => {})
       .finally(() => { if (alive) setLoading(false); });
@@ -150,7 +150,7 @@ const Hero = () => {
   const showDropdown = open;
 
   return (
-    <section className="relative flex flex-col min-h-[80vh] lg:min-h-[85vh]" id="home">
+    <section className="relative flex flex-col min-h-[100svh] lg:min-h-[100vh]" id="home">
       <div
         className="absolute inset-0 z-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${BG})` }}
@@ -180,7 +180,7 @@ const Hero = () => {
         }}
       />
 
-      <div className="relative z-20 flex-1 flex flex-col items-center text-center pt-[168px] lg:pt-[195px] px-4 sm:px-6">
+      <div className="relative z-20 flex-1 flex flex-col items-center justify-center text-center pt-[150px] lg:pt-[170px] pb-10 lg:pb-14 px-4 sm:px-6">
         <div
           className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-9"
           style={{
@@ -368,7 +368,7 @@ const Hero = () => {
       </div>
 
       <div
-        className="relative z-10 w-full mt-6 sm:mt-[52px]"
+        className="relative z-10 w-full mt-8 sm:mt-12"
         style={{
           background: "rgba(6,4,2,0.82)",
           backdropFilter: "blur(20px)",
@@ -393,8 +393,8 @@ const Hero = () => {
           </div>
 
           <div className="flex items-center gap-[7px] sm:pl-5 sm:border-l border-white/10">
-            <Zap size={13} className="text-[#FF6B00]" />
-            <span className="text-[12px] font-medium text-white/50 whitespace-nowrap">
+            <MapPin size={13} className="text-[#FF6B00] shrink-0" />
+            <span className="text-[12px] font-medium text-white/60 whitespace-nowrap">
               Live GPS tracking on every order
             </span>
           </div>

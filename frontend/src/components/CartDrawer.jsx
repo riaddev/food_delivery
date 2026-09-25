@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   X, Plus, Minus, MapPin, Pencil, ShoppingCart, Store, Utensils, LogIn,
@@ -15,7 +15,6 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
   const { cart, updateQuantity, removeItems, clampToLimits, total, itemCount, limitNotice } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [feeRestaurantId, setFeeRestaurantId] = useState(null);
   const [feeStatus, setFeeStatus] = useState("loading");
@@ -50,7 +49,7 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
     if (!Number.isInteger(cart.restaurantId) || cart.restaurantId <= 0) return;
     let active = true;
     api
-      .get(`/restaurants/${cart.restaurantId}`)
+      .get(`/restaurants/${cart.restaurantId}`, { skipAuthRedirect: true })
       .then((res) => {
         if (!active) return;
         setFeeRestaurantId(cart.restaurantId);
@@ -132,11 +131,8 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
   };
 
   const handleGoToCheckout = () => {
-    if (!user) {
-      onClose();
-      navigate("/login", { state: { from: "/checkout" } });
-      return;
-    }
+    // Guests can view the cart freely — auth is enforced on the checkout page
+    // (soft gate at Place Order), so the cart is preserved across login.
     onClose();
     navigate("/checkout");
   };
@@ -270,7 +266,7 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-zinc-400">Deliver to</p>
                             <p className="text-sm text-zinc-900 font-medium mt-0.5">
-                              {user ? (deliveryAddress || "Set your delivery address") : "Log in to add your delivery address"}
+                              {user ? (deliveryAddress || "Set your delivery address") : "You'll add your delivery address at checkout"}
                             </p>
                           </div>
                           {user ? (
@@ -288,12 +284,12 @@ export default function CartDrawer({ open, onClose, mode: modeProp }) {
                             <button
                               onClick={() => {
                                 onClose();
-                                navigate("/login", { state: { from: pathname } });
+                                navigate("/checkout");
                               }}
                               className="text-xs font-semibold text-[#F97316] hover:underline shrink-0 inline-flex items-center gap-1"
                             >
                               <LogIn size={12} strokeWidth={2.4} />
-                              Log in
+                              Checkout
                             </button>
                           )}
                         </div>

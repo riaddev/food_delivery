@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { TrendingUp, ClipboardList, CheckCircle2, CalendarClock, Plus, ArrowRight, Bike, AlertTriangle, X } from "lucide-react";
+import { TrendingUp, ClipboardList, CheckCircle2, CalendarClock, Plus, ArrowRight, Bike, AlertTriangle, X, Wallet, PiggyBank } from "lucide-react";
 import { restaurantApi, reservationApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
@@ -78,6 +78,7 @@ export default function OwnerDashboard() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [actingId, setActingId] = useState(null);
   const [cancelModal, setCancelModal] = useState(null);
 
@@ -87,6 +88,9 @@ export default function OwnerDashboard() {
       .catch(() => {});
     reservationApi.getForRestaurant()
       .then((r) => setReservations(r.data.reservations || []))
+      .catch(() => {});
+    restaurantApi.getExpenses()
+      .then((r) => setExpenses(r.data.expenses || []))
       .catch(() => {});
   }, []);
 
@@ -100,12 +104,19 @@ export default function OwnerDashboard() {
     (o) => COMPLETED_STATUSES.includes(o.status) && sameDay(new Date(o.created_at), now)
   );
   const todayRevenue = completedToday.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+  const todayExpenses = expenses.reduce((s, e) => {
+    if (!e.created_at || !sameDay(new Date(e.created_at), now)) return s;
+    return s + (Number(e.amount) || 0);
+  }, 0);
+  const todayProfit = todayRevenue - todayExpenses;
   const activeReservations = reservations.filter((r) =>
     ACTIVE_RESERVATION_STATUSES.includes(r.status)
   );
 
   const stats = [
     { title: "Today's Revenue", value: formatPrice(todayRevenue), icon: TrendingUp, tint: "bg-emerald-50 text-emerald-600" },
+    { title: "Today's Expenses", value: formatPrice(todayExpenses), icon: Wallet, tint: "bg-red-50 text-red-500" },
+    { title: "Net Profit Today", value: formatPrice(todayProfit), icon: PiggyBank, tint: todayProfit < 0 ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600" },
     { title: "Pending Orders", value: String(pendingOrders.length), icon: ClipboardList, tint: "bg-amber-50 text-amber-600" },
     { title: "Completed Today", value: String(completedToday.length), icon: CheckCircle2, tint: "bg-sky-50 text-sky-600" },
     { title: "Active Reservations", value: String(activeReservations.length), icon: CalendarClock, tint: "bg-orange-soft text-orange-deep" },
@@ -140,7 +151,7 @@ export default function OwnerDashboard() {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {stats.map((s) => {
           const Icon = s.icon;
           return (

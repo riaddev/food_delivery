@@ -17,7 +17,9 @@ return new class extends Migration
         } else {
             DB::table('restaurants')->where('status', 'active')->update(['status' => 'approved']);
             DB::table('restaurants')->where('status', 'suspended')->update(['status' => 'rejected']);
-            DB::statement("ALTER TABLE restaurants ALTER COLUMN status SET DEFAULT 'pending'");
+            // SQLite has no ALTER COLUMN ... SET DEFAULT syntax; the create
+            // migration already defaults status to 'pending', so the data
+            // migration above is all that is needed here.
         }
     }
 

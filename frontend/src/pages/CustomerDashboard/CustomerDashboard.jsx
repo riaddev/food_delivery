@@ -10,6 +10,7 @@ import { customerApi, trackingApi, reservationApi } from "../../features/api/api
 import { useCart } from "../../context/CartContext";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import CartDrawer from "../../components/CartDrawer";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import LiveMap from "../../components/LiveMap";
 import { Card, EmptyState, SectionTitle } from "../../components/dashboard/Card";
 import { formatPrice, resolveAssetUrl, restaurantImage } from "../../utils/foodImages";
@@ -309,6 +310,13 @@ function SupportModal({ order, onClose, onSubmit }) {
             {busy ? "Submitting..." : "Submit"}
           </button>
         </div>
+        <p className="text-xs text-text-light text-center mt-3">
+          In-app tickets aren't live yet — you can also{" "}
+          <Link to="/support" onClick={onClose} className="text-orange-primary font-semibold hover:underline">
+            visit the Support page
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );
@@ -370,6 +378,15 @@ const paymentMethodLabel = (method) => {
   if (method === "bkash") return "bKash";
   if (method === "card") return "Card";
   return "Cash on Delivery";
+};
+
+const paymentStatusLabel = (status) => {
+  if (status === "paid") return "Paid";
+  if (status === "refund_pending") return "Refund pending";
+  if (status === "failed") return "Failed";
+  if (status === "cancelled") return "Cancelled";
+  if (status === "refunded") return "Refunded";
+  return "Unpaid";
 };
 
 function OrderDetailsModal({ order, onClose, onTrack, onReorder, onReview }) {
@@ -443,7 +460,7 @@ function OrderDetailsModal({ order, onClose, onTrack, onReorder, onReview }) {
           <CreditCard size={13} className="inline text-orange-primary mr-1.5 -mt-0.5" />
           {paymentMethodLabel(order.payment_method)}{" "}
           <span className={order.payment_status === "paid" ? "text-success font-semibold" : "text-amber-600 font-semibold"}>
-            · {order.payment_status === "paid" ? "Paid" : "Unpaid"}
+            · {paymentStatusLabel(order.payment_status)}
           </span>
         </p>
 
@@ -729,7 +746,9 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
 
   const list = tab === "active" ? activeOrders : historyOrders;
 
-  const isCancellable = (o) => ["pending", "confirmed"].includes(o.status);
+  const isCancellable = (o) =>
+    ["pending", "confirmed"].includes(o.status) &&
+    !(o.payment_status === "paid" && o.status !== "pending");
   const canTrack = (o) => ["preparing", "ready", "assigned", "picked_up", "on_the_way", "near_customer"].includes(o.status);
 
   const selectOrder = (o) => {
@@ -1121,12 +1140,17 @@ function AddressesView({ addresses, onSaved }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [listError, setListError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({ label: "", address: "", city: "", phone: "", is_default: false });
 
   const resetForm = () => {
     setForm({ label: "", address: "", city: "", phone: "", is_default: false });
     setShowForm(false);
     setEditingId(null);
+    setFormError("");
   };
 
   const handleEdit = (addr) => {
@@ -1138,39 +1162,47 @@ function AddressesView({ addresses, onSaved }) {
       is_default: addr.is_default,
     });
     setEditingId(addr.id);
+    setFormError("");
     setShowForm(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setFormError("");
     try {
       if (editingId) await customerApi.updateAddress(editingId, form);
       else await customerApi.createAddress(form);
       resetForm();
       onSaved();
     } catch {
-      alert("Failed to save address");
+      setFormError("Failed to save address. Please try again.");
     }
     setSaving(false);
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this address?")) return;
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setListError("");
     try {
-      await customerApi.deleteAddress(id);
+      await customerApi.deleteAddress(deleteTarget.id);
+      setDeleteTarget(null);
       onSaved();
     } catch {
-      alert("Failed to delete address");
+      setListError("Failed to delete address. Please try again.");
+    } finally {
+      setDeleting(false);
     }
   };
 
   const handleSetDefault = async (id) => {
+    setListError("");
     try {
       await customerApi.setDefaultAddress(id);
       onSaved();
     } catch {
-      alert("Failed to set default");
+      setListError("Failed to set default address. Please try again.");
     }
   };
 
@@ -1179,9 +1211,24 @@ function AddressesView({ addresses, onSaved }) {
 
   return (
     <div>
+      {listError && (
+        <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">{listError}</div>
+      )}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete address?"
+        message={deleteTarget ? `Remove "${deleteTarget.label || deleteTarget.address}" from your saved addresses?` : ""}
+        confirmLabel={deleting ? "Deleting…" : "Delete"}
+        danger
+        onConfirm={handleDelete}
+        onClose={() => { if (!deleting) setDeleteTarget(null); }}
+      />
       {showForm && (
         <Card className="mb-5">
           <SectionTitle title={editingId ? "Edit Address" : "Add New Address"} />
+          {formError && (
+            <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-xl mb-4">{formError}</div>
+          )}
           <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <input
               type="text"
@@ -1293,7 +1340,7 @@ function AddressesView({ addresses, onSaved }) {
                     <Star size={12} /> Set Default
                   </button>
                   <button
-                    onClick={() => handleDelete(addr.id)}
+                    onClick={() => { setListError(""); setDeleteTarget(addr); }}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-danger hover:text-red-700 px-3 py-1.5 rounded-lg border border-red-200 hover:border-red-400 transition-colors cursor-pointer font-outfit ml-auto"
                   >
                     <Trash2 size={12} /> Delete
@@ -1321,6 +1368,7 @@ function ProfileView({ user, refreshUser }) {
   const [avatarPreview, setAvatarPreview] = useState(null); // instant blob preview
   const [avatarBroken, setAvatarBroken] = useState(false);
   const [message, setMessage] = useState(null);
+  const [confirmAvatarRemove, setConfirmAvatarRemove] = useState(false);
   const avatarInputRef = useRef(null);
 
   // user loads async via refreshUser()/fetchUser — keep form in sync
@@ -1409,11 +1457,11 @@ function ProfileView({ user, refreshUser }) {
 
   const handleAvatarRemove = async () => {
     if (!displayAvatar) return;
-    if (!window.confirm("Remove your profile photo?")) return;
     // Discard an unsaved local preview without hitting the server.
     if (avatarPreview) {
       URL.revokeObjectURL(avatarPreview);
       setAvatarPreview(null);
+      setConfirmAvatarRemove(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
       if (!serverAvatar) return;
     }
@@ -1428,6 +1476,7 @@ function ProfileView({ user, refreshUser }) {
       setMessage({ type: "error", text: "Failed to remove photo." });
     } finally {
       setAvatarSaving(false);
+      setConfirmAvatarRemove(false);
       if (avatarInputRef.current) avatarInputRef.current.value = "";
     }
   };
@@ -1479,7 +1528,7 @@ function ProfileView({ user, refreshUser }) {
             </button>
             {displayAvatar && (
               <button
-                onClick={handleAvatarRemove}
+                onClick={() => setConfirmAvatarRemove(true)}
                 disabled={avatarSaving}
                 className="mt-1 text-[13px] font-semibold text-danger hover:text-red-700 bg-none border-none p-0 cursor-pointer flex items-center gap-1.5 font-outfit disabled:opacity-50"
               >
@@ -1487,6 +1536,15 @@ function ProfileView({ user, refreshUser }) {
                 Remove photo
               </button>
             )}
+            <ConfirmDialog
+              open={confirmAvatarRemove}
+              title="Remove photo?"
+              message="Your profile photo will be removed."
+              confirmLabel="Remove"
+              danger
+              onConfirm={handleAvatarRemove}
+              onClose={() => setConfirmAvatarRemove(false)}
+            />
           </div>
         </div>
       </div>
@@ -2064,8 +2122,24 @@ function saveReadNotifs(set) {
   }
 }
 
-function NotificationsView({ notifications, unreadSet, onOpen, onMarkAllRead }) {
+function NotificationsView({ notifications, unreadSet, onOpen, onMarkAllRead, paused = false, onGoSettings }) {
   const unreadCount = notifications.filter((n) => unreadSet.has(n.key)).length;
+
+  if (paused) {
+    return (
+      <div className="flex flex-col gap-2.5 mb-5">
+        <div className="text-center py-8">
+          <p className="text-text-light text-[14px]">Notifications are paused.</p>
+          <button
+            onClick={onGoSettings}
+            className="mt-3 text-[13px] text-orange-primary font-semibold bg-none border-none cursor-pointer font-outfit hover:text-orange-deep transition-colors"
+          >
+            Turn them back on in Settings
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2.5 mb-5">
@@ -2195,7 +2269,7 @@ function PaymentsView({ orders }) {
                     o.payment_status === "paid" ? "text-success" : "text-amber-600"
                   }`}
                 >
-                  {o.payment_status === "paid" ? "Paid" : "Unpaid"}
+                  {paymentStatusLabel(o.payment_status)}
                 </span>
                 <span className="text-[14px] font-extrabold font-mono text-text-primary w-20 text-right">
                   {formatPrice(o.total)}
@@ -2216,15 +2290,25 @@ function PaymentsView({ orders }) {
 /*  Settings view                                                      */
 /* ------------------------------------------------------------------ */
 
+const SETTINGS_KEY = "swiftbite_settings";
+const SETTINGS_CHANGED_EVENT = "swiftbite-settings-changed";
+
 const SETTINGS_ITEMS = [
-  { key: "orderNotifs", label: "Order notifications", desc: "Push alerts for order updates.", initial: true },
-  { key: "promoEmails", label: "Promo emails", desc: "Get exclusive offers and discounts.", initial: true },
-  { key: "smsUpdates", label: "SMS updates", desc: "Delivery status by SMS.", initial: false },
+  { key: "orderNotifs", label: "In-app notifications", desc: "Order and reservation updates in your Notifications feed.", initial: true },
 ];
+
+function loadOrderNotifsEnabled() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SETTINGS_KEY) || "{}");
+    return parsed.orderNotifs ?? true;
+  } catch {
+    return true;
+  }
+}
 
 function SettingsView() {
   const [toggles, setToggles] = useState(() => {
-    const saved = window.localStorage.getItem("swiftbite_settings");
+    const saved = window.localStorage.getItem(SETTINGS_KEY);
     const parsed = saved ? JSON.parse(saved) : {};
     return SETTINGS_ITEMS.reduce((acc, s) => {
       acc[s.key] = parsed[s.key] ?? s.initial;
@@ -2236,7 +2320,8 @@ function SettingsView() {
   const flip = (key) => setToggles((t) => ({ ...t, [key]: !t[key] }));
 
   const save = () => {
-    window.localStorage.setItem("swiftbite_settings", JSON.stringify(toggles));
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(toggles));
+    window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
     setSavedMsg(true);
     window.setTimeout(() => setSavedMsg(false), 2200);
   };
@@ -2349,6 +2434,7 @@ export default function CustomerDashboard() {
   const [addresses, setAddresses] = useState([]);
   const [reservations, setReservations] = useState([]);
   const [toast, setToast] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -2419,11 +2505,20 @@ export default function CustomerDashboard() {
       return;
     }
     if (cart.restaurantId && cart.restaurantId !== restaurantId) {
-      const ok = window.confirm(
-        `Your cart has items from ${cart.restaurantName || "another restaurant"}. Reorder items from ${restaurantName} and replace the cart?`
-      );
-      if (!ok) return;
+      setConfirmState({
+        title: "Replace cart?",
+        message: `Your cart has items from ${cart.restaurantName || "another restaurant"}. Reorder items from ${restaurantName} and replace the cart?`,
+        confirmLabel: "Replace cart",
+        onConfirm: () => doReorder(order),
+      });
+      return;
     }
+    doReorder(order);
+  };
+
+  const doReorder = async (order) => {
+    const restaurantId = order.restaurant?.id;
+    const restaurantName = order.restaurant?.restaurant_name;
     try {
       for (const item of order.items) {
         addItem(restaurantId, restaurantName, {
@@ -2452,29 +2547,46 @@ export default function CustomerDashboard() {
     }
   };
 
-  const handleSupport = async () => {
-    await new Promise((r) => window.setTimeout(r, 600));
-    showToast("Support request sent — we'll get back to you soon");
+  const handleSupport = async (payload) => {
+    // No support-ticket backend exists yet: don't pretend one was filed.
+    // Point the customer at the Support page with their order + issue noted.
+    showToast(
+      `For order #${payload?.order_id || ""} (${payload?.issue || "help"}), please reach us via the Support page`
+    );
   };
 
   const handleRemoveFavorite = async (restaurantId) => {
-    if (!confirm("Remove from favorites?")) return;
-    try {
-      await customerApi.removeFavorite(restaurantId);
-      loadFavorites();
-    } catch {
-      showToast("Failed to remove", "error");
-    }
+    setConfirmState({
+      title: "Remove favorite?",
+      message: "This restaurant will be removed from your favorites.",
+      confirmLabel: "Remove",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await customerApi.removeFavorite(restaurantId);
+          loadFavorites();
+        } catch {
+          showToast("Failed to remove", "error");
+        }
+      },
+    });
   };
 
   const handleRemoveWishlist = async (menuItemId) => {
-    if (!confirm("Remove from wishlist?")) return;
-    try {
-      await customerApi.removeWishlistItem(menuItemId);
-      loadFavorites();
-    } catch {
-      showToast("Failed to remove", "error");
-    }
+    setConfirmState({
+      title: "Remove saved item?",
+      message: "This item will be removed from your wishlist.",
+      confirmLabel: "Remove",
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await customerApi.removeWishlistItem(menuItemId);
+          loadFavorites();
+        } catch {
+          showToast("Failed to remove", "error");
+        }
+      },
+    });
   };
 
   const handleCancelReservation = async (id) => {
@@ -2501,6 +2613,21 @@ export default function CustomerDashboard() {
   );
   const unreadCount = unreadSet.size;
 
+  // Mirrors Settings → In-app notifications (same-tab event + cross-tab storage).
+  const [notifsEnabled, setNotifsEnabled] = useState(loadOrderNotifsEnabled);
+
+  useEffect(() => {
+    const sync = () => setNotifsEnabled(loadOrderNotifsEnabled());
+    window.addEventListener(SETTINGS_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(SETTINGS_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  const visibleUnreadCount = notifsEnabled ? unreadCount : 0;
+
   const markRead = (key) => {
     setReadSet((prev) => {
       if (prev.has(key)) return prev;
@@ -2526,7 +2653,7 @@ export default function CustomerDashboard() {
       navigate("/restaurants");
       return;
     }
-    if (key === "notifications") markAllRead();
+    if (key === "notifications" && notifsEnabled) markAllRead();
     setActive(key);
   };
 
@@ -2548,7 +2675,7 @@ export default function CustomerDashboard() {
     { key: "profile", label: "Profile", icon: User },
     { key: "password", label: "Change Password", icon: KeyRound },
     { key: "payments", label: "Payments", icon: CreditCard },
-    { key: "notifications", label: "Notifications", icon: Bell, badge: unreadCount > 9 ? "9+" : unreadCount || undefined },
+    { key: "notifications", label: "Notifications", icon: Bell, badge: visibleUnreadCount > 9 ? "9+" : visibleUnreadCount || undefined },
     { key: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -2560,7 +2687,7 @@ export default function CustomerDashboard() {
     profile: { title: "Profile", subtitle: "Manage your account details." },
     password: { title: "Change Password", subtitle: "Keep your account secure." },
     payments: { title: "Payments", subtitle: "Payment methods and history." },
-    notifications: { title: "Notifications", subtitle: "Order updates and offers." },
+    notifications: { title: "Notifications", subtitle: "Order and reservation updates." },
     settings: { title: "Settings", subtitle: "Preferences saved on this device." },
   };
 
@@ -2643,11 +2770,22 @@ export default function CustomerDashboard() {
             unreadSet={unreadSet}
             onOpen={handleOpenNotification}
             onMarkAllRead={markAllRead}
+            paused={!notifsEnabled}
+            onGoSettings={() => setActive("settings")}
           />
         )}
         {active === "settings" && <SettingsView />}
       </DashboardLayout>
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      <ConfirmDialog
+        open={confirmState !== null}
+        title={confirmState?.title || ""}
+        message={confirmState?.message || ""}
+        confirmLabel={confirmState?.confirmLabel || "Confirm"}
+        danger={confirmState?.danger || false}
+        onConfirm={() => { const fn = confirmState?.onConfirm; setConfirmState(null); fn?.(); }}
+        onClose={() => setConfirmState(null)}
+      />
     </>
   );
 }

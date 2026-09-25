@@ -134,6 +134,8 @@ export default function PublicTracking() {
     };
   }, [trackingCode]);
 
+  // Poll timer resets on status change only — depending on full 'order'
+  // would reset the interval on every poll response (setOrder creates a new object).
   useEffect(() => {
     if (!order) return;
 
@@ -157,8 +159,10 @@ export default function PublicTracking() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrow deps intentional (see above)
   }, [order?.status, trackingCode]);
 
+  // Status-only dep: 'order' would restart the 5s ticker on every poll response.
   useEffect(() => {
     if (!order || TERMINAL_STATUSES.includes(order.status)) return;
     if (tickerRef.current) clearInterval(tickerRef.current);
@@ -166,8 +170,11 @@ export default function PublicTracking() {
     return () => {
       if (tickerRef.current) clearInterval(tickerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrow deps intentional (see above)
   }, [order?.status]);
 
+  // Route refetch keys on lat/lng primitives — full 'order.rider_location'
+  // (updated_at changes each poll) or 'route' would spam the route API.
   useEffect(() => {
     if (!order?.tracking_code) return;
 
@@ -196,6 +203,7 @@ export default function PublicTracking() {
         };
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrow deps intentional (see above)
   }, [order?.tracking_code, order?.status, order?.rider_location?.lat, order?.rider_location?.lng]);
 
   const status = order?.status;

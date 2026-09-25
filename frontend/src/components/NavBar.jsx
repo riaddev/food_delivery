@@ -47,6 +47,7 @@ const Header = ({ transparent = false }) => {
 
   const closeMobile = () => setMobileOpen(false);
   const isCustomer = user?.role === "customer";
+  const cartButtonCls = `relative w-[38px] h-[38px] rounded-full flex items-center justify-center transition ${overHero ? "text-white hover:bg-white/10" : "text-zinc-900 hover:bg-zinc-100"}`;
 
   const linkCls = overHero
     ? "text-white/85 hover:text-[#FF6B00]"
@@ -75,7 +76,7 @@ const Header = ({ transparent = false }) => {
         <Utensils size={15} strokeWidth={2} />
         Browse Food
       </Link>
-      <Link to="/customer/dashboard?order=1" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
+      <Link to="/customer/dashboard?tab=orders" onClick={closeMobile} className={`flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition ${linkCls}`}>
         <ClipboardList size={15} strokeWidth={2} />
         My Orders
       </Link>
@@ -126,7 +127,7 @@ const Header = ({ transparent = false }) => {
             <>
               {isCustomer && (
                 <>
-                  <button onClick={() => setCartOpen(true)} aria-label="Open cart" className={`relative w-[38px] h-[38px] rounded-full flex items-center justify-center transition ${overHero ? "text-white hover:bg-white/10" : "text-zinc-900 hover:bg-zinc-100"}`}>
+                  <button onClick={() => setCartOpen(true)} aria-label="Open cart" className={cartButtonCls}>
                     <ShoppingBag size={19} strokeWidth={2} />
                     {itemCount > 0 && (
                       <span className="absolute top-0.5 right-0.5 bg-[#FF6B00] text-white text-xs font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
@@ -152,15 +153,15 @@ const Header = ({ transparent = false }) => {
                           <div className="text-sm font-semibold text-zinc-900 truncate">{user.name}</div>
                           <div className="text-xs text-zinc-500 truncate">{user.email}</div>
                         </div>
-                        <Link to="/customer/dashboard?order=1" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
+                        <Link to="/customer/dashboard" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
                           <User size={16} strokeWidth={2} />
                           My Dashboard
                         </Link>
-                        <Link to="/customer/dashboard?order=1" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
+                        <Link to="/customer/dashboard?tab=orders" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
                           <MapPin size={16} strokeWidth={2} />
                           My Orders
                         </Link>
-                        <Link to="/customer/dashboard?order=1" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
+                        <Link to="/customer/dashboard?tab=favorites" onClick={() => setMenuOpen(false)} className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 transition">
                           <Heart size={16} strokeWidth={2} />
                           Wishlist
                         </Link>
@@ -204,6 +205,14 @@ const Header = ({ transparent = false }) => {
             </>
           ) : (
             <>
+              <button onClick={() => setCartOpen(true)} aria-label="Open cart" className={cartButtonCls}>
+                <ShoppingBag size={19} strokeWidth={2} />
+                {itemCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 bg-[#FF6B00] text-white text-xs font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
               <Link to="/login" className={`hidden sm:flex border-[1.5px] px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-[10px] text-sm font-semibold transition whitespace-nowrap ${overHero ? "border-white/40 text-white hover:border-[#FF6B00] hover:text-[#FF6B00]" : "border-[#E5E5E5] text-zinc-900 hover:border-[#FF6B00] hover:text-[#FF6B00]"}`}>
                 Login
               </Link>

@@ -182,6 +182,12 @@ export default function RiderDashboard() {
     }
   };
 
+  const [earningPeriod, setEarningPeriod] = useState("all");
+  const [earnings, setEarnings] = useState(null);
+  const [earningsLoading, setEarningsLoading] = useState(true);
+  const [earningsError, setEarningsError] = useState(false);
+  const [earningsReloadKey, setEarningsReloadKey] = useState(0);
+
   const runAction = async (orderId, action) => {
     setActionBusyId(orderId);
     try {
@@ -200,7 +206,36 @@ export default function RiderDashboard() {
   const startDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "on_the_way"));
   const markNearCustomer = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "near_customer"));
   const markServed = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "served"));
-  const completeDelivery = (order) => runAction(order.id, () => riderApi.updateOrderStatus(order.id, "delivered"));
+  const completeDelivery = (order) =>
+    runAction(order.id, () => riderApi.updateOrderStatus(order.id, "delivered"))
+      .then(() => setEarningsReloadKey((k) => k + 1));
+
+  const loadEarnings = useCallback((period) => {
+    riderApi.getEarnings({ period, limit: 100 })
+      .then((res) => {
+        setEarnings({ summary: res.data.summary || null, entries: res.data.entries || [] });
+        setEarningsError(false);
+      })
+      .catch(() => setEarningsError(true))
+      .finally(() => setEarningsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadEarnings(earningPeriod);
+  }, [earningPeriod, earningsReloadKey, loadEarnings]);
+
+  const EARNING_PERIODS = [
+    { id: "today", label: "Today" },
+    { id: "week", label: "Week" },
+    { id: "month", label: "Month" },
+    { id: "all", label: "All time" },
+  ];
+
+  const earningWhen = (iso) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  };
 
   const requests = orders.filter(
     (o) => !o.accepted_at && ["assigned"].includes(o.status)
@@ -367,6 +402,8 @@ export default function RiderDashboard() {
 
   // GPS subscription: (re)starts watchPosition when the active delivery enters a
   // transit status, stops otherwise. Synchronous indicator reset is intentional.
+  // Object dep narrowed to id/status primitives — full 'activeOrder' would
+  // churn watchPosition on every poll-driven object change.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     cleanupGps();
@@ -381,6 +418,7 @@ export default function RiderDashboard() {
     return () => {
       cleanupGps();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrow deps intentional (see above)
   }, [activeOrder?.id, activeOrder?.status, requestGps, cleanupGps]);
 
   const profileSection = (collapsed) =>
@@ -558,12 +596,6 @@ export default function RiderDashboard() {
                     </span>
                   )}
                 </div>
-                {GPS_STATUSES.includes(activeOrder.status) && (
-                  <p className="px-5 pb-3 -mt-2 text-[11px] text-text-muted">
-                    Phone testing: open this page via <b>https://&lt;laptop-ip&gt;:5173</b> on the same WiFi
-                    (HTTP LAN blocks GPS). Keep this tab open with location allowed.
-                  </p>
-                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
                   <div className="bg-surface rounded-[13px] p-4 border border-border">
@@ -805,6 +837,98 @@ export default function RiderDashboard() {
                 )}
               </section>
             )}
+
+            <section className="mt-8">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-[15px] font-bold text-text-primary">Earnings History</h2>
+                <div className="flex items-center gap-1 bg-zinc-100 rounded-full p-1">
+                  {EARNING_PERIODS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => { setEarningsLoading(true); setEarningsError(false); setEarningPeriod(p.id); }}
+                      className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer font-outfit ${
+                        earningPeriod === p.id ? "bg-zinc-900 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {earningsLoading ? (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="bg-card rounded-[13px] border border-border p-5 animate-pulse">
+                      <div className="h-3 bg-zinc-100 rounded w-20 mb-2" />
+                      <div className="h-5 bg-zinc-100 rounded w-16" />
+                    </div>
+                  ))}
+                </div>
+              ) : earningsError || !earnings ? (
+                <div className="bg-card rounded-[13px] border border-border px-5 py-10 text-center">
+                  <p className="text-sm font-medium text-text-primary mb-1">Couldn't load earnings</p>
+                  <p className="text-xs text-text-muted mb-4">Check your connection and try again.</p>
+                  <button
+                    onClick={() => { setEarningsLoading(true); setEarningsError(false); setEarningsReloadKey((k) => k + 1); }}
+                    className="text-xs font-bold text-orange-primary hover:underline cursor-pointer font-outfit"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-4">
+                    {EARNING_PERIODS.map((p) => {
+                      const bucket = earnings.summary?.[p.id] || { earnings: 0, deliveries: 0 };
+                      const isActive = earningPeriod === p.id;
+                      return (
+                        <div
+                          key={p.id}
+                          className={`bg-card rounded-[13px] border p-5 transition-colors ${isActive ? "border-orange-primary" : "border-border"}`}
+                        >
+                          <p className="text-[11px] font-bold uppercase tracking-[0.04em] text-text-light">{p.label}</p>
+                          <p className="text-xl font-bold font-mono tracking-tight text-emerald-600 mt-1 leading-tight">
+                            {formatPrice(bucket.earnings)}
+                          </p>
+                          <p className="text-[11px] text-text-muted mt-1">
+                            {bucket.deliveries} {bucket.deliveries === 1 ? "delivery" : "deliveries"}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {(earnings.entries || []).length === 0 ? (
+                    <div className="bg-card rounded-[13px] border border-border px-5 py-12 text-center">
+                      <div className="w-11 h-11 mx-auto rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 mb-3">
+                        <TrendingUp size={19} />
+                      </div>
+                      <p className="text-sm font-medium text-text-primary mb-1">No deliveries in this period yet</p>
+                      <p className="text-xs text-text-muted">Completed deliveries will appear here with their payouts.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-card rounded-[13px] border border-border divide-y divide-zinc-100">
+                      {earnings.entries.map((e) => (
+                        <div key={e.id} className="flex items-center gap-3 px-5 py-3.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold text-text-primary truncate">
+                              {e.restaurant_name || "Restaurant"}
+                            </p>
+                            <p className="text-[11px] text-text-muted font-mono mt-0.5">
+                              #{e.id}{e.tracking_code ? ` · ${e.tracking_code}` : ""}{e.delivered_at ? ` · ${earningWhen(e.delivered_at)}` : ""}
+                            </p>
+                          </div>
+                          <span className="text-sm font-bold font-mono text-emerald-600 shrink-0">
+                            +{formatPrice(e.delivery_fee)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
           </>
         )}
       </div>

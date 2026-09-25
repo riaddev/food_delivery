@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, RotateCcw, Send, Sparkles, X } from "lucide-react";
+import { Bot, RotateCcw, Send, Sparkles, Trash2, X } from "lucide-react";
 import { chatApi } from "../features/api/apiSlice";
 
 const FALLBACK_IMG =
   "https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=200&auto=format&fit=crop";
 
 const HIDDEN_PATHS = [
-  "/customer/dashboard",
   "/restaurant/dashboard",
   "/admin/dashboard",
   "/rider/dashboard",
@@ -21,17 +20,79 @@ const GREETING = {
   text: "Hi! I'm Swift AI — your SwiftBite assistant. Ask me about dishes, restaurants or prices and I'll help you find something tasty!",
 };
 
+const QUICK_PROMPTS = [
+  "Best biryani under ৳300?",
+  "Cheap pizza near me?",
+  "What should I try today?",
+];
+
+const STORAGE_KEY = "swiftai_chat_v1";
 const MAX_HISTORY = 6;
+const REQUEST_TIMEOUT_MS = 45000;
+
+function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [GREETING];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [GREETING];
+    // Keep only valid user/assistant turns, drop old error bubbles.
+    const clean = parsed.filter(
+      (m) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string"
+    );
+    return clean.length > 0 ? clean.slice(-20) : [GREETING];
+  } catch {
+    return [GREETING];
+  }
+}
+
+// Minimal safe formatting: **bold** + bullet lines. No HTML injection.
+function renderInline(text) {
+  const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, i) => {
+    if (p.startsWith("**") && p.endsWith("**") && p.length > 4) {
+      return (
+        <strong key={i} className="font-semibold">
+          {p.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={i}>{p}</span>;
+  });
+}
+
+function renderMessage(text) {
+  const lines = String(text).split("\n");
+  return lines.map((line, i) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+      return (
+        <span key={i} className="block pl-3">
+          • {renderInline(trimmed.slice(2))}
+          {i < lines.length - 1 ? <br /> : null}
+        </span>
+      );
+    }
+    return (
+      <span key={i}>
+        {renderInline(line)}
+        {i < lines.length - 1 ? <br /> : null}
+      </span>
+    );
+  });
+}
 
 export default function ChatWidget() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([GREETING]);
+  const [messages, setMessages] = useState(loadPersisted);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
+  const inputRef = useRef(null);
   const abortRef = useRef(null);
+  const cancelledRef = useRef(false);
   const isHidden = HIDDEN_PATHS.some((p) => pathname.startsWith(p));
 
   useEffect(() => {
@@ -39,6 +100,36 @@ export default function ChatWidget() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, loading, open]);
+
+  // Persist conversation (user + assistant only) so refresh doesn't wipe it.
+  useEffect(() => {
+    try {
+      const toSave = messages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .slice(-20);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch {
+      // storage full / private mode — chat still works, just not persisted
+    }
+  }, [messages]);
+
+  // Autofocus input when opened.
+  useEffect(() => {
+    if (open) {
+      const t = window.setTimeout(() => inputRef.current?.focus(), 120);
+      return () => window.clearTimeout(t);
+    }
+  }, [open]);
+
+  // Esc closes the panel.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open ]);
 
   if (isHidden) return null;
 
@@ -54,10 +145,11 @@ export default function ChatWidget() {
     setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
     setLoading(true);
+    cancelledRef.current = false;
 
     const controller = new AbortController();
     abortRef.current = controller;
-    const timeoutId = window.setTimeout(() => controller.abort(), 35000);
+    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
       const res = await chatApi.send(text, history, controller.signal);
@@ -66,16 +158,24 @@ export default function ChatWidget() {
         { role: "assistant", text: res.data.reply, dishes: res.data.dishes || [] },
       ]);
     } catch (err) {
+      // User pressed ✕ to stop — just stop, don't show a red error bubble.
+      if (cancelledRef.current || controller.signal.aborted) {
+        if (!cancelledRef.current) {
+          setMessages((prev) => [
+            ...prev,
+            { role: "error", text: "Taking too long — the request was stopped.", retryOf: text },
+          ]);
+        }
+        return;
+      }
       const status = err.response?.status;
       const code = err.response?.data?.code;
       const serverReply = err.response?.data?.reply;
       let errorText;
-      if (controller.signal.aborted) {
-        errorText = "Taking too long — the request was stopped.";
-      } else if (status === 429 || code === "upstream_rate_limited") {
+      if (status === 429 || code === "upstream_rate_limited") {
         errorText = "You're chatting fast — wait a few seconds and try again.";
       } else if (status === 504 || code === "upstream_timeout") {
-        errorText = "Swift AI is taking too long to answer.";
+        errorText = "Swift AI is taking too long to answer. Please try a shorter question.";
       } else if (!err.response) {
         errorText = "Can't reach the server. Check your connection and that the backend is running.";
       } else {
@@ -96,7 +196,22 @@ export default function ChatWidget() {
     send(failed.retryOf);
   };
 
-  const cancel = () => abortRef.current?.abort();
+  const cancel = () => {
+    cancelledRef.current = true;
+    abortRef.current?.abort();
+  };
+
+  const clearChat = () => {
+    if (loading) return;
+    setMessages([GREETING]);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
+  const showChips = messages.length <= 1 && !loading;
 
   return (
     <div className="fixed bottom-5 right-5 z-[70] flex flex-col items-end gap-3">
@@ -107,7 +222,7 @@ export default function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.95 }}
             transition={{ duration: 0.2 }}
-            className="flex h-[480px] w-[360px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
+            className="flex h-[480px] max-h-[70dvh] w-[360px] max-w-[calc(100vw-2.5rem)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl"
           >
             <div className="flex items-center justify-between bg-orange-500 px-4 py-3 text-white">
               <div className="flex items-center gap-2">
@@ -119,16 +234,31 @@ export default function ChatWidget() {
                   <p className="text-xs leading-tight text-white/80">Always here to help</p>
                 </div>
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="rounded-full p-1.5 transition hover:bg-white/20"
-                aria-label="Close chat"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={clearChat}
+                  className="rounded-full p-1.5 transition hover:bg-white/20 disabled:opacity-40"
+                  aria-label="Clear chat"
+                  title="Clear chat"
+                  disabled={loading || messages.length <= 1}
+                >
+                  <Trash2 size={16} />
+                </button>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="rounded-full p-1.5 transition hover:bg-white/20"
+                  aria-label="Close chat"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
-            <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-gray-50 px-4 py-4">
+            <div
+              ref={scrollRef}
+              aria-live="polite"
+              className="flex-1 space-y-3 overflow-y-auto bg-gray-50 px-4 py-4"
+            >
               {messages.map((msg, i) => (
                 <div
                   key={i}
@@ -148,7 +278,7 @@ export default function ChatWidget() {
                             : "rounded-bl-md border border-gray-200 bg-white text-gray-800"
                       }`}
                     >
-                      {msg.text}
+                      {renderMessage(msg.text)}
                       {msg.role === "error" && msg.retryOf && (
                         <button
                           onClick={() => retry(i)}
@@ -164,14 +294,23 @@ export default function ChatWidget() {
                         {msg.dishes.map((dish) => (
                           <button
                             key={dish.id}
-                            onClick={() =>
-                              dish.restaurant_id && navigate(`/restaurants/${dish.restaurant_id}`)
-                            }
+                            onClick={() => {
+                              if (!dish.restaurant_id) return;
+                              const qs = dish.id
+                                ? `/restaurants/${dish.restaurant_id}?dish=${dish.id}`
+                                : `/restaurants/${dish.restaurant_id}`;
+                              navigate(qs);
+                            }}
                             className="flex w-full items-center gap-2.5 rounded-xl border border-gray-200 bg-white p-2 text-left transition hover:border-orange-300 hover:shadow-sm"
                           >
                             <img
                               src={dish.image_url || FALLBACK_IMG}
                               alt={dish.name}
+                              loading="lazy"
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = FALLBACK_IMG;
+                              }}
                               className="h-10 w-10 shrink-0 rounded-lg object-cover"
                             />
                             <span className="min-w-0 flex-1">
@@ -192,6 +331,21 @@ export default function ChatWidget() {
                   </div>
                 </div>
               ))}
+
+              {showChips && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {QUICK_PROMPTS.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      onClick={() => send(q)}
+                      className="rounded-full border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition hover:bg-orange-100"
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {loading && (
                 <div className="flex justify-start">
@@ -218,6 +372,7 @@ export default function ChatWidget() {
                 className="flex items-center gap-2"
               >
                 <input
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={loading ? "Waiting for Swift AI... (✕ to stop)" : "Ask about dishes or prices..."}
@@ -244,6 +399,9 @@ export default function ChatWidget() {
                   </button>
                 )}
               </form>
+              <p className="mt-1.5 text-center text-[10px] text-gray-400">
+                Swift AI can make mistakes — please verify prices.
+              </p>
             </div>
           </motion.div>
         )}

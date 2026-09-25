@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, UtensilsCrossed, Image as ImageIcon, Tag, Power, PowerOff } from "lucide-react";
 import api, { restaurantApi } from "../../features/api/apiSlice";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { formatPrice } from "../../utils/foodImages";
 
 const emptyItem = { name: "", description: "", price: "", discount_price: "", category: "", category_id: "", is_available: true, stock_quantity: "", daily_cap: "", max_per_order: "" };
@@ -29,6 +30,9 @@ export default function MenuManagement() {
   const [categoryRequestSaving, setCategoryRequestSaving] = useState(false);
   const [categoryRequestError, setCategoryRequestError] = useState("");
   const [categoryRequestSuccess, setCategoryRequestSuccess] = useState("");
+  const [listError, setListError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const fetchItems = async () => {
     try {
@@ -145,19 +149,30 @@ export default function MenuManagement() {
     } finally { setSaving(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Delete this item?")) return;
-    try { await restaurantApi.deleteMenuItem(id); fetchItems(); } catch { alert("Failed to delete."); }
+  const handleDelete = async () => {
+    if (!deleteTarget || actionBusy) return;
+    setActionBusy(true);
+    setListError("");
+    try {
+      await restaurantApi.deleteMenuItem(deleteTarget.id);
+      setDeleteTarget(null);
+      fetchItems();
+    } catch {
+      setListError(`Failed to delete "${deleteTarget.name || "item"}". Please try again.`);
+    } finally {
+      setActionBusy(false);
+    }
   };
 
   const handleToggleAvailability = async (item) => {
+    setListError("");
     try {
       await restaurantApi.toggleAvailability(item.id, { is_available: !item.is_available });
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, is_available: !i.is_available } : i))
       );
     } catch {
-      alert("Failed to update availability.");
+      setListError(`Failed to update availability for "${item.name || "item"}". Please try again.`);
     }
   };
 
@@ -191,6 +206,18 @@ export default function MenuManagement() {
           <Plus size={16} /> Add Menu Item
         </button>
       </div>
+
+      {listError && <div className="bg-red-50 text-red-600 text-sm px-4 py-3 rounded-2xl mb-6">{listError}</div>}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete menu item?"
+        message={deleteTarget ? `"${deleteTarget.name || "This item"}" will be removed from your menu. This cannot be undone.` : ""}
+        confirmLabel={actionBusy ? "Deleting…" : "Delete"}
+        danger
+        onConfirm={handleDelete}
+        onClose={() => { if (!actionBusy) setDeleteTarget(null); }}
+      />
 
       {showForm && (
         <div className="bg-card rounded-[13px] border border-border p-5 md:p-7 mb-8">
@@ -421,7 +448,7 @@ export default function MenuManagement() {
                         <button onClick={() => openEdit(item)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-text-muted hover:text-text-primary border border-border hover:border-zinc-300 px-4 py-2 rounded-lg transition-colors cursor-pointer">
                           <Pencil size={13} /> Edit
                         </button>
-                        <button onClick={() => handleDelete(item.id)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 hover:border-red-400 px-4 py-2 rounded-lg transition-colors cursor-pointer">
+                        <button onClick={() => { setListError(""); setDeleteTarget(item); }} className="inline-flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 hover:border-red-400 px-4 py-2 rounded-lg transition-colors cursor-pointer">
                           <Trash2 size={13} /> Delete
                         </button>
                       </div>

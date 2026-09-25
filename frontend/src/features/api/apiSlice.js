@@ -51,13 +51,20 @@ export const authApi = {
   verifySetupOtp: (data) => api.post("/owner/verify-otp", data),
   resendSetupOtp: (data) => api.post("/owner/resend-otp", data),
   setSetupPassword: (data) => api.post("/owner/set-password", data),
+  forgotPassword: (data) => api.post("/password/forgot", data),
+  verifyResetOtp: (data) => api.post("/password/verify-otp", data),
+  resetPassword: (data, token) =>
+    api.post("/password/reset", data, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      skipAuthRedirect: true,
+    }),
   login: (data) => api.post("/login", data),
   logout: () => api.post("/logout"),
   user: () => api.get("/user"),
 };
 
 export const publicApi = {
-  getRestaurantReviews: (id) => api.get(`/restaurants/${id}/reviews`),
+  getRestaurantReviews: (id) => api.get(`/restaurants/${id}/reviews`, { skipAuthRedirect: true }),
   getFeaturedReviews: (limit = 10) => api.get("/reviews/featured", { params: { limit }, skipAuthRedirect: true }),
   getMenuItemReviews: (id) => api.get(`/menu-items/${id}/reviews`, { skipAuthRedirect: true }),
 };
@@ -130,7 +137,7 @@ export const restaurantApi = {
   },
   deleteMenuItem: (id) => api.delete(`/restaurant/menu-items/${id}`),
   toggleAvailability: (id, data) => api.patch(`/restaurant/menu-items/${id}/availability`, data),
-  checkAvailability: (data) => api.post("/restaurant/menu-items/check-availability", data),
+  checkAvailability: (data) => api.post("/menu-items/check-availability", data, { skipAuthRedirect: true }),
   getTables: () => api.get("/restaurant/tables"),
   createTable: (data) => api.post("/restaurant/tables", data),
   updateTable: (id, data) => api.put(`/restaurant/tables/${id}`, data),
@@ -139,6 +146,11 @@ export const restaurantApi = {
     api.put(`/restaurant/reservations/${id}/table`, { restaurant_table_id: restaurantTableId }),
   storeCategoryRequest: (data) => api.post("/restaurant/category-requests", data),
   getCategoryRequests: () => api.get("/restaurant/category-requests"),
+  getExpenses: () => api.get("/restaurant/expenses"),
+  getExpenseTotal: () => api.get("/restaurant/expenses/count"),
+  createExpense: (data) => api.post("/restaurant/expenses", data),
+  updateExpense: (id, data) => api.put(`/restaurant/expenses/${id}`, data),
+  deleteExpense: (id) => api.delete(`/restaurant/expenses/${id}`),
 };
 
 export const adminApi = {
@@ -197,6 +209,7 @@ export const riderApi = {
   setAvailability: (isOnline) => api.put("/rider/availability", { is_online: isOnline }),
   updateLocation: (data) => api.post("/rider/location", data),
   getOrders: () => api.get("/rider/orders"),
+  getEarnings: (params) => api.get("/rider/earnings", { params }),
   acceptOrder: (id) => api.post(`/rider/orders/${id}/accept`),
   updateOrderStatus: (id, status) => api.put(`/rider/orders/${id}/status`, { status }),
 };

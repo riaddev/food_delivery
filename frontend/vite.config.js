@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const certPath = path.resolve(__dirname, 'certs');
 const https = fs.existsSync(path.join(certPath, 'key.pem'))

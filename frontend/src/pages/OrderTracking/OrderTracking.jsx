@@ -165,6 +165,8 @@ export default function OrderTracking() {
     };
   }, [id]);
 
+  // Poll timer resets on status change only — depending on full 'order'
+  // would reset the interval on every poll response (setOrder creates a new object).
   useEffect(() => {
     if (!order) return;
 
@@ -189,9 +191,11 @@ export default function OrderTracking() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrow deps intentional (see above)
   }, [order?.status, id]);
 
   // Ticker so "Updated Xs ago" stays fresh between polls. Stops on terminal.
+  // Status-only dep: 'order' would restart the 5s ticker on every poll response.
   useEffect(() => {
     if (!order || TERMINAL_STATUSES.includes(order.status)) return;
     if (tickerRef.current) clearInterval(tickerRef.current);
@@ -199,8 +203,11 @@ export default function OrderTracking() {
     return () => {
       if (tickerRef.current) clearInterval(tickerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrow deps intentional (see above)
   }, [order?.status]);
 
+  // Route refetch keys on lat/lng primitives — full 'order.rider_location'
+  // (updated_at changes each poll) or 'route' would spam the route API.
   useEffect(() => {
     if (!order?.tracking_code) return;
 
@@ -229,6 +236,7 @@ export default function OrderTracking() {
         };
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- narrow deps intentional (see above)
   }, [order?.tracking_code, order?.status, order?.rider_location?.lat, order?.rider_location?.lng]);
 
   const status = order?.status;
@@ -399,7 +407,11 @@ export default function OrderTracking() {
                       : "bg-amber-50 text-amber-600"
                   }`}
                 >
-                  {order.payment_status === "paid" ? "Paid" : isTakeout ? "Pay on pickup" : "Pay on delivery"}
+                  {order.payment_status === "paid"
+                    ? "Paid"
+                    : order.payment_status === "refund_pending"
+                      ? "Refund pending"
+                      : isTakeout ? "Pay on pickup" : "Pay on delivery"}
                 </span>
               </div>
 

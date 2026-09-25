@@ -76,9 +76,12 @@ class CustomerController extends Controller
 
     public function orders(Request $request): JsonResponse
     {
+        $limit = min(max((int) $request->query('limit', 100), 1), 200);
+
         $orders = $request->user()->orders()
             ->with(['restaurant', 'items', 'rider.user'])
             ->orderBy('created_at', 'desc')
+            ->limit($limit)
             ->get();
 
         return response()->json(['orders' => $orders]);
@@ -166,11 +169,11 @@ class CustomerController extends Controller
             'items' => "required|array|min:1|max:{$maxDistinct}",
             'items.*.menu_item_id' => 'required|exists:menu_items,id',
             'items.*.quantity' => "required|integer|min:1|max:{$hardMaxPerItem}",
-            'delivery_address' => 'nullable|string|max:255',
+            'delivery_address' => 'required_unless:order_type,dine_in,takeout|nullable|string|max:255',
             'delivery_instructions' => 'nullable|string|max:255',
             'payment_method' => 'nullable|string|in:cash,bkash,nagad,card',
             'order_type' => 'nullable|string|in:delivery,dine_in,takeout',
-            'table_number' => 'nullable|string|max:50',
+            'table_number' => 'prohibited_unless:order_type,dine_in|nullable|string|max:50',
         ]);
 
         // No duplicate lines for the same menu item (prevents quantity bypass).
@@ -204,39 +207,14 @@ class CustomerController extends Controller
             ], 422);
         }
 
-        try {
-            $built = DB::transaction(function () use ($validated, $restaurant) {
-                return $this->buildOrderLines($restaurant, $validated['items']);
-            });
-        } catch (ValidationException $e) {
-            $messages = collect($e->errors())->flatten()->implode(' ');
-            return response()->json(['message' => $messages ?: 'Order could not be placed.', 'errors' => $e->errors()], 422);
-        }
-
-        [$orderItems, $subtotal, $totalUnits] = $built;
-
         $orderType = $validated['order_type'] ?? 'delivery';
         $deliveryFee = in_array($orderType, ['dine_in', 'takeout']) ? 0 : (float) $restaurant->delivery_fee;
         $paymentMethod = $validated['payment_method'] ?? 'cash';
-        $grandTotal = $subtotal + $deliveryFee;
-        $needsReview = OrderLimits::needsReview($totalUnits, $grandTotal);
+        $deliveryAddress = in_array($orderType, ['dine_in', 'takeout']) ? null : ($validated['delivery_address'] ?? $request->user()->address);
+        $userId = $request->user()->id;
 
-        $order = Order::create([
-            'user_id' => $request->user()->id,
-            'restaurant_id' => $validated['restaurant_id'],
-            'status' => 'pending',
-            'order_type' => $orderType,
-            'total' => $grandTotal,
-            'delivery_fee' => $deliveryFee,
-            'payment_method' => $paymentMethod,
-            'payment_status' => 'pending',
-            'needs_review' => $needsReview,
-            'review_reason' => $needsReview ? OrderLimits::reviewReason($totalUnits, $grandTotal) : null,
-            'delivery_address' => in_array($orderType, ['dine_in', 'takeout']) ? null : ($validated['delivery_address'] ?? $request->user()->address),
-            'delivery_instructions' => $validated['delivery_instructions'] ?? null,
-            'table_number' => $validated['table_number'] ?? null,
-        ]);
-
+        // Geocoding is external I/O: resolve coordinates before opening the
+        // database transaction so row locks are held as briefly as possible.
         $restaurantCoords = Geocoder::geocode($restaurant->address . ', ' . $restaurant->city);
         if ($restaurantCoords && !$restaurant->latitude) {
             $restaurant->update([
@@ -254,24 +232,52 @@ class CustomerController extends Controller
             $orderUpdate['restaurant_lng'] = $restaurant->longitude;
         }
 
-        if ($order->delivery_address) {
-            $customerCoords = Geocoder::geocode($order->delivery_address);
+        if ($deliveryAddress) {
+            $customerCoords = Geocoder::geocode($deliveryAddress);
             if ($customerCoords) {
                 $orderUpdate['customer_lat'] = $customerCoords['lat'];
                 $orderUpdate['customer_lng'] = $customerCoords['lng'];
             }
         }
 
-        if (!empty($orderUpdate)) {
-            $order->update($orderUpdate);
+        try {
+            // Single transaction: stock checks + decrement + order + lines +
+            // audit log all succeed or all roll back (no phantom stock loss).
+            $order = DB::transaction(function () use ($validated, $restaurant, $userId, $orderType, $deliveryFee, $paymentMethod, $deliveryAddress, $orderUpdate) {
+                [$orderItems, $subtotal, $units] = $this->buildOrderLines($restaurant, $validated['items']);
+
+                $grandTotal = $subtotal + $deliveryFee;
+                $needsReview = OrderLimits::needsReview($units, $grandTotal);
+
+                $created = Order::create([
+                    'user_id' => $userId,
+                    'restaurant_id' => $validated['restaurant_id'],
+                    'status' => 'pending',
+                    'order_type' => $orderType,
+                    'total' => $grandTotal,
+                    'delivery_fee' => $deliveryFee,
+                    'payment_method' => $paymentMethod,
+                    'payment_status' => 'pending',
+                    'needs_review' => $needsReview,
+                    'review_reason' => $needsReview ? OrderLimits::reviewReason($units, $grandTotal) : null,
+                    'delivery_address' => $deliveryAddress,
+                    'delivery_instructions' => $validated['delivery_instructions'] ?? null,
+                    'table_number' => $validated['table_number'] ?? null,
+                ] + $orderUpdate);
+
+                $created->items()->createMany($orderItems);
+
+                ActivityLog::create([
+                    'type' => 'order_placed',
+                    'description' => "Order #{$created->id} ({$units} units) was placed at \"{$restaurant->restaurant_name}\".",
+                ]);
+
+                return $created;
+            });
+        } catch (ValidationException $e) {
+            $messages = collect($e->errors())->flatten()->implode(' ');
+            return response()->json(['message' => $messages ?: 'Order could not be placed.', 'errors' => $e->errors()], 422);
         }
-
-        $order->items()->createMany($orderItems);
-
-        ActivityLog::create([
-            'type' => 'order_placed',
-            'description' => "Order #{$order->id} ({$totalUnits} units) was placed at \"{$restaurant->restaurant_name}\".",
-        ]);
 
         $order->load('restaurant', 'items');
 
@@ -391,38 +397,61 @@ class CustomerController extends Controller
             return response()->json(['message' => 'None of the items from the previous order are available.'], 422);
         }
 
+        // Same guardrails as placeOrder: historic orders predate limits, so a
+        // reorder must not bypass distinct / total-unit / bulk rules.
+        if (count($requested) > OrderLimits::maxDistinctItems()) {
+            return response()->json([
+                'message' => 'Reorder has too many distinct items (' . count($requested) . '). Maximum ' . OrderLimits::maxDistinctItems() . ' per order.',
+            ], 422);
+        }
+
+        $reorderUnits = collect($requested)->sum('quantity');
+        if ($reorderUnits > OrderLimits::hardMaxTotalUnits()) {
+            return response()->json([
+                'message' => 'Reorder is too large (' . $reorderUnits . ' units). Maximum ' . OrderLimits::hardMaxTotalUnits() . ' units per order.',
+            ], 422);
+        }
+        if (!$restaurant->allow_bulk_orders && $reorderUnits > OrderLimits::maxTotalUnits()) {
+            return response()->json([
+                'message' => 'Reorder is too large (' . $reorderUnits . ' units). This store allows up to ' . OrderLimits::maxTotalUnits() . ' units per order.',
+            ], 422);
+        }
+
+        $userId = $request->user()->id;
+        $orderType = $previousOrder->order_type ?? 'delivery';
+        $deliveryFee = in_array($orderType, ['dine_in', 'takeout']) ? 0 : (float) $restaurant->delivery_fee;
+
         try {
-            $built = DB::transaction(function () use ($restaurant, $requested) {
-                return $this->buildOrderLines($restaurant, $requested);
+            $order = DB::transaction(function () use ($restaurant, $requested, $previousOrder, $userId, $orderType, $deliveryFee) {
+                [$orderItems, $subtotal, $totalUnits] = $this->buildOrderLines($restaurant, $requested);
+
+                $grandTotal = $subtotal + $deliveryFee;
+                $needsReview = OrderLimits::needsReview($totalUnits, $grandTotal);
+
+                $created = Order::create([
+                    'user_id' => $userId,
+                    'restaurant_id' => $previousOrder->restaurant_id,
+                    'status' => 'pending',
+                    'order_type' => $orderType,
+                    'total' => $grandTotal,
+                    'delivery_fee' => $deliveryFee,
+                    'payment_method' => $previousOrder->payment_method ?? 'cash',
+                    'payment_status' => 'pending',
+                    'needs_review' => $needsReview,
+                    'review_reason' => $needsReview ? OrderLimits::reviewReason($totalUnits, $grandTotal) : null,
+                    'delivery_address' => $previousOrder->delivery_address,
+                    'table_number' => $previousOrder->table_number,
+                ]);
+
+                $created->items()->createMany($orderItems);
+
+                return $created;
             });
         } catch (ValidationException $e) {
             $messages = collect($e->errors())->flatten()->implode(' ');
             return response()->json(['message' => $messages ?: 'Reorder could not be placed.', 'errors' => $e->errors()], 422);
         }
 
-        [$orderItems, $subtotal, $totalUnits] = $built;
-
-        $orderType = $previousOrder->order_type ?? 'delivery';
-        $deliveryFee = in_array($orderType, ['dine_in', 'takeout']) ? 0 : (float) $restaurant->delivery_fee;
-        $grandTotal = $subtotal + $deliveryFee;
-        $needsReview = OrderLimits::needsReview($totalUnits, $grandTotal);
-
-        $order = Order::create([
-            'user_id' => $request->user()->id,
-            'restaurant_id' => $previousOrder->restaurant_id,
-            'status' => 'pending',
-            'order_type' => $orderType,
-            'total' => $grandTotal,
-            'delivery_fee' => $deliveryFee,
-            'payment_method' => $previousOrder->payment_method ?? 'cash',
-            'payment_status' => 'pending',
-            'needs_review' => $needsReview,
-            'review_reason' => $needsReview ? OrderLimits::reviewReason($totalUnits, $grandTotal) : null,
-            'delivery_address' => $previousOrder->delivery_address,
-            'table_number' => $previousOrder->table_number,
-        ]);
-
-        $order->items()->createMany($orderItems);
         $order->load('restaurant', 'items');
 
         return response()->json(['order' => $order], 201);
@@ -589,17 +618,50 @@ class CustomerController extends Controller
             ], 422);
         }
 
-        $order->update(['status' => 'cancelled']);
-
-        if ($order->payment_status === 'pending') {
-            $order->update(['payment_status' => 'cancelled']);
+        // Foodpanda-mapped refund policy: a paid order can only be cancelled
+        // before the restaurant accepts it (pending). After accept, paid
+        // orders must go through support — there is no automatic refund.
+        if ($order->payment_status === 'paid' && $order->status !== 'pending') {
+            return response()->json([
+                'message' => 'This order was already accepted by the restaurant. Paid orders cannot be cancelled automatically — please contact support for a refund.',
+            ], 422);
         }
 
-        OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'status' => 'cancelled',
-            'changed_by' => 'customer',
-        ]);
+        $cancelled = DB::transaction(function () use ($order) {
+            $locked = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            if (!in_array($locked->status, ['pending', 'confirmed'])) {
+                throw ValidationException::withMessages([
+                    'status' => ['This order can no longer be cancelled.'],
+                ]);
+            }
+
+            if ($locked->payment_status === 'paid' && $locked->status !== 'pending') {
+                throw ValidationException::withMessages([
+                    'status' => ['This order was already accepted by the restaurant. Paid orders cannot be cancelled automatically — please contact support for a refund.'],
+                ]);
+            }
+
+            $this->restoreStock($locked);
+
+            $locked->update(['status' => 'cancelled']);
+
+            if ($locked->payment_status === 'pending') {
+                $locked->update(['payment_status' => 'cancelled']);
+            } elseif ($locked->payment_status === 'paid') {
+                // Pending + paid means the vendor never accepted: flag for a
+                // manual refund by support (no automatic gateway refund exists).
+                $locked->update(['payment_status' => 'refund_pending']);
+            }
+
+            OrderStatusHistory::create([
+                'order_id' => $locked->id,
+                'status' => 'cancelled',
+                'changed_by' => 'customer',
+            ]);
+
+            return $locked;
+        });
 
         ActivityLog::create([
             'type' => 'order_cancelled',
@@ -607,9 +669,31 @@ class CustomerController extends Controller
         ]);
 
         return response()->json([
-            'order' => $order->fresh()->load('restaurant', 'items'),
-            'message' => 'Order cancelled successfully.',
+            'order' => $cancelled->fresh()->load('restaurant', 'items'),
+            'message' => $cancelled->payment_status === 'refund_pending'
+                ? 'Order cancelled. Your payment will be refunded by support shortly.'
+                : 'Order cancelled successfully.',
         ]);
+    }
+
+    /**
+     * Return reserved stock when an order is cancelled. Daily caps heal
+     * automatically (they count non-cancelled orders); stock_quantity does
+     * not, so it must be incremented back explicitly.
+     */
+    private function restoreStock(Order $order): void
+    {
+        $order->loadMissing('items');
+
+        foreach ($order->items as $line) {
+            if (!$line->menu_item_id) {
+                continue;
+            }
+            $menuItem = MenuItem::whereKey($line->menu_item_id)->first();
+            if ($menuItem && $menuItem->stock_quantity !== null) {
+                $menuItem->increment('stock_quantity', max(1, (int) $line->quantity));
+            }
+        }
     }
 
     public function storeReview(Request $request): JsonResponse

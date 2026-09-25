@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
+use App\Models\Expense;
 use App\Models\MenuItem;
 use App\Models\Order;
 use App\Models\OrderStatusHistory;
@@ -14,6 +15,7 @@ use App\Models\Rider;
 use App\Support\OrderStatuses;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -97,7 +99,7 @@ class RestaurantController extends Controller
             'stock_quantity' => 'nullable|integer|min:0|max:100000',
             'daily_cap' => 'nullable|integer|min:1|max:100000',
             'max_per_order' => 'nullable|integer|min:1|max:100',
-            'image' => 'nullable',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:4096',
             'image_url' => 'nullable|string|url|max:2048',
         ]);
 
@@ -145,7 +147,7 @@ class RestaurantController extends Controller
             'stock_quantity' => 'nullable|integer|min:0|max:100000',
             'daily_cap' => 'nullable|integer|min:1|max:100000',
             'max_per_order' => 'nullable|integer|min:1|max:100',
-            'image' => 'nullable',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:4096',
             'image_url' => 'nullable|string|url|max:2048',
             'remove_image' => 'boolean',
         ]);
@@ -506,52 +508,87 @@ class RestaurantController extends Controller
 
     public function updateOrderStatus(Request $request, $id): JsonResponse
     {
-        $order = Order::where('restaurant_id', $request->user()->restaurant->id)
-            ->findOrFail($id);
-
         $validated = $request->validate([
             'status' => 'required|string|in:' . implode(',', OrderStatuses::ORDER_STATUSES),
         ]);
 
-        $allowed = OrderStatuses::RESTAURANT_TRANSITIONS[$order->status] ?? null;
+        $order = DB::transaction(function () use ($request, $id, $validated) {
+            $order = Order::where('restaurant_id', $request->user()->restaurant->id)
+                ->lockForUpdate()
+                ->findOrFail($id);
 
-        if ($allowed === null || !in_array($validated['status'], $allowed)) {
-            throw ValidationException::withMessages([
-                'status' => ["Restaurant cannot move from \"{$order->status}\" to \"{$validated['status']}\"."],
+            $allowed = OrderStatuses::RESTAURANT_TRANSITIONS[$order->status] ?? null;
+
+            if ($allowed === null || !in_array($validated['status'], $allowed)) {
+                throw ValidationException::withMessages([
+                    'status' => ["Restaurant cannot move from \"{$order->status}\" to \"{$validated['status']}\"."],
+                ]);
+            }
+
+            if ($order->status === 'ready' && $validated['status'] === 'served' && $order->order_type !== 'dine_in') {
+                throw ValidationException::withMessages([
+                    'status' => ['Only dine-in orders can be marked as served.'],
+                ]);
+            }
+
+            if ($order->status === 'ready' && $validated['status'] === 'delivered' && ($order->order_type ?? 'delivery') !== 'takeout') {
+                throw ValidationException::withMessages([
+                    'status' => ['Only takeout orders can be marked as delivered at pickup.'],
+                ]);
+            }
+
+            $order->update([
+                'status' => $validated['status'],
+                'delivered_at' => $validated['status'] === 'delivered' ? now() : $order->delivered_at,
             ]);
-        }
 
-        if ($order->status === 'ready' && $validated['status'] === 'served' && $order->order_type !== 'dine_in') {
-            throw ValidationException::withMessages([
-                'status' => ['Only dine-in orders can be marked as served.'],
+            if ($validated['status'] === 'cancelled') {
+                $this->restoreStock($order);
+
+                if ($order->payment_status === 'pending') {
+                    $order->update(['payment_status' => 'cancelled']);
+                } elseif ($order->payment_status === 'paid') {
+                    // Vendor-side cancel of a paid order: flag for a manual
+                    // refund by support (no automatic gateway refund exists).
+                    $order->update(['payment_status' => 'refund_pending']);
+                }
+            }
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'status' => $validated['status'],
+                'changed_by' => 'restaurant',
             ]);
-        }
 
-        if ($order->status === 'ready' && $validated['status'] === 'delivered' && ($order->order_type ?? 'delivery') !== 'takeout') {
-            throw ValidationException::withMessages([
-                'status' => ['Only takeout orders can be marked as delivered at pickup.'],
-            ]);
-        }
-
-        $order->update([
-            'status' => $validated['status'],
-            'delivered_at' => $validated['status'] === 'delivered' ? now() : $order->delivered_at,
-        ]);
-
-        if ($validated['status'] === 'cancelled' && $order->payment_status === 'pending') {
-            $order->update(['payment_status' => 'cancelled']);
-        }
-
-        OrderStatusHistory::create([
-            'order_id' => $order->id,
-            'status' => $validated['status'],
-            'changed_by' => 'restaurant',
-        ]);
+            return $order;
+        });
 
         return response()->json([
             'order' => $order->fresh()->load('user', 'items'),
-            'message' => 'Order status updated successfully.',
+            'message' => $order->payment_status === 'refund_pending' && $order->status === 'cancelled'
+                ? 'Order cancelled. The customer payment was flagged for manual refund.'
+                : 'Order status updated successfully.',
         ]);
+    }
+
+    /**
+     * Return reserved stock when an order is cancelled. Daily caps heal
+     * automatically (they count non-cancelled orders); stock_quantity does
+     * not, so it must be incremented back explicitly.
+     */
+    private function restoreStock(Order $order): void
+    {
+        $order->loadMissing('items');
+
+        foreach ($order->items as $line) {
+            if (!$line->menu_item_id) {
+                continue;
+            }
+            $menuItem = MenuItem::whereKey($line->menu_item_id)->first();
+            if ($menuItem && $menuItem->stock_quantity !== null) {
+                $menuItem->increment('stock_quantity', max(1, (int) $line->quantity));
+            }
+        }
     }
 
     public function publicList(): JsonResponse
@@ -871,5 +908,95 @@ class RestaurantController extends Controller
             ->get();
 
         return response()->json(['requests' => $requests]);
+    }
+        public function storeExpense(Request $request): JsonResponse
+    {
+        $restaurant = $request->user()->restaurant;
+
+        if (!$restaurant) {
+            return response()->json(['message' => 'Restaurant profile not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0',
+            'title' => 'required|string|max:255',
+            'note' => 'nullable|string|max:1000',
+        ]);
+
+        $validated['restaurant_id'] = $restaurant->id;
+
+        $expense = Expense::create($validated);
+
+        ActivityLog::create([
+            'type' => 'expense_created',
+            'description' => "Restaurant created an expense '{$expense->title}' of {$expense->amount}.",
+        ]);
+
+        return response()->json([
+            'expense' => $expense,
+            'message' => 'Expense recorded successfully.',
+        ]);
+    }
+
+    public function expenses(Request $request): JsonResponse
+    {
+        $expenses = Expense::where('restaurant_id', $request->user()->restaurant->id)
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'expenses' => $expenses,
+        ]);
+    }
+
+    public function updateExpense(Request $request, $id): JsonResponse
+    {
+        $expense = Expense::where('restaurant_id', $request->user()->restaurant->id)->findOrFail($id);
+        $expense->update($request->validate([
+            'amount' => 'sometimes|numeric|min:0',
+            'title' => 'sometimes|string|max:255',
+            'note' => 'nullable|string|max:1000',
+        ]));
+
+        ActivityLog::create([
+            'type' => 'expense_updated',
+            'description' => "Restaurant updated expense #{$id}.",
+        ]);
+
+        return response()->json([
+            'expense' => $expense->fresh(),
+            'message' => 'Expense updated successfully.',
+        ]);
+    }
+    public function deleteExpense(Request $request, $id): JsonResponse
+    {
+        $expense = Expense::where('restaurant_id', $request->user()->restaurant->id)->findOrFail($id);
+        $expense->delete();
+
+        ActivityLog::create([
+            'type' => 'expense_deleted',
+            'description' => "Restaurant deleted expense #{$id}.",
+        ]);
+
+        return response()->json([
+            'message' => 'Expense deleted successfully.',
+        ]);
+    }
+    public function countExpenses(Request $request): JsonResponse
+    {
+        $restaurantId = $request->user()->restaurant->id;
+        $totalExpenses = Expense::where('restaurant_id', $restaurantId)->sum('amount');
+        $count = Expense::where('restaurant_id', $restaurantId)->count();
+
+        return response()->json([
+            'total_expenses' => (float) $totalExpenses,
+            'count' => $count,
+        ]);
+    }
+
+    // Alias kept for the existing route name.
+    public function countExpense(Request $request): JsonResponse
+    {
+        return $this->countExpenses($request);
     }
 }

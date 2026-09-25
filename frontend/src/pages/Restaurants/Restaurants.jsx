@@ -11,6 +11,7 @@ import FoodCard from "../../components/FoodCard";
 import RestaurantCard from "../../components/RestaurantCard";
 import ReservationModal from "../../components/ReservationModal";
 import CartDrawer from "../../components/CartDrawer";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import BackToHome from "../../components/BackToHome";
 import StorefrontNavbar from "../../components/StorefrontNavbar";
 import { formatPrice } from "../../utils/foodImages";
@@ -97,34 +98,6 @@ const matchesFilters = (d, price, rating, time) => {
   return true;
 };
 
-const MOCK_RESTAURANTS = [
-  { id: 901, restaurant_name: "Ember Burger Co.", cuisine_type: "Burgers • American", city: "Dhaka", accepts_dine_in: true, menu_items: [
-    { id: 9101, name: "Classic Cheeseburger", price: 450, category: "Burgers", image_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=400&auto=format&fit=crop" },
-    { id: 9102, name: "Double Smokehouse Burger", price: 620, category: "Burgers", image_url: "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=400&auto=format&fit=crop" },
-    { id: 9103, name: "Loaded Cheese Fries", price: 190, category: "Burgers", image_url: "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?q=80&w=400&auto=format&fit=crop" },
-  ] },
-  { id: 902, restaurant_name: "Pizzeria Roma", cuisine_type: "Pizza • Italian", city: "Dhaka", accepts_dine_in: true, menu_items: [
-    { id: 9201, name: "Pepperoni Pizza", price: 550, category: "Pizza", image_url: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=400&auto=format&fit=crop" },
-    { id: 9202, name: "Margherita Pizza", price: 450, category: "Pizza", image_url: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?q=80&w=400&auto=format&fit=crop" },
-  ] },
-  { id: 903, restaurant_name: "Haji Biryani House", cuisine_type: "Bangladeshi", city: "Dhaka", accepts_dine_in: false, menu_items: [
-    { id: 9301, name: "Mutton Kacchi", price: 350, category: "Biryani", image_url: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=400&auto=format&fit=crop" },
-    { id: 9302, name: "Morog Polao", price: 280, category: "Biryani", image_url: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?q=80&w=400&auto=format&fit=crop" },
-  ] },
-  { id: 904, restaurant_name: "Star Kabab", cuisine_type: "Kabab • Grill", city: "Dhaka", accepts_dine_in: true, menu_items: [
-    { id: 9401, name: "Beef Seekh Kabab", price: 180, category: "Kabab", image_url: "https://images.unsplash.com/photo-1599487488170-d11ec9c172f0?q=80&w=400&auto=format&fit=crop" },
-    { id: 9402, name: "Chicken Tikka", price: 200, category: "Kabab", image_url: "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?q=80&w=400&auto=format&fit=crop" },
-  ] },
-  { id: 905, restaurant_name: "Sweet Corner Bakery", cuisine_type: "Desserts • Bakery", city: "Dhaka", accepts_dine_in: true, menu_items: [
-    { id: 9501, name: "Chocolate Brownie", price: 280, category: "Desserts", image_url: "https://images.unsplash.com/photo-1606313564200-e75d5e30476c?q=80&w=400&auto=format&fit=crop" },
-    { id: 9502, name: "Vanilla Ice Cream", price: 180, category: "Desserts", image_url: "https://images.unsplash.com/photo-1497034825429-c343d7c6a68f?q=80&w=400&auto=format&fit=crop" },
-  ] },
-  { id: 906, restaurant_name: "Wok & Roll Express", cuisine_type: "Chinese • Fast Food", city: "Dhaka", accepts_dine_in: true, menu_items: [
-    { id: 9601, name: "Crispy Fried Chicken", price: 320, category: "Fast Food", image_url: "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=400&auto=format&fit=crop" },
-    { id: 9602, name: "Spicy Chicken Wings", price: 290, category: "Fast Food", image_url: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=400&auto=format&fit=crop" },
-  ] },
-];
-
 const hash = (n) => {
   const x = ((n * 9301) + 49297 * 2) % 233280;
   return x;
@@ -179,6 +152,8 @@ export default function Restaurants() {
   const [timeFilter, setTimeFilter] = useState("any");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [replaceTarget, setReplaceTarget] = useState(null);
   const [saved, setSaved] = useState(() => new Set());
   const [reserveRestaurant, setReserveRestaurant] = useState(null);
   const [toast, setToast] = useState(null);
@@ -196,17 +171,19 @@ export default function Restaurants() {
   }, []);
 
   useEffect(() => {
-    api.get("/restaurants")
+    let active = true;
+    api.get("/restaurants", { skipAuthRedirect: true })
       .then((res) => {
-        const list = res.data.restaurants || [];
-        if (list.length === 0) setFailed(true);
-        setRestaurants(list);
+        if (!active) return;
+        setRestaurants(res.data.restaurants || []);
+        setFailed(false);
       })
-      .catch(() => setFailed(true))
-      .finally(() => setIsLoading(false));
-  }, []);
+      .catch(() => { if (active) setFailed(true); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [reloadKey]);
 
-  const source = failed || restaurants.length === 0 ? MOCK_RESTAURANTS : restaurants;
+  const source = restaurants;
 
   const restaurantsRich = useMemo(() => source.map((r, i) => enrich(r, i)), [source]);
 
@@ -352,11 +329,13 @@ export default function Restaurants() {
 
   const handleAdd = (dish) => {
     if (cart.restaurantId && cart.restaurantId !== dish.restaurant_id) {
-      const ok = window.confirm(
-        `Your cart has items from ${cart.restaurantName || "another restaurant"}. Add items from ${dish.restaurant_name} and replace the cart?`
-      );
-      if (!ok) return;
+      setReplaceTarget(dish);
+      return;
     }
+    doAdd(dish);
+  };
+
+  const doAdd = (dish) => {
     addItem(dish.restaurant_id, dish.restaurant_name, dish, mode);
     showToast(`Added ${dish.name} to cart`);
   };
@@ -463,11 +442,17 @@ export default function Restaurants() {
       </header>
 
       <main className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-6 pb-24">
-        {failed && (
-          <div className="mb-5">
-            <p className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-lg">
-              <WifiOff size={13} /> Backend offline — showing demo data. Start it with <code className="font-mono bg-amber-100 px-1.5 py-0.5 rounded">php artisan serve</code>
+        {failed && !isLoading && (
+          <div className="mb-5 flex flex-wrap items-center gap-3">
+            <p className="inline-flex items-center gap-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 px-3.5 py-2 rounded-lg">
+              <WifiOff size={13} /> Couldn't load restaurants. Check your connection and try again.
             </p>
+            <button
+              onClick={() => { setIsLoading(true); setFailed(false); setReloadKey((k) => k + 1); }}
+              className="text-xs font-bold text-[#F97316] hover:underline cursor-pointer"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -659,6 +644,15 @@ export default function Restaurants() {
       />
 
       <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} mode={mode} />
+
+      <ConfirmDialog
+        open={replaceTarget !== null}
+        title="Replace cart?"
+        message={replaceTarget ? `Your cart has items from ${cart.restaurantName || "another restaurant"}. Add items from ${replaceTarget.restaurant_name} and replace the cart?` : ""}
+        confirmLabel="Replace cart"
+        onConfirm={() => { if (replaceTarget) doAdd(replaceTarget); setReplaceTarget(null); }}
+        onClose={() => setReplaceTarget(null)}
+      />
 
       {toast && (
         <div className="fixed top-5 right-5 z-[2000] animate-fade-in-up">

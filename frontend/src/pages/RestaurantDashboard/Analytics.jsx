@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { TrendingUp, ShoppingBag, Receipt, Clock3 } from "lucide-react";
+import { TrendingUp, ShoppingBag, Receipt, Clock3, Wallet, PiggyBank } from "lucide-react";
 import { restaurantApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
@@ -22,13 +22,19 @@ const hourLabel = (h) => `${h % 12 === 0 ? 12 : h % 12}${h < 12 ? "am" : "pm"}`;
 
 export function Analytics() {
   const [orders, setOrders] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("today");
 
   useEffect(() => {
-    restaurantApi.getOrders()
-      .then((r) => setOrders(r.data.orders || []))
-      .catch(() => {})
+    Promise.all([
+      restaurantApi.getOrders().catch(() => ({ data: { orders: [] } })),
+      restaurantApi.getExpenses().catch(() => ({ data: { expenses: [] } })),
+    ])
+      .then(([oRes, eRes]) => {
+        setOrders(oRes.data.orders || []);
+        setExpenses(eRes.data.expenses || []);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -44,9 +50,29 @@ export function Analytics() {
   const revenue = completedOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
   const avgValue = completedOrders.length > 0 ? revenue / completedOrders.length : 0;
 
+  const periodStart = useMemo(() => {
+    const days = PERIODS.find((p) => p.key === period)?.days ?? 1;
+    return period === "today"
+      ? startOfDay(new Date())
+      : new Date(startOfDay(new Date()).getTime() - (days - 1) * 86400000);
+  }, [period]);
+
+  const periodExpenses = useMemo(
+    () =>
+      expenses.reduce((s, e) => {
+        if (!e.created_at || new Date(e.created_at) < periodStart) return s;
+        return s + (Number(e.amount) || 0);
+      }, 0),
+    [expenses, periodStart]
+  );
+  const netProfit = revenue - periodExpenses;
+  const profitMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+
   const stats = [
     { title: "Orders", value: String(windowed.length), icon: ShoppingBag, tint: "bg-orange-soft text-orange-deep" },
     { title: "Revenue", value: formatPrice(revenue), icon: TrendingUp, tint: "bg-emerald-50 text-emerald-600" },
+    { title: "Expenses", value: formatPrice(periodExpenses), icon: Wallet, tint: "bg-red-50 text-red-500" },
+    { title: "Net Profit", value: formatPrice(netProfit), icon: PiggyBank, tint: netProfit < 0 ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600" },
     { title: "Avg Order Value", value: formatPrice(avgValue), icon: Receipt, tint: "bg-sky-50 text-sky-600" },
     { title: "Pending Orders", value: String(windowed.filter((o) => o.status === "pending").length), icon: Clock3, tint: "bg-amber-50 text-amber-600" },
   ];
@@ -68,8 +94,8 @@ export function Analytics() {
   if (loading) {
     return (
       <div className="max-w-5xl">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-8">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} className="bg-card rounded-[13px] border border-border p-5 animate-pulse">
               <div className="h-10 w-10 rounded-full bg-zinc-100 mb-3" />
               <div className="h-3 bg-zinc-100 rounded w-20 mb-2" />
@@ -105,7 +131,7 @@ export function Analytics() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-8">
         {stats.map((s) => {
           const Icon = s.icon;
           return (
@@ -122,6 +148,35 @@ export function Analytics() {
             </div>
           );
         })}
+      </div>
+
+      <div className="bg-card rounded-[13px] border border-border p-7 mb-3.5">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-[15px] font-bold text-text-primary">Revenue vs Expenses</h2>
+          <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${netProfit < 0 ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-600"}`}>
+            {profitMargin.toFixed(1)}% margin
+          </span>
+        </div>
+        <p className="text-[13px] text-text-muted mb-5">
+          {formatPrice(revenue)} revenue − {formatPrice(periodExpenses)} expenses = {formatPrice(netProfit)} net
+        </p>
+        <div className="space-y-4">
+          {[
+            { label: "Revenue", value: revenue, max: Math.max(1, revenue, periodExpenses), cls: "bg-gradient-to-r from-emerald-500 to-emerald-400" },
+            { label: "Expenses", value: periodExpenses, max: Math.max(1, revenue, periodExpenses), cls: "bg-gradient-to-r from-red-500 to-orange-400" },
+          ].map((row) => (
+            <div key={row.label} className="flex items-center gap-4">
+              <span className="w-20 text-xs font-bold text-text-muted">{row.label}</span>
+              <div className="flex-1 h-3 bg-zinc-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${row.cls}`}
+                  style={{ width: `${Math.round((row.value / row.max) * 100)}%` }}
+                />
+              </div>
+              <span className="w-24 text-right text-xs font-bold font-mono text-text-primary">{formatPrice(row.value)}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       {orders.length === 0 ? (

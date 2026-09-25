@@ -13,9 +13,12 @@ export default function PaymentSuccess() {
   const [qrHidden, setQrHidden] = useState(false);
 
   useEffect(() => {
+    // Only clear after a real gateway redirect (always carries order_id).
+    // A direct visit without order_id must not wipe the cart.
+    if (!orderId) return;
     clearCart();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [orderId]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -34,7 +37,7 @@ export default function PaymentSuccess() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center gap-5 p-6 py-10">
-      <div className="bg-white rounded-3xl p-10 max-w-md w-full text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)]">
+      <div className="bg-white rounded-3xl p-10 max-w-md w-full text-center shadow-[0_10px_40px_-15px_rgba(0,0,0,0.1)] print:hidden">
         <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-6">
           <CheckCircle2 size={44} className="text-emerald-500" />
         </div>
@@ -94,7 +97,7 @@ export default function PaymentSuccess() {
             <span className="font-extrabold text-zinc-900">{formatPrice(Number(order.total || 0))}</span>
           </div>
           {qrSrc && !qrHidden && (
-            <div className="mt-5 flex flex-col items-center gap-2">
+            <div className="mt-5 flex flex-col items-center gap-2 print:hidden">
               <img
                 src={qrSrc}
                 alt="Tracking QR code"
@@ -107,9 +110,21 @@ export default function PaymentSuccess() {
               <p className="text-xs text-zinc-400">Scan to open live tracking</p>
             </div>
           )}
+          {qrSrc && qrHidden && (
+            <div className="mt-5 flex flex-col items-center gap-2">
+              <a
+                href={trackUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-[#F97316] hover:underline break-all"
+              >
+                Open live tracking
+              </a>
+            </div>
+          )}
           <button
             onClick={() => window.print()}
-            className="mt-5 w-full inline-flex items-center justify-center gap-2 border-2 border-zinc-200 hover:border-zinc-900 text-zinc-700 font-semibold py-3 rounded-2xl transition-colors cursor-pointer"
+            className="mt-5 w-full inline-flex items-center justify-center gap-2 border-2 border-zinc-200 hover:border-zinc-900 text-zinc-700 font-semibold py-3 rounded-2xl transition-colors cursor-pointer print:hidden"
           >
             <Printer size={16} /> Print Receipt
           </button>

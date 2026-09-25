@@ -28,8 +28,14 @@ const LoginPage = () => {
     setSubmitting(true);
     try {
       const data = await login(form.email, form.password);
-      const from = data.user.role === "customer" ? location.state?.from : null;
-      navigate(from || roleRedirect(data.user.role));
+      // Return staff to role-appropriate deep links (e.g. rider visiting
+      // /rider/dashboard while logged out); customers keep any `from`.
+      const from = location.state?.from;
+      const roleBase = { rider: "/rider", restaurant: "/restaurant", admin: "/admin" }[data.user.role];
+      const safeFrom = data.user.role === "customer"
+        ? from
+        : from && roleBase && from.startsWith(roleBase) ? from : null;
+      navigate(safeFrom || roleRedirect(data.user.role), { replace: true });
     } catch (err) {
       setError(
         err.response?.data?.errors?.email?.[0] ||
@@ -61,6 +67,11 @@ const LoginPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-[20px] p-5 sm:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.06)]">
+          {location.state?.from === "/checkout" && (
+            <div className="bg-orange-50 border border-orange-200 text-orange-800 text-sm px-3.5 py-2.5 rounded-[10px] mb-4">
+              Sign in to complete your order — your cart is saved.
+            </div>
+          )}
           {error && (
             <div className="bg-red-50 text-red-600 text-sm px-3.5 py-2.5 rounded-[10px] mb-4">{error}</div>
           )}
@@ -73,7 +84,12 @@ const LoginPage = () => {
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-sm font-semibold text-gray-700">Password</label>
+              <Link to="/forgot-password" className="text-xs font-semibold text-[#ff6b35] no-underline hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-[10px] text-sm outline-none focus:ring-2 focus:ring-orange-400 box-border"
               placeholder="Enter your password" />
@@ -86,7 +102,7 @@ const LoginPage = () => {
 
           <p className="text-center mt-[18px] text-sm text-gray-500">
             Don't have an account?{" "}
-            <Link to="/register" className="text-[#ff6b35] font-semibold no-underline">Create one</Link>
+            <Link to="/register" state={location.state?.from ? { from: location.state.from } : undefined} className="text-[#ff6b35] font-semibold no-underline">Create one</Link>
           </p>
 
           <div className="border-t border-gray-200 mt-5 pt-5 text-center">

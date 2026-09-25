@@ -27,12 +27,19 @@ class User extends Authenticatable
         'avatar',
         'setup_otp',
         'setup_otp_expires_at',
+        'reset_otp',
+        'reset_otp_expires_at',
+        'reset_otp_attempts',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
         'setup_otp',
+        'setup_otp_expires_at',
+        'reset_otp',
+        'reset_otp_expires_at',
+        'reset_otp_attempts',
     ];
 
     protected $appends = ['avatar_url'];
@@ -43,6 +50,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'setup_otp_expires_at' => 'datetime',
+            'reset_otp_expires_at' => 'datetime',
         ];
     }
 

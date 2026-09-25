@@ -12,19 +12,6 @@ const tabs = [
   { id: "international", label: "International", icon: "🍕" },
 ];
 
-const MOCK_RESTAURANTS = [
-  { id: "sultans-dine", restaurant_name: "Sultan's Dine", cuisine_type: "Kacchi · Biryani", image: "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 701, name: "Mutton Kacchi", price: 350 }, { id: 702, name: "Morog Polao", price: 280 }, { id: 703, name: "Chicken Roast", price: 220 }] },
-  { id: "haji-biryani", restaurant_name: "Haji Biryani", cuisine_type: "Biryani · Mughlai", image: "https://images.unsplash.com/photo-1589302168068-964664d93dc0?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 711, name: "Mutton Biryani", price: 320 }, { id: 712, name: "Chicken Biryani", price: 250 }, { id: 713, name: "Borhani", price: 50 }] },
-  { id: "nannas-biryani", restaurant_name: "Nanna's Biryani", cuisine_type: "Biryani · Pulao", image: "https://images.unsplash.com/photo-1599043513900-ed6fe01d3833?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 721, name: "Nanna Biryani", price: 300 }, { id: 722, name: "Morog Pulao", price: 260 }, { id: 723, name: "Chicken Roast", price: 200 }] },
-  { id: "kacchi-bhai", restaurant_name: "Kacchi Bhai", cuisine_type: "Kacchi · Tehari", image: "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 731, name: "Kacchi Biryani", price: 290 }, { id: 732, name: "Chicken Polao", price: 230 }, { id: 733, name: "Beef Tehari", price: 260 }] },
-  { id: "chillox", restaurant_name: "Chillox", cuisine_type: "Burgers · Fast Food", image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 741, name: "Beef Burger", price: 350 }, { id: 742, name: "Chicken Burger", price: 280 }, { id: 743, name: "Peri Peri Fries", price: 180 }] },
-  { id: "takeout", restaurant_name: "Takeout", cuisine_type: "Fast Food · Wraps", image: "https://images.unsplash.com/photo-1550547660-d9450f859349?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 751, name: "Zinger Burger", price: 250 }, { id: 752, name: "Beef Burger", price: 320 }, { id: 753, name: "French Fries", price: 120 }] },
-  { id: "star-kabab", restaurant_name: "Star Kabab", cuisine_type: "Kabab · Biryani", image: "https://images.unsplash.com/photo-1603360946369-dc9bb6258143?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 761, name: "Beef Seekh Kabab", price: 180 }, { id: 762, name: "Chicken Tikka", price: 200 }, { id: 763, name: "Kacchi Biryani", price: 280 }] },
-  { id: "pizza-roma", restaurant_name: "Pizza Roma", cuisine_type: "Pizza · Italian", image: "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 771, name: "Pepperoni Pizza", price: 550 }, { id: 772, name: "Margherita Pizza", price: 450 }, { id: 773, name: "Pasta Alfredo", price: 350 }] },
-  { id: "barcode", restaurant_name: "Barcode", cuisine_type: "Fusion · Continental", image: "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 781, name: "Beef Tehari", price: 320 }, { id: 782, name: "Chicken Steak", price: 490 }, { id: 783, name: "Turkish Grilled Chicken", price: 560 }] },
-  { id: "pizzaburg", restaurant_name: "PizzaBurg", cuisine_type: "Pizza · Burger", image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=800&auto=format&fit=crop", menu_items: [{ id: 791, name: "BBQ Meat Machine Pizza", price: 605 }, { id: 792, name: "Juicy Bomb Chicken Burger", price: 175 }, { id: 793, name: "Beef Cheese Volcano", price: 305 }] },
-];
-
 const hash = (n) => ((n * 9301) + 49297 * 2) % 233280;
 
 const ICON_BY_CUISINE = [
@@ -140,18 +127,21 @@ const TrendingDishes = () => {
   const [restaurants, setRestaurants] = useState([]);
   const [failed, setFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
   const sectionRef = useRef(null);
 
   useEffect(() => {
-    api.get("/restaurants")
+    let active = true;
+    api.get("/restaurants", { skipAuthRedirect: true })
       .then((res) => {
-        const list = res.data.restaurants || [];
-        if (list.length === 0) setFailed(true);
-        setRestaurants(list);
+        if (!active) return;
+        setRestaurants(res.data.restaurants || []);
+        setFailed(false);
       })
-      .catch(() => setFailed(true))
-      .finally(() => setIsLoading(false));
-  }, []);
+      .catch(() => { if (active) setFailed(true); })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, [reloadKey]);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -164,8 +154,7 @@ const TrendingDishes = () => {
     return () => observer.disconnect();
   }, []);
 
-  const source = failed || restaurants.length === 0 ? MOCK_RESTAURANTS : restaurants;
-  const isMock = source === MOCK_RESTAURANTS;
+  const source = restaurants;
 
   const enriched = source.map((r, i) => enrich(r, i));
   const filtered = enriched.filter((r) => matchesTab(r, activeTab));
@@ -215,11 +204,22 @@ const TrendingDishes = () => {
                   </div>
                 ))}
               </div>
+            ) : failed ? (
+              <div className="text-center py-14">
+                <p className="text-sm font-semibold text-zinc-900 mb-1">Couldn't load trending restaurants</p>
+                <p className="text-sm text-gray-400 mb-4">Check your connection and try again.</p>
+                <button
+                  onClick={() => { setIsLoading(true); setFailed(false); setReloadKey((k) => k + 1); }}
+                  className="text-sm font-bold text-[#ff6a2b] hover:underline cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
             ) : filtered.length === 0 ? (
               <div className="text-center py-14 text-gray-400 text-sm">No restaurants found in this category yet.</div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {filtered.map((r) => <RestaurantCard key={r.id} restaurant={r} onAdd={handleAdd} canOrder={canOrder && !isMock} linkable={!isMock} />)}
+                {filtered.map((r) => <RestaurantCard key={r.id} restaurant={r} onAdd={handleAdd} canOrder={canOrder} linkable />)}
               </div>
             )}
           </div>
