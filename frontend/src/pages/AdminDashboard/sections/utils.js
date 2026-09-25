@@ -44,6 +44,7 @@ export const ORDER_STATUS_LABELS = {
   delivered: "Delivered",
   served: "Served",
   cancelled: "Cancelled",
+  failed_delivery: "Delivery failed",
 };
 
 export const orderStatusLabel = (status) => ORDER_STATUS_LABELS[status] || capitalize(status);
@@ -58,6 +59,7 @@ export const ORDER_STATUS_COLOR = {
   delivered: "#16A34A",
   served: "#16A34A",
   cancelled: "#71717A",
+  failed_delivery: "#DC2626",
 };
 
 export const ORDER_STATUS_TONE = {
@@ -70,6 +72,7 @@ export const ORDER_STATUS_TONE = {
   delivered: "green",
   served: "green",
   cancelled: "zinc",
+  failed_delivery: "red",
 };
 
 export const ORDER_TRANSITIONS = {
@@ -82,6 +85,7 @@ export const ORDER_TRANSITIONS = {
   delivered: [],
   served: [],
   cancelled: [],
+  failed_delivery: [],
 };
 
 export const nextOrderStatuses = (status) => ORDER_TRANSITIONS[status] || [];

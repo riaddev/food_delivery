@@ -18,6 +18,7 @@ use App\Support\OrderStatuses;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
@@ -98,7 +99,7 @@ class AdminController extends Controller
         $totalRestaurants = Restaurant::count();
         $pendingRestaurants = Restaurant::where('status', 'pending')->count();
         $totalOrders = Order::count();
-        $totalRevenue = Order::whereIn('status', OrderStatuses::COMPLETED_STATUSES)->sum('total');
+        $totalRevenue = Order::whereIn('status', OrderStatuses::COMPLETED_STATUSES)->where('payment_status', '!=', 'refunded')->sum('total');
         $recentOrders = Order::with('user', 'restaurant')->latest()->take(5)->get();
         $recentUsers = User::latest()->take(5)->get();
 
@@ -424,6 +425,40 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Close the manual refund loop: only orders flagged refund_pending
+     * (by cancel/complaint/failed-delivery flows) can be marked refunded,
+     * after the money actually moves in the gateway dashboard.
+     */
+    public function markRefunded($id): JsonResponse
+    {
+        $order = DB::transaction(function () use ($id) {
+            $locked = Order::whereKey($id)->lockForUpdate()->firstOrFail();
+
+            if (($locked->payment_status ?? null) !== 'refund_pending') {
+                throw ValidationException::withMessages([
+                    'payment_status' => ['Only orders flagged for refund can be marked as refunded.'],
+                ]);
+            }
+
+            $locked->update(['payment_status' => 'refunded']);
+
+            ActivityLog::create([
+                'type' => 'refund_completed',
+                'description' => "Order #{$locked->id} refund marked as completed.",
+            ]);
+
+            $this->notify('refund_completed', 'Refund completed', "Order #{$locked->id} refund marked as completed.", 'orders', $locked->id);
+
+            return $locked->fresh();
+        });
+
+        return response()->json([
+            'order' => $order,
+            'message' => 'Refund marked as completed.',
+        ]);
+    }
+
     public function updateOrderStatus(Request $request, $id): JsonResponse
     {
         // Admins are read-only for order lifecycle status.
@@ -437,10 +472,12 @@ class AdminController extends Controller
     {
         $todayRevenue = Order::whereDate('created_at', today())
             ->whereIn('status', OrderStatuses::COMPLETED_STATUSES)
+            ->where('payment_status', '!=', 'refunded')
             ->sum('total');
 
         $yesterdayRevenue = Order::whereDate('created_at', today()->subDay())
             ->whereIn('status', OrderStatuses::COMPLETED_STATUSES)
+            ->where('payment_status', '!=', 'refunded')
             ->sum('total');
 
         $activeOrders = Order::whereIn('status', OrderStatuses::ACTIVE_STATUSES)->count();
@@ -462,6 +499,7 @@ class AdminController extends Controller
         $trendStart = now()->startOfDay()->subDays(6);
         $dailyRevenue = Order::where('created_at', '>=', $trendStart)
             ->whereIn('status', OrderStatuses::COMPLETED_STATUSES)
+            ->where('payment_status', '!=', 'refunded')
             ->selectRaw('DATE(created_at) as date, SUM(total) as revenue')
             ->groupBy('date')
             ->pluck('revenue', 'date');
@@ -516,6 +554,9 @@ class AdminController extends Controller
             ],
             'order_status_breakdown' => $statusBreakdown,
             'active_orders_list' => $activeOrdersList,
+            'refund_pending_count' => Order::where('payment_status', 'refund_pending')->count(),
+            'refunded_count' => Order::where('payment_status', 'refunded')->count(),
+            'refunded_total' => (float) Order::where('payment_status', 'refunded')->sum('total'),
         ]);
     }
 
@@ -838,6 +879,31 @@ class AdminController extends Controller
         ]);
     }
 
+    public function requeueRider($id): JsonResponse
+    {
+        $rider = Rider::findOrFail($id);
+
+        if ($rider->status !== 'rejected') {
+            return response()->json([
+                'message' => 'Only rejected rider applications can be re-queued.',
+            ], 422);
+        }
+
+        $rider->update(['status' => 'pending']);
+
+        ActivityLog::create([
+            'type' => 'rider_requeued',
+            'description' => "Rider application for \"{$rider->user?->name}\" was re-queued for review.",
+        ]);
+
+        $this->notify('rider_requeued', 'Rider re-queued', "{$rider->user?->name} was re-queued for review.", 'riders', $rider->id);
+
+        return response()->json([
+            'rider' => $rider->fresh(),
+            'message' => 'Rider application re-queued for review.',
+        ]);
+    }
+
     public function customers(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -867,6 +933,7 @@ class AdminController extends Controller
         $customers = $query->latest()->paginate($perPage);
 
         $spending = Order::whereIn('status', OrderStatuses::COMPLETED_STATUSES)
+            ->where('payment_status', '!=', 'refunded')
             ->selectRaw('user_id, SUM(total) as total')
             ->groupBy('user_id')
             ->pluck('total', 'user_id');
@@ -906,6 +973,7 @@ class AdminController extends Controller
 
         $totalSpending = Order::where('user_id', $customer->id)
             ->whereIn('status', OrderStatuses::COMPLETED_STATUSES)
+            ->where('payment_status', '!=', 'refunded')
             ->sum('total');
 
         return response()->json([
@@ -1078,10 +1146,14 @@ class AdminController extends Controller
             ->whereBetween('created_at', [$start, $end])
             ->get();
 
-        $totalRevenue = $completedOrders->sum('total');
+        // Money-kept orders only: refunded orders stay in $completedOrders
+        // for work/count stats (rider leaderboards) but leave every sum.
+        $revenueOrders = $completedOrders->where('payment_status', '!=', 'refunded')->values();
 
-        $avgOrderValue = $completedOrders->count() > 0
-            ? (float) round($totalRevenue / $completedOrders->count(), 2)
+        $totalRevenue = $revenueOrders->sum('total');
+
+        $avgOrderValue = $revenueOrders->count() > 0
+            ? (float) round($totalRevenue / $revenueOrders->count(), 2)
             : null;
 
         $totalOrders = Order::whereBetween('created_at', [$start, $end])->count();
@@ -1095,7 +1167,7 @@ class AdminController extends Controller
             ->groupBy('date')
             ->pluck('count', 'date');
 
-        $revenuePerDay = $completedOrders
+        $revenuePerDay = $revenueOrders
             ->groupBy(fn($o) => $o->created_at->toDateString())
             ->map(fn($orders) => (float) round($orders->sum('total'), 2));
 
@@ -1141,7 +1213,7 @@ class AdminController extends Controller
 
         $returningCustomers = $ordersPerCustomer->filter(fn($count) => $count >= 2)->count();
 
-        $revenueByRestaurant = $completedOrders
+        $revenueByRestaurant = $revenueOrders
             ->loadMissing('restaurant')
             ->groupBy('restaurant_id')
             ->map(fn($orders) => [
@@ -1163,7 +1235,7 @@ class AdminController extends Controller
             ->values();
 
         $categoryRevenue = OrderItem::with('menuItem.menuCategory')
-            ->whereHas('order', fn($q) => $q->whereIn('status', OrderStatuses::COMPLETED_STATUSES)->whereBetween('created_at', [$start, $end]))
+            ->whereHas('order', fn($q) => $q->whereIn('status', OrderStatuses::COMPLETED_STATUSES)->where('payment_status', '!=', 'refunded')->whereBetween('created_at', [$start, $end]))
             ->get()
             ->groupBy(fn($item) => $item->menuItem?->menuCategory?->name ?? 'Uncategorized')
             ->map(fn($items) => (float) round($items->sum(fn($i) => (float) $i->price * (int) $i->quantity), 2))

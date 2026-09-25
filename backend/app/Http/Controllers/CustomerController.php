@@ -182,6 +182,14 @@ class CustomerController extends Controller
             return response()->json(['message' => 'Duplicate items are not allowed. Combine them into a single line with the total quantity.'], 422);
         }
 
+        // COD no-show policy: strikes restrict cash only — online payment
+        // stays available and the account itself is never blocked. Enforced
+        // here so frontend hiding can never be bypassed.
+        if (($validated['payment_method'] ?? 'cash') === 'cash'
+            && (int) ($request->user()->cod_strikes ?? 0) >= Order::COD_STRIKE_THRESHOLD) {
+            return response()->json(['message' => 'COD temporarily disabled due to repeated missed deliveries — please pay online'], 422);
+        }
+
         // One customer shouldn't juggle unlimited concurrent orders.
         $activeCount = $request->user()->orders()
             ->whereIn('status', OrderStatuses::ACTIVE_STATUSES)

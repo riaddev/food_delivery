@@ -158,7 +158,7 @@ export default function Reviews({ showToast }) {
         </div>
 
         {loading ? (
-          <LoadingRows rows={5} />
+          <LoadingRows count={5} />
         ) : error ? (
           <div className="p-5">
             <ErrorBanner message={error} onRetry={fetchAll} />
@@ -246,7 +246,7 @@ export default function Reviews({ showToast }) {
         title={confirm?.action === "delete" ? "Delete review?" : "Reject review?"}
         message={confirm?.action === "delete" ? "This permanently removes the review everywhere, including the homepage." : "The review will be hidden from the restaurant, dish and homepage."}
         confirmLabel={confirm?.action === "delete" ? "Delete" : "Reject"}
-        onCancel={() => setConfirm(null)}
+        onClose={() => setConfirm(null)}
         onConfirm={runConfirmed}
       />
     </div>

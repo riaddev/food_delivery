@@ -38,8 +38,9 @@ export default function MenuManagement() {
     try {
       const res = await restaurantApi.getMenuItems();
       setItems(res.data.menu_items);
+      setListError("");
     } catch {
-      // keep current list
+      setListError("Failed to refresh menu items. Showing last loaded list.");
     }
   };
 

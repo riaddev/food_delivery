@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Star, UtensilsCrossed, Calendar } from "lucide-react";
+import { Star, UtensilsCrossed, Calendar, Heart } from "lucide-react";
 import { restaurantImage } from "../utils/foodImages";
 import { prefetchRestaurant } from "../utils/prefetch";
 
-export default function RestaurantCard({ restaurant, onReserve, offline }) {
+export default function RestaurantCard({ restaurant, onReserve, offline, isFav, onToggleFav }) {
   const [imgSrc, setImgSrc] = useState(() => restaurant.image || restaurantImage(restaurant.restaurant_name));
 
   const tagline = [restaurant.cuisine_type, restaurant.city].filter(Boolean).join(" • ");
@@ -22,6 +22,18 @@ export default function RestaurantCard({ restaurant, onReserve, offline }) {
         <span className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 bg-white/95 backdrop-blur text-emerald-700 text-[11px] font-bold px-2.5 py-1 rounded-full shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
           <UtensilsCrossed size={12} /> Dine-In
         </span>
+        {onToggleFav && (
+          <button
+            type="button"
+            onClick={(e) => onToggleFav(e, restaurant.id)}
+            aria-label={isFav ? `Remove ${restaurant.restaurant_name} from favorites` : `Save ${restaurant.restaurant_name} to favorites`}
+            className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/95 shadow-[0_1px_3px_rgba(0,0,0,0.08)] flex items-center justify-center transition-colors cursor-pointer ${
+              isFav ? "text-[#F97316]" : "text-zinc-500 hover:text-[#F97316]"
+            }`}
+          >
+            <Heart size={15} fill={isFav ? "currentColor" : "none"} strokeWidth={2} />
+          </button>
+        )}
       </Link>
 
       <div className="p-4">

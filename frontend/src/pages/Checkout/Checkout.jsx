@@ -25,6 +25,11 @@ const ORDER_TYPES = [
   { id: "dine_in", label: "Dine-in", icon: Utensils },
 ];
 
+// Mirrors backend Order::COD_STRIKE_THRESHOLD. COD no-show strikes restrict
+// cash only — the account and online methods keep working.
+const COD_STRIKE_THRESHOLD = 3;
+const COD_DISABLED_MESSAGE = "COD temporarily disabled due to repeated missed deliveries — please pay online";
+
 const modeDesc = (id, restaurantName) => {
   if (id === "takeout") return `Pick up from ${restaurantName}`;
   if (id === "dine_in") return `Dine at ${restaurantName}`;
@@ -60,6 +65,11 @@ export default function Checkout() {
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState(null);
   const [feeReloadKey, setFeeReloadKey] = useState(0);
+
+  const codDisabled = Number(user?.cod_strikes || 0) >= COD_STRIKE_THRESHOLD;
+  // Never submit cash when disabled (backend rejects it too) — fall through
+  // to the first online method without mutating the selected option.
+  const methodInUse = codDisabled && paymentMethod === "cash" ? "bkash" : paymentMethod;
 
   useEffect(() => {
     if (!Number.isInteger(cart.restaurantId) || cart.restaurantId <= 0) return;
@@ -230,12 +240,12 @@ export default function Checkout() {
         })),
         delivery_address: orderType === "delivery" ? deliveryAddress : undefined,
         delivery_instructions: orderType === "delivery" ? deliveryNotes : undefined,
-        payment_method: paymentMethod,
+        payment_method: methodInUse,
         order_type: orderType,
         table_number: orderType === "dine_in" ? tableNumber.trim() || null : undefined,
       });
 
-      if (paymentMethod !== "cash") {
+      if (methodInUse !== "cash") {
         const pay = await paymentApi.initiatePayment({
           order_id: res.data.order.id,
           amount: toNumber(res.data.order.total),
@@ -258,7 +268,7 @@ export default function Checkout() {
     }
   };
 
-  const buttonLabel = !user ? "Sign in to Place Order" : paymentMethod === "cash" ? "Place Order" : "Pay";
+  const buttonLabel = !user ? "Sign in to Place Order" : methodInUse === "cash" ? "Place Order" : "Pay";
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -478,11 +488,17 @@ export default function Checkout() {
               <div className="space-y-3">
                 {PAYMENT_METHODS.map((method) => {
                   const Icon = method.icon;
+                  const disabled = method.id === "cash" && codDisabled;
                   return (
                     <label
                       key={method.id}
-                      className={`flex items-center gap-3 border rounded-xl px-4 py-3.5 cursor-pointer transition-colors ${
-                        paymentMethod === method.id ? "border-orange-400 bg-orange-50/50" : "border-zinc-200 hover:border-zinc-300"
+                      title={disabled ? COD_DISABLED_MESSAGE : undefined}
+                      className={`flex items-center gap-3 border rounded-xl px-4 py-3.5 transition-colors ${
+                        disabled
+                          ? "border-zinc-200 bg-zinc-50 opacity-60 cursor-not-allowed"
+                          : paymentMethod === method.id
+                            ? "border-orange-400 bg-orange-50/50 cursor-pointer"
+                            : "border-zinc-200 hover:border-zinc-300 cursor-pointer"
                       }`}
                     >
                       <input
@@ -490,23 +506,26 @@ export default function Checkout() {
                         name="paymentMethod"
                         checked={paymentMethod === method.id}
                         onChange={() => setPaymentMethod(method.id)}
-                        className="mt-1 accent-orange-500"
+                        disabled={disabled}
+                        className="mt-1 accent-orange-500 disabled:cursor-not-allowed"
                       />
                       <span className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                        paymentMethod === method.id ? "bg-orange-100 text-[#F97316]" : "bg-zinc-100 text-zinc-500"
+                        paymentMethod === method.id && !disabled ? "bg-orange-100 text-[#F97316]" : "bg-zinc-100 text-zinc-500"
                       }`}>
                         <Icon size={18} strokeWidth={2.2} />
                       </span>
                       <span className="flex-1">
                         <span className="block font-semibold text-sm text-zinc-900">{method.label}</span>
-                        <span className="block text-xs text-zinc-400 mt-0.5">{method.desc}</span>
+                        <span className={`block text-xs mt-0.5 ${disabled ? "text-red-500 font-medium" : "text-zinc-400"}`}>
+                          {disabled ? COD_DISABLED_MESSAGE : method.desc}
+                        </span>
                       </span>
                     </label>
                   );
                 })}
               </div>
 
-              {paymentMethod !== "cash" && (
+              {methodInUse !== "cash" && (
                 <p className="text-xs text-zinc-400 mt-4">
                   You'll be redirected to the SSLCOMMERZ secure gateway to complete your payment.
                 </p>

@@ -47,12 +47,7 @@ export default function Analytics() {
   }, [fetchAnalytics]);
 
   const selectRange = (key) => {
-    if (key === "custom") {
-      setRange("custom");
-      fetchAnalytics();
-    } else {
-      setRange(key);
-    }
+    setRange(key);
   };
 
   const inputClass = "px-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 font-outfit";
@@ -171,7 +166,7 @@ export default function Analytics() {
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-3.5">
         <Card>
           <div className="text-[15px] font-bold text-text-primary mb-1">Revenue trend</div>
-          <div className="text-[13px] text-text-muted mb-5">Completed orders only \u00B7 {revenue.completed_orders ?? 0} orders</div>
+          <div className="text-[13px] text-text-muted mb-5">Completed orders only · {revenue.completed_orders ?? 0} orders</div>
           {revenue.trend?.values?.some((v) => v > 0) ? (
             <LineChart
               data={revenue.trend.values}

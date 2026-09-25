@@ -8,6 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Order extends Model
 {
+    /**
+     * COD no-show policy: customers at or above this many strikes can only
+     * pay online. Failed deliveries never punish the account itself.
+     */
+    public const COD_STRIKE_THRESHOLD = 3;
+
     protected $fillable = [
         'user_id',
         'restaurant_id',

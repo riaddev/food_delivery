@@ -4,6 +4,7 @@ import { adminApi } from "../../../features/api/apiSlice";
 import { Card, PillBadge } from "../../../components/dashboard/Card";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DetailDrawer from "../components/DetailDrawer";
+import Lightbox from "../../../components/Lightbox";
 import { ErrorBanner, LoadingRows } from "../components/States";
 import { capitalize, formatDate, formatDateTime, orderStatusLabel, RIDER_STATUS_TONE } from "./utils";
 
@@ -44,6 +45,7 @@ export default function DeliveryAgents({ showToast }) {
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -196,7 +198,7 @@ export default function DeliveryAgents({ showToast }) {
                       </td>
                       <td className="px-4 py-3 text-text-muted">{r.city || "\u2014"}</td>
                       <td className="px-4 py-3">
-                        {st ? <PillBadge tone={st.tone}>{st.label}</PillBadge> : <span className="text-[12.5px] text-text-light">\u2014</span>}
+                        {st ? <PillBadge tone={st.tone}>{st.label}</PillBadge> : <span className="text-[12.5px] text-text-light">—</span>}
                       </td>
                       <td className="px-4 py-3 font-mono text-[13.5px] text-text-primary">{r.completed_deliveries}</td>
                       <td className="px-4 py-3">
@@ -251,6 +253,16 @@ export default function DeliveryAgents({ showToast }) {
                               Activate
                             </button>
                           )}
+                          {r.status === "rejected" && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); act(() => adminApi.requeueRider(r.id), `${r.rider_name || "Rider"} re-queued for review`); }}
+                              disabled={actingId === r.id}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition-colors disabled:opacity-50 cursor-pointer font-outfit"
+                            >
+                              <Check size={13} strokeWidth={2.5} />
+                              Re-queue
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -303,7 +315,14 @@ export default function DeliveryAgents({ showToast }) {
               <div className="text-[12px] font-bold uppercase tracking-[0.06em] text-text-light mb-2">Personal Information</div>
               <div className="flex items-start gap-3">
                 {detail.rider.user?.avatar_url ? (
-                  <img src={detail.rider.user.avatar_url} alt={`${detail.rider.user.name} profile`} className="w-16 h-16 rounded-2xl object-cover ring-1 ring-border shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => setLightbox({ images: [detail.rider.user.avatar_url], index: 0, title: `${detail.rider.user.name} profile photo` })}
+                    aria-label="Preview profile photo"
+                    className="w-16 h-16 rounded-2xl overflow-hidden ring-1 ring-border shrink-0 hover:opacity-90 transition-opacity cursor-pointer p-0 bg-white"
+                  >
+                    <img src={detail.rider.user.avatar_url} alt={`${detail.rider.user.name} profile`} className="w-full h-full object-cover pointer-events-none" />
+                  </button>
                 ) : (
                   <span className="w-16 h-16 rounded-2xl bg-[#FAFAFA] border border-border flex items-center justify-center text-[10px] font-semibold text-text-light shrink-0">NO PHOTO</span>
                 )}
@@ -338,16 +357,15 @@ export default function DeliveryAgents({ showToast }) {
                 <div className="flex justify-between gap-3">
                   <span className="text-text-muted shrink-0">NID document</span>
                   {detail.rider.nid_document_url ? (
-                    <a
-                      href={detail.rider.nid_document_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 font-semibold text-orange-primary hover:text-orange-deep"
+                    <button
+                      type="button"
+                      onClick={() => setLightbox({ images: [detail.rider.nid_document_url], index: 0, title: "NID document" })}
+                      className="inline-flex items-center gap-1 font-semibold text-orange-primary hover:text-orange-deep cursor-pointer bg-none border-none p-0 font-outfit text-[13.5px]"
                     >
                       <FileText size={13} /> View document <ExternalLink size={12} />
-                    </a>
+                    </button>
                   ) : (
-                    <span className="text-text-light">\u2014</span>
+                    <span className="text-text-light">—</span>
                   )}
                 </div>
                 <div className="flex justify-between gap-3">
@@ -376,16 +394,15 @@ export default function DeliveryAgents({ showToast }) {
                     <div className="flex justify-between gap-3">
                       <span className="text-text-muted shrink-0">License document</span>
                       {detail.rider.license_document_url ? (
-                        <a
-                          href={detail.rider.license_document_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 font-semibold text-orange-primary hover:text-orange-deep"
+                        <button
+                          type="button"
+                          onClick={() => setLightbox({ images: [detail.rider.license_document_url], index: 0, title: "License document" })}
+                          className="inline-flex items-center gap-1 font-semibold text-orange-primary hover:text-orange-deep cursor-pointer bg-none border-none p-0 font-outfit text-[13.5px]"
                         >
                           <FileText size={13} /> View document <ExternalLink size={12} />
-                        </a>
+                        </button>
                       ) : (
-                        <span className="text-text-light">\u2014</span>
+                        <span className="text-text-light">—</span>
                       )}
                     </div>
                     <div className="flex justify-between gap-3">
@@ -457,7 +474,7 @@ export default function DeliveryAgents({ showToast }) {
                       <p className="text-[13.5px] font-semibold text-text-primary">#{o.id} · {o.restaurant?.restaurant_name || "\u2014"}</p>
                       <p className="text-[12px] text-text-light mt-0.5">{o.user?.name} · {formatDate(o.created_at)}</p>
                     </div>
-                    <PillBadge tone={o.status === "delivered" ? "green" : "amber"}>{orderStatusLabel(o.status)}</PillBadge>
+                    <PillBadge tone={o.status === "delivered" ? "green" : o.status === "failed_delivery" ? "red" : "amber"}>{orderStatusLabel(o.status)}</PillBadge>
                   </div>
                 ))}
                 {(detail.recent_deliveries || []).length === 0 && (
@@ -484,6 +501,14 @@ export default function DeliveryAgents({ showToast }) {
         }
         confirmLabel={confirm?.action === "reject" ? "Reject" : "Suspend"}
       />
+      {lightbox && (
+        <Lightbox
+          images={lightbox.images}
+          startIndex={lightbox.index}
+          title={lightbox.title || "Preview"}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 }

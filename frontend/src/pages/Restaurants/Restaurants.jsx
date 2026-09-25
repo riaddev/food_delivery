@@ -155,6 +155,7 @@ export default function Restaurants() {
   const [reloadKey, setReloadKey] = useState(0);
   const [replaceTarget, setReplaceTarget] = useState(null);
   const [saved, setSaved] = useState(() => new Set());
+  const [favRestaurants, setFavRestaurants] = useState(() => new Set());
   const [reserveRestaurant, setReserveRestaurant] = useState(null);
   const [toast, setToast] = useState(null);
   const toastTimer = useRef(null);
@@ -165,6 +166,11 @@ export default function Restaurants() {
     customerApi.getWishlistItems()
       .then((res) => {
         if (active) setSaved(new Set((res.data.wishlist_items || []).map((wi) => wi.menu_item_id)));
+      })
+      .catch(() => {});
+    customerApi.getFavorites()
+      .then((res) => {
+        if (active) setFavRestaurants(new Set((res.data.favorites || []).map((f) => f.restaurant_id ?? f.restaurant?.id)));
       })
       .catch(() => {});
     return () => { active = false; };
@@ -322,6 +328,31 @@ export default function Restaurants() {
       setSaved((prev) => {
         const next = new Set(prev);
         if (isSaved) next.add(id); else next.delete(id);
+        return next;
+      });
+    }
+  };
+
+  const toggleFavRestaurant = async (e, id) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const isFav = favRestaurants.has(id);
+    setFavRestaurants((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    if (!sessionStorage.getItem("currentRole")) return;
+    try {
+      if (isFav) await customerApi.removeFavorite(id);
+      else {
+        await customerApi.addFavorite(id);
+        showToast("Saved to favorites");
+      }
+    } catch {
+      setFavRestaurants((prev) => {
+        const next = new Set(prev);
+        if (isFav) next.add(id); else next.delete(id);
         return next;
       });
     }
@@ -594,6 +625,8 @@ export default function Restaurants() {
                     restaurant={r}
                     onReserve={() => handleReserve(r)}
                     offline={failed}
+                    isFav={favRestaurants.has(r.id)}
+                    onToggleFav={toggleFavRestaurant}
                   />
                 ))
               ) : (

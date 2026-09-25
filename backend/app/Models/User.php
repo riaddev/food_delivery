@@ -30,6 +30,7 @@ class User extends Authenticatable
         'reset_otp',
         'reset_otp_expires_at',
         'reset_otp_attempts',
+        'cod_strikes',
     ];
 
     protected $hidden = [

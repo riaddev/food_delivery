@@ -244,7 +244,7 @@ export default function Expenses() {
         const orders = ordersRes?.data?.orders || [];
         setRevenue(
           orders
-            .filter((o) => ["delivered", "served"].includes(o.status))
+            .filter((o) => ["delivered", "served"].includes(o.status) && o.payment_status !== "refunded")
             .reduce((s, o) => s + (parseFloat(o.total) || 0), 0)
         );
       })

@@ -96,6 +96,7 @@ export const customerApi = {
   reorder: (id) => api.post(`/customer/orders/${id}/reorder`),
   submitReview: (data) => api.post("/customer/reviews", data),
   getFavorites: () => api.get("/customer/favorites"),
+  addFavorite: (restaurantId) => api.post("/customer/favorites", { restaurant_id: restaurantId }),
   removeFavorite: (restaurantId) => api.delete(`/customer/favorites/${restaurantId}`),
   getWishlistItems: () => api.get("/customer/wishlist-items", { skipAuthRedirect: true }),
   addWishlistItem: (menuItemId) => api.post("/customer/wishlist-items", { menu_item_id: menuItemId }),
@@ -105,6 +106,8 @@ export const customerApi = {
   updateAddress: (id, data) => api.put(`/customer/addresses/${id}`, data),
   deleteAddress: (id) => api.delete(`/customer/addresses/${id}`),
   setDefaultAddress: (id) => api.patch(`/customer/addresses/${id}/default`),
+  getComplaints: () => api.get("/customer/complaints"),
+  fileComplaint: (data) => api.post("/customer/complaints", data),
 };
 
 export const paymentApi = {
@@ -173,10 +176,12 @@ export const adminApi = {
   rejectRider: (id) => api.post(`/admin/riders/${id}/reject`),
   suspendRider: (id) => api.post(`/admin/riders/${id}/suspend`),
   activateRider: (id) => api.post(`/admin/riders/${id}/activate`),
+  requeueRider: (id) => api.post(`/admin/riders/${id}/requeue`),
   getActivityLog: () => api.get("/admin/activity-log"),
   getOrders: (params) => api.get("/admin/orders", { params }),
   getOrder: (id) => api.get(`/admin/orders/${id}`),
   assignRider: (id, riderId) => api.post(`/admin/orders/${id}/assign-rider`, { rider_id: riderId }),
+  markRefunded: (id) => api.post(`/admin/orders/${id}/mark-refunded`),
   getCustomers: (params) => api.get("/admin/customers", { params }),
   getCustomer: (id) => api.get(`/admin/customers/${id}`),
   suspendCustomer: (id) => api.post(`/admin/customers/${id}/suspend`),
@@ -203,6 +208,9 @@ export const adminApi = {
   rejectReview: (id) => api.post(`/admin/reviews/${id}/reject`),
   setReviewFeatured: (id, is_featured) => api.post(`/admin/reviews/${id}/feature`, { is_featured }),
   deleteReview: (id) => api.delete(`/admin/reviews/${id}`),
+  getComplaints: (params) => api.get("/admin/complaints", { params }),
+  getComplaint: (id) => api.get(`/admin/complaints/${id}`),
+  resolveComplaint: (id, data) => api.put(`/admin/complaints/${id}/resolve`, data),
 };
 
 export const riderApi = {

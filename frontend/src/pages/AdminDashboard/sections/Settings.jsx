@@ -15,12 +15,15 @@ export default function Settings({ showToast }) {
   const [profile, setProfile] = useState({ name: user?.name || "", phone: user?.phone || "" });
   const [syncedUserId, setSyncedUserId] = useState(user?.id ?? null);
   // user loads asynchronously — adopt it once it arrives (e.g. after a hard
-  // refresh straight onto Settings). Render-time adjustment only runs when
+  // refresh straight onto Settings). This effect only runs when
   // the user identity changes, so typed input is never clobbered.
-  if (user && user.id !== syncedUserId) {
-    setSyncedUserId(user.id);
-    setProfile({ name: user.name || "", phone: user.phone || "" });
-  }
+  useEffect(() => {
+    if (user && user.id !== syncedUserId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time adoption of async user, guarded by id
+      setSyncedUserId(user.id);
+      setProfile({ name: user.name || "", phone: user.phone || "" });
+    }
+  }, [user, syncedUserId]);
   const [pwd, setPwd] = useState({ current_password: "", new_password: "", new_password_confirmation: "" });
   const [pwdBusy, setPwdBusy] = useState(false);
 

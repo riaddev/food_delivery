@@ -38,6 +38,7 @@ const STATUS_FLOW = [
   { value: "served", label: "Served", color: "bg-emerald-50 text-emerald-600" },
   { value: "delivered", label: "Delivered", color: "bg-emerald-50 text-emerald-600" },
   { value: "cancelled", label: "Cancelled", color: "bg-red-50 text-red-500" },
+  { value: "failed_delivery", label: "Delivery failed", color: "bg-red-50 text-red-500" },
 ];
 
 const statusColor = (s) => STATUS_FLOW.find((x) => x.value === s)?.color || "bg-zinc-50 text-zinc-500";
@@ -277,7 +278,7 @@ export default function OrdersManagement() {
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${statusColor(order.status)}`}>
                         {statusLabel(order.status)}
                       </span>
-                      {order.needs_review && order.status !== "cancelled" && (
+                      {order.needs_review && order.status !== "cancelled" && order.status !== "failed_delivery" && (
                         <span title={order.review_reason || "Bulk order — please confirm with customer"} className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold px-2.5 py-1 rounded-full">
                           <AlertTriangle size={12} /> Needs review
                         </span>
@@ -358,7 +359,7 @@ export default function OrdersManagement() {
                         Cancel Order
                       </button>
                     )}
-                    {!RESTAURANT_ACTIONABLE.has(order.status) && order.status !== "delivered" && order.status !== "cancelled" && (
+                    {!RESTAURANT_ACTIONABLE.has(order.status) && order.status !== "delivered" && order.status !== "cancelled" && order.status !== "failed_delivery" && (
                       <span className="text-xs text-text-light italic self-center">
                         {["assigned", "picked_up", "on_the_way", "near_customer", "served"].includes(order.status)
                           ? "Rider is handling delivery"

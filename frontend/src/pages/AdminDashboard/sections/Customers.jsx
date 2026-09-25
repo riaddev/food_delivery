@@ -9,6 +9,7 @@ import { formatBDT, formatDate, formatDateTime, initials, ORDER_STATUS_TONE, ord
 
 export default function Customers({ showToast }) {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [status, setStatus] = useState("");
   const [customers, setCustomers] = useState([]);
   const [meta, setMeta] = useState(null);
@@ -24,7 +25,7 @@ export default function Customers({ showToast }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminApi.getCustomers({ page, per_page: 20, search: query || undefined, status: status || undefined });
+      const res = await adminApi.getCustomers({ page, per_page: 20, search: debouncedQuery || undefined, status: status || undefined });
       setCustomers(res.data.customers || []);
       setMeta(res.data.meta || null);
     } catch {
@@ -32,7 +33,12 @@ export default function Customers({ showToast }) {
     } finally {
       setLoading(false);
     }
-  }, [page, query, status]);
+  }, [page, debouncedQuery, status]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedQuery(query), 300);
+    return () => window.clearTimeout(t);
+  }, [query]);
 
   useEffect(() => {
     const t = window.setTimeout(fetchCustomers, 0);

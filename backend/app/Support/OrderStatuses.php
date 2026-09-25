@@ -16,6 +16,7 @@ class OrderStatuses
         'delivered',
         'served',
         'cancelled',
+        'failed_delivery',
     ];
 
     public const ACTIVE_STATUSES = [
@@ -37,6 +38,7 @@ class OrderStatuses
     public const TERMINAL_STATUSES = [
         'delivered',
         'cancelled',
+        'failed_delivery',
     ];
 
     public const ALLOWED_TRANSITIONS = [
@@ -47,10 +49,11 @@ class OrderStatuses
         'assigned' => ['picked_up', 'cancelled'],
         'picked_up' => ['on_the_way'],
         'on_the_way' => ['near_customer'],
-        'near_customer' => ['served', 'delivered'],
+        'near_customer' => ['served', 'delivered', 'failed_delivery'],
         'delivered' => [],
         'served' => ['delivered'],
         'cancelled' => [],
+        'failed_delivery' => [],
     ];
 
     public const RESTAURANT_TRANSITIONS = [

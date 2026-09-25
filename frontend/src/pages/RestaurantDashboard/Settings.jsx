@@ -1,32 +1,13 @@
 import { useEffect, useState } from "react";
-import { Bell, Zap, PackageOpen, Clock, Truck, UtensilsCrossed, Save } from "lucide-react";
+import { PackageOpen, Clock, UtensilsCrossed, Save } from "lucide-react";
 import { restaurantApi } from "../../features/api/apiSlice";
 import { useAuth } from "../../features/auth/AuthContext";
 
-const TOGGLES = [
-  { key: "notifications", label: "Order notifications", desc: "Push alerts whenever a new order comes in.", icon: Bell, initial: true },
-  { key: "autoConfirm", label: "Auto-accept orders", desc: "Automatically confirm inbound orders.", icon: Zap, initial: false },
-  { key: "lowStock", label: "Low-stock alerts", desc: "Get notified when a menu item is nearly sold out.", icon: PackageOpen, initial: true },
-];
-
 export function SettingsPage() {
   const { user, refreshUser } = useAuth();
-  const [toggles, setToggles] = useState(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}");
-      return TOGGLES.reduce((acc, t) => { acc[t.key] = saved[t.key] ?? t.initial; return acc; }, {});
-    } catch {
-      return TOGGLES.reduce((acc, t) => { acc[t.key] = t.initial; return acc; }, {});
-    }
-  });
   const [dineIn, setDineIn] = useState(() => user?.restaurant?.accepts_dine_in === true);
   const [defaultMaxPerItem, setDefaultMaxPerItem] = useState(() => user?.restaurant?.default_max_per_item ?? "");
   const [allowBulk, setAllowBulk] = useState(() => user?.restaurant?.allow_bulk_orders === true);
-  const [radius, setRadius] = useState(() => {
-    try {
-      return Number(JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}").radius) || 5;
-    } catch { return 5; }
-  });
   const [hours, setHours] = useState(() => user?.restaurant?.opening_hours || "10AM - 11PM");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -42,23 +23,6 @@ export function SettingsPage() {
       setAllowBulk(user.restaurant.allow_bulk_orders === true);
     }
   }, [user?.restaurant?.id, user?.restaurant?.accepts_dine_in, user?.restaurant?.opening_hours]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const flip = (key) => setToggles((t) => {
-    const next = { ...t, [key]: !t[key] };
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}");
-      window.localStorage.setItem("restaurant_settings", JSON.stringify({ ...saved, [key]: next[key] }));
-    } catch { /* storage unavailable */ }
-    return next;
-  });
-
-  const handleRadius = (v) => {
-    setRadius(v);
-    try {
-      const saved = JSON.parse(window.localStorage.getItem("restaurant_settings") || "{}");
-      window.localStorage.setItem("restaurant_settings", JSON.stringify({ ...saved, radius: v }));
-    } catch { /* storage unavailable */ }
-  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -90,30 +54,6 @@ export function SettingsPage() {
     <div className="max-w-2xl">
       <div className="space-y-5">
         <div className="bg-card rounded-[13px] border border-border p-5 md:p-7">
-          <h2 className="text-[15px] font-bold text-text-primary mb-6">Notifications</h2>
-          <div className="space-y-6">
-            {TOGGLES.map((t) => {
-              const Icon = t.icon;
-              const on = toggles[t.key];
-              return (
-                <div key={t.key} className="flex items-center gap-4">
-                  <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${on ? "bg-orange-soft text-orange-deep" : "bg-zinc-50 text-zinc-300"}`}>
-                    <Icon size={20} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-text-primary text-sm">{t.label}</p>
-                    <p className="text-xs text-text-muted">{t.desc}</p>
-                  </div>
-                  <button onClick={() => flip(t.key)} className={`w-12 h-7 rounded-full relative transition-colors shrink-0 cursor-pointer ${on ? "bg-orange-primary" : "bg-zinc-200"}`} aria-label={t.label}>
-                    <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="bg-card rounded-[13px] border border-border p-5 md:p-7">
           <h2 className="text-[15px] font-bold text-text-primary mb-6">Store</h2>
 
           <div className="space-y-6">
@@ -127,18 +67,6 @@ export function SettingsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
-                <Truck size={20} />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1.5">
-                  <p className="font-semibold text-text-primary text-sm">Delivery radius</p>
-                  <span className="text-xs font-bold text-text-primary font-mono">{radius} km</span>
-                </div>
-                <input type="range" min="1" max="20" value={radius} onChange={(e) => handleRadius(e.target.value)} className="w-full accent-orange-500" />
-              </div>
-            </div>
             <div className="flex items-center gap-4">
               <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
                 <UtensilsCrossed size={20} />
@@ -199,7 +127,7 @@ export function SettingsPage() {
           >
             <Save size={15} /> {saving ? "Saving..." : "Save Settings"}
           </button>
-          <span className="text-xs text-text-muted">Opening hours &amp; dine-in preference are saved to your store. Notification toggles &amp; delivery radius are kept on this device.</span>
+          <span className="text-xs text-text-muted">Opening hours, dine-in preference &amp; order limits are saved to your store.</span>
         </div>
       </div>
     </div>

@@ -8,7 +8,7 @@ import { capitalize, formatBDT, formatDateTime, ORDER_STATUS_COLOR, ORDER_STATUS
 
 const ORDER_TYPES = ["delivery", "takeout", "dine_in"];
 const PAYMENT_METHODS = ["cash", "bkash", "nagad", "card"];
-const PAYMENT_STATUSES = ["paid", "pending", "failed", "cancelled"];
+const PAYMENT_STATUSES = ["paid", "pending", "failed", "cancelled", "refund_pending", "refunded"];
 
 export default function Orders({ focusOrderId, onFocusHandled, showToast }) {
   const [orders, setOrders] = useState([]);
@@ -100,7 +100,7 @@ export default function Orders({ focusOrderId, onFocusHandled, showToast }) {
   );
   const busyRiders = riders.filter((r) => r.status === "approved" && r.is_delivering);
 
-  const isTerminal = (status) => ["delivered", "served", "cancelled"].includes(status);
+  const isTerminal = (status) => ["delivered", "served", "cancelled", "failed_delivery"].includes(status);
 
   const selectClass = "appearance-none pl-3 pr-8 py-2 rounded-lg text-xs font-semibold bg-[#FAFAFA] border border-border cursor-pointer focus:outline-none focus:ring-2 focus:ring-zinc-200 font-outfit";
   const inputClass = "pl-8 pr-3 py-2 rounded-lg text-sm bg-[#FAFAFA] border border-border focus:outline-none focus:ring-2 focus:ring-zinc-200 placeholder:text-text-light font-outfit";

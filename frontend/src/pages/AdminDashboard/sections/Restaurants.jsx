@@ -4,6 +4,7 @@ import { adminApi } from "../../../features/api/apiSlice";
 import { Card, PillBadge } from "../../../components/dashboard/Card";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DetailDrawer from "../components/DetailDrawer";
+import Lightbox from "../../../components/Lightbox";
 import { ErrorBanner, LoadingRows } from "../components/States";
 import { capitalize, formatDate, formatDateTime, restaurantImage, RESTAURANT_STATUS_TONE } from "./utils";
 
@@ -37,6 +38,7 @@ export default function Restaurants({ showToast }) {
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
   const [confirm, setConfirm] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -66,8 +68,8 @@ export default function Restaurants({ showToast }) {
         const res = await adminApi.getRestaurant(selected.id);
         setDetail(res.data.restaurant);
       }
-    } catch {
-      showToast("Action failed", "error");
+    } catch (err) {
+      showToast(err.response?.data?.message || "Action failed", "error");
     }
     setActingId(null);
   };
@@ -381,7 +383,14 @@ export default function Restaurants({ showToast }) {
               <div className="text-[12px] font-bold uppercase tracking-[0.06em] text-text-light mb-2">Restaurant</div>
               <div className="flex items-start gap-3">
                 {detail.logo_url ? (
-                  <img src={detail.logo_url} alt={`${detail.restaurant_name} logo`} className="w-16 h-16 rounded-xl object-cover ring-1 ring-border shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => setLightbox({ images: [detail.logo_url], index: 0, title: `${detail.restaurant_name} logo` })}
+                    aria-label="Preview restaurant logo"
+                    className="w-16 h-16 rounded-xl overflow-hidden ring-1 ring-border shrink-0 hover:opacity-90 transition-opacity cursor-pointer p-0 bg-white"
+                  >
+                    <img src={detail.logo_url} alt={`${detail.restaurant_name} logo`} className="w-full h-full object-cover pointer-events-none" />
+                  </button>
                 ) : (
                   <span className="w-16 h-16 rounded-xl bg-[#FAFAFA] border border-border flex items-center justify-center text-[10px] font-semibold text-text-light shrink-0">NO LOGO</span>
                 )}
@@ -494,6 +503,14 @@ export default function Restaurants({ showToast }) {
         }
         confirmLabel={confirm?.action === "reject" ? "Reject" : confirm?.action === "suspend" ? "Suspend" : "Move to pending"}
       />
+      {lightbox && (
+        <Lightbox
+          images={lightbox.images}
+          startIndex={lightbox.index}
+          title={lightbox.title || "Preview"}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 }

@@ -41,6 +41,7 @@ export default function RestaurantMenu() {
   const [wishlist, setWishlist] = useState(() => new Set());
   const [wishlistBusy, setWishlistBusy] = useState(() => new Set());
   const [wishlistMsg, setWishlistMsg] = useState("");
+  const [restFav, setRestFav] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingValue, setRatingValue] = useState(5);
   const [ratingComment, setRatingComment] = useState("");
@@ -71,8 +72,15 @@ export default function RestaurantMenu() {
         if (active) setWishlist(new Set((res.data.wishlist_items || []).map((wi) => wi.menu_item_id)));
       })
       .catch(() => {});
+    customerApi.getFavorites()
+      .then((res) => {
+        if (!active) return;
+        const ids = (res.data.favorites || []).map((f) => f.restaurant_id ?? f.restaurant?.id);
+        setRestFav(ids.includes(Number(id)) || ids.includes(id));
+      })
+      .catch(() => {});
     return () => { active = false; };
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     if (!selectedDishId) return undefined;
@@ -329,8 +337,21 @@ export default function RestaurantMenu() {
     }
   };
 
-  const scrollToCat = (cat) => {
-    setActiveCat(cat);
+  const toggleRestFav = async () => {
+    const wasFav = restFav;
+    setRestFav(!wasFav);
+    if (!sessionStorage.getItem("currentRole")) return;
+    try {
+      if (wasFav) await customerApi.removeFavorite(id);
+      else await customerApi.addFavorite(id);
+    } catch {
+      setRestFav(wasFav);
+      setWishlistMsg("Couldn't update favorites. Please try again.");
+      window.setTimeout(() => setWishlistMsg(""), 2800);
+    }
+  };
+
+  const scrollToCat = (cat) => {    setActiveCat(cat);
     const el = document.getElementById(`menu-${cat.toLowerCase()}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
@@ -363,6 +384,19 @@ export default function RestaurantMenu() {
               <h1 className="text-2xl font-bold tracking-tight text-zinc-900 truncate">{restaurant.restaurant_name}</h1>
               {tagline && <p className="text-sm text-zinc-500 mt-0.5 truncate">{tagline}</p>}
             </div>
+            <button
+              type="button"
+              onClick={toggleRestFav}
+              aria-label={restFav ? `Remove ${restaurant.restaurant_name} from favorites` : `Save ${restaurant.restaurant_name} to favorites`}
+              title={restFav ? "Saved to favorites" : "Save to favorites"}
+              className={`ml-auto w-10 h-10 rounded-full border flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                restFav
+                  ? "bg-[#F97316]/10 border-[#F97316]/30 text-[#F97316]"
+                  : "bg-white border-zinc-200 text-zinc-400 hover:text-[#F97316] hover:border-[#F97316]/40"
+              }`}
+            >
+              <Heart size={17} fill={restFav ? "currentColor" : "none"} strokeWidth={2} />
+            </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">

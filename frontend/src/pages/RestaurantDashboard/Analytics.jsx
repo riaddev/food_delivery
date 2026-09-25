@@ -47,8 +47,9 @@ export function Analytics() {
   }, [orders, period]);
 
   const completedOrders = windowed.filter((o) => REVENUE_STATUSES.includes(o.status));
-  const revenue = completedOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-  const avgValue = completedOrders.length > 0 ? revenue / completedOrders.length : 0;
+  const revenueOrders = completedOrders.filter((o) => o.payment_status !== "refunded");
+  const revenue = revenueOrders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+  const avgValue = revenueOrders.length > 0 ? revenue / revenueOrders.length : 0;
 
   const periodStart = useMemo(() => {
     const days = PERIODS.find((p) => p.key === period)?.days ?? 1;
@@ -77,7 +78,7 @@ export function Analytics() {
     { title: "Pending Orders", value: String(windowed.filter((o) => o.status === "pending").length), icon: Clock3, tint: "bg-amber-50 text-amber-600" },
   ];
 
-  const counted = windowed.filter((o) => o.status !== "cancelled");
+  const counted = windowed.filter((o) => o.status !== "cancelled" && o.status !== "failed_delivery");
 
   const byDay = WEEKDAYS.map((label, idx) => ({
     label,

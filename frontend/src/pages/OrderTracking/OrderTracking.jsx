@@ -67,11 +67,12 @@ const STATUS_TEXT = {
   delivered: "Your order has been delivered. Enjoy!",
   served: "Your order has been served. Enjoy!",
   cancelled: "This order was cancelled.",
+  failed_delivery: "Delivery failed — the rider could not complete delivery.",
 };
 
 const IN_TRANSIT_STATUSES = ["picked_up", "on_the_way", "near_customer"];
 
-const TERMINAL_STATUSES = ["delivered", "cancelled"];
+const TERMINAL_STATUSES = ["delivered", "cancelled", "failed_delivery"];
 
 const POLL_FAST = 3000;
 const POLL_SLOW = 15000;
@@ -245,6 +246,7 @@ export default function OrderTracking() {
   const steps = isDineIn ? DINE_IN_STEPS : isTakeout ? TAKEOUT_STEPS : DELIVERY_STEPS;
   const activeStep = status ? (isTakeout ? TAKEOUT_STEP_INDEX[status] ?? 0 : STEP_INDEX[status] ?? 0) : 0;
   const isCancelled = status === "cancelled";
+  const isFailed = status === "failed_delivery";
   const isTransit = !isTakeout && IN_TRANSIT_STATUSES.includes(status);
   const hasCoords = order?.restaurant_coords || order?.customer_coords || order?.rider_location;
   // Freshness from existing orders.updated_at (no migration). Stale => not live.
@@ -297,9 +299,9 @@ export default function OrderTracking() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-extrabold tracking-tight text-zinc-900">
-                    {isCancelled ? "Order Cancelled" : order.restaurant?.restaurant_name}
+                    {isCancelled ? "Order Cancelled" : isFailed ? "Delivery Failed" : order.restaurant?.restaurant_name}
                   </h2>
-                  <p className={`text-sm mt-1 ${isCancelled ? "text-rose-600 font-semibold" : "text-zinc-400"}`}>
+                  <p className={`text-sm mt-1 ${isCancelled || isFailed ? "text-rose-600 font-semibold" : "text-zinc-400"}`}>
                     {isTakeout && status === "delivered"
                       ? "Your order has been picked up. Enjoy!"
                       : isTakeout && status === "ready"
@@ -349,7 +351,7 @@ export default function OrderTracking() {
               </div>
             )}
 
-            {!isCancelled && (
+            {!isCancelled && !isFailed && (
               <section className="bg-white rounded-xl border border-zinc-100 shadow-[0_4px_20px_rgba(0,0,0,0.05)] p-5">
                 <ol className="flex flex-col">
                   {steps.map((step, i) => {
@@ -411,7 +413,9 @@ export default function OrderTracking() {
                     ? "Paid"
                     : order.payment_status === "refund_pending"
                       ? "Refund pending"
-                      : isTakeout ? "Pay on pickup" : "Pay on delivery"}
+                      : order.payment_status === "refunded"
+                        ? "Refunded"
+                        : isTakeout ? "Pay on pickup" : "Pay on delivery"}
                 </span>
               </div>
 

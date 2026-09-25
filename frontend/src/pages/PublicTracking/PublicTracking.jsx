@@ -39,11 +39,12 @@ const STATUS_TEXT = {
   near_customer: "Your rider is near you!",
   delivered: "Your order has been delivered. Enjoy!",
   cancelled: "This order was cancelled.",
+  failed_delivery: "Delivery failed — the rider could not complete delivery.",
 };
 
 const IN_TRANSIT_STATUSES = ["picked_up", "on_the_way", "near_customer"];
 
-const TERMINAL_STATUSES = ["delivered", "cancelled"];
+const TERMINAL_STATUSES = ["delivered", "cancelled", "failed_delivery"];
 
 const POLL_FAST = 3000;
 const POLL_SLOW = 5000;
@@ -209,6 +210,7 @@ export default function PublicTracking() {
   const status = order?.status;
   const activeStep = status ? STEP_INDEX[status] ?? 0 : 0;
   const isCancelled = status === "cancelled";
+  const isFailed = status === "failed_delivery";
   const isTransit = IN_TRANSIT_STATUSES.includes(status);
   const hasCoords = order?.restaurant_coords || order?.customer_coords || order?.rider_location;
   const riderUpdatedAt = order?.rider_location?.updated_at || null;
@@ -251,9 +253,9 @@ export default function PublicTracking() {
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-extrabold tracking-tight text-zinc-900">
-                    {isCancelled ? "Order Cancelled" : order.restaurant?.name}
+                    {isCancelled ? "Order Cancelled" : isFailed ? "Delivery Failed" : order.restaurant?.name}
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-1">
+                  <p className={`text-sm mt-1 ${isCancelled || isFailed ? "text-rose-600 font-semibold" : "text-zinc-400"}`}>
                     {STATUS_TEXT[status] || "Order status is being updated."}
                   </p>
                 </div>
@@ -308,7 +310,7 @@ export default function PublicTracking() {
               </div>
             )}
 
-            {!isCancelled && (
+            {!isCancelled && !isFailed && (
               <section className="bg-white rounded-xl border border-zinc-100 shadow-[0_4px_20px_rgba(0,0,0,0.05)] p-5">
                 <ol className="flex flex-col">
                   {DELIVERY_STEPS.map((step, i) => {

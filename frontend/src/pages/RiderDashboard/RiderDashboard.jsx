@@ -1,13 +1,14 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard, ExternalLink, CheckCircle2,
+  ExternalLink, CheckCircle2, Phone,
   TrendingUp, Bike, MapPin, Home, Navigation, Zap, Package, Radio, RefreshCw,
 } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { authApi, riderApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const GPS_STATUSES = ["picked_up", "on_the_way", "near_customer"];
 
@@ -39,10 +40,8 @@ const gpsDistanceM = (aLat, aLng, bLat, bLng) => {
 // Keeps near-realtime feel without spamming the free backend.
 const GPS_MIN_INTERVAL_MS = 5000;
 const GPS_MIN_DISTANCE_M = 15;
-
-const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard", path: "/rider/dashboard", icon: LayoutDashboard, exact: true },
-];
+// "You've arrived" prompt radius around the drop-off.
+const ARRIVED_RADIUS_M = 100;
 
 const KITCHEN_STATUS_LABEL = {
   assigned: "Rider Assigned",
@@ -105,11 +104,20 @@ export default function RiderDashboard() {
   const [gpsError, setGpsError] = useState(null);
   const [gpsPermissionState, setGpsPermissionState] = useState("unknown");
   const [muted, setMuted] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [listError, setListError] = useState(false);
+  const [reportFailOpen, setReportFailOpen] = useState(false);
+  // Order id currently showing the "you've arrived" prompt (null = hidden).
+  // Keyed by order so it never leaks onto a different delivery, and the
+  // render also gates on status so it vanishes once they advance.
+  const [arrivedOrderId, setArrivedOrderId] = useState(null);
+  const activeOrderRef = useRef(null);
   const watchIdRef = useRef(null);
   const retryTimeoutRef = useRef(null);
   const requestGpsRef = useRef(null);
   const lastSentRef = useRef(null); // { lat, lng, at } — throttle, no fake coords
   const prevRequestsRef = useRef(null); // null = first load, no ding yet
+  const permListenerRef = useRef(null); // { target, handler } for permission change listener
   const audioRef = useRef(null);
   const mutedRef = useRef(false);
   const gpsFailRef = useRef(0);
@@ -139,6 +147,7 @@ export default function RiderDashboard() {
       .then((res) => {
         const list = res.data.orders || [];
         setOrders(list);
+        setListError(false);
         // Ding only when a NEW assignment appears after first load.
         const reqIds = new Set(
           list.filter((o) => !o.accepted_at && ["assigned"].includes(o.status)).map((o) => o.id)
@@ -149,7 +158,7 @@ export default function RiderDashboard() {
         }
         prevRequestsRef.current = reqIds;
       })
-      .catch(() => {})
+      .catch(() => { setListError(true); })
       .finally(() => setLoading(false));
   };
 
@@ -158,7 +167,7 @@ export default function RiderDashboard() {
   // Auto-refresh assignments every 15s while online with no active delivery.
   // Pauses when tab hidden; cleaned up on unmount or when a delivery starts.
   const hasActiveDelivery = orders.some(
-    (o) => o.accepted_at && !["delivered", "cancelled"].includes(o.status)
+    (o) => o.accepted_at && !["delivered", "cancelled", "failed_delivery"].includes(o.status)
   );
   useEffect(() => {
     if (!online || hasActiveDelivery) return;
@@ -177,6 +186,7 @@ export default function RiderDashboard() {
       await riderApi.setAvailability(value);
     } catch {
       setOnline((prev) => !prev);
+      setActionError("Couldn't change availability. Please try again.");
     } finally {
       setOnlineBusy(false);
     }
@@ -190,12 +200,13 @@ export default function RiderDashboard() {
 
   const runAction = async (orderId, action) => {
     setActionBusyId(orderId);
+    setActionError(null);
     try {
       await action();
       try { navigator.vibrate?.(50); } catch { /* vibration optional */ }
       await riderApi.getOrders().then((res) => setOrders(res.data.orders || []));
-    } catch {
-      /* keep previous state; error surfaces next reload */
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Action failed. Please try again.");
     } finally {
       setActionBusyId(null);
     }
@@ -209,6 +220,8 @@ export default function RiderDashboard() {
   const completeDelivery = (order) =>
     runAction(order.id, () => riderApi.updateOrderStatus(order.id, "delivered"))
       .then(() => setEarningsReloadKey((k) => k + 1));
+  const reportUnavailable = (order) =>
+    runAction(order.id, () => riderApi.updateOrderStatus(order.id, "failed_delivery"));
 
   const loadEarnings = useCallback((period) => {
     riderApi.getEarnings({ period, limit: 100 })
@@ -242,12 +255,16 @@ export default function RiderDashboard() {
   );
   const activeOrder =
     orders.find(
-      (o) => o.accepted_at && !["delivered", "cancelled"].includes(o.status)
+      (o) => o.accepted_at && !["delivered", "cancelled", "failed_delivery"].includes(o.status)
     ) || null;
+
+  // Kept in a ref so the GPS watcher callback always sees the latest order
+  // without re-subscribing watchPosition on every poll.
+  useEffect(() => { activeOrderRef.current = activeOrder; });
 
   const todayKey = new Date().toDateString();
   const todaysDelivered = orders.filter(
-    (o) => o.delivered_at && new Date(o.delivered_at).toDateString() === todayKey
+    (o) => o.status === "delivered" && o.delivered_at && new Date(o.delivered_at).toDateString() === todayKey
   );
   const earningsToday = todaysDelivered.reduce(
     (sum, o) => sum + Number(o.delivery_fee || 0),
@@ -260,6 +277,17 @@ export default function RiderDashboard() {
     { title: "Active Order", value: activeOrder ? "1" : "0", icon: Bike, tint: "bg-orange-soft text-orange-deep" },
   ];
 
+  // Arrival check: runs on every valid GPS fix (not throttled) so the
+  // prompt is responsive. Fires once per order while heading to the customer.
+  const checkArrival = useCallback((orderId, lat, lng) => {
+    const ao = activeOrderRef.current;
+    if (!ao || ao.id !== orderId || ao.status !== "on_the_way") return;
+    if (ao.customer_lat == null || ao.customer_lng == null) return;
+    if (gpsDistanceM(lat, lng, Number(ao.customer_lat), Number(ao.customer_lng)) <= ARRIVED_RADIUS_M) {
+      setArrivedOrderId((prev) => (prev === orderId ? prev : orderId));
+    }
+  }, []);
+
   const sendLocation = useCallback(async (orderId, position) => {
     const { latitude, longitude, heading, speed } = position.coords;
     // Skip invalid fixes — never send fake coordinates.
@@ -269,6 +297,7 @@ export default function RiderDashboard() {
     ) {
       return;
     }
+    checkArrival(orderId, latitude, longitude);
     // Throttle: skip if barely moved and sent very recently.
     const now = Date.now();
     const last = lastSentRef.current;
@@ -299,7 +328,7 @@ export default function RiderDashboard() {
           : (err?.response?.data?.message || `Failed to send location (${n} failed) — will keep trying.`)
       );
     }
-  }, []);
+  }, [checkArrival]);
 
   const cleanupGps = useCallback(() => {
     if (watchIdRef.current) {
@@ -323,13 +352,24 @@ export default function RiderDashboard() {
     try {
       const result = await navigator.permissions.query({ name: "geolocation" });
       setGpsPermissionState(result.state);
-      result.addEventListener("change", () => {
-        setGpsPermissionState(result.state);
-      });
+      if (permListenerRef.current) {
+        permListenerRef.current.target.removeEventListener("change", permListenerRef.current.handler);
+        permListenerRef.current = null;
+      }
+      const onPermChange = () => setGpsPermissionState(result.state);
+      result.addEventListener("change", onPermChange);
+      permListenerRef.current = { target: result, handler: onPermChange };
       return result.state;
     } catch {
       setGpsPermissionState("unknown");
       return "unknown";
+    }
+  }, []);
+
+  useEffect(() => () => {
+    if (permListenerRef.current) {
+      permListenerRef.current.target.removeEventListener("change", permListenerRef.current.handler);
+      permListenerRef.current = null;
     }
   }, []);
 
@@ -454,9 +494,8 @@ export default function RiderDashboard() {
       brandSubtitle="Rider"
       profileSection={profileSection}
       sidebarBottom={sidebarBottom}
-      navItems={NAV_ITEMS.map((n) => ({ key: n.key, label: n.label, icon: n.icon }))}
+      navItems={[]}
       active="dashboard"
-      onNavigate={() => {}}
       title="Rider Dashboard"
       subtitle={
         online
@@ -491,6 +530,28 @@ export default function RiderDashboard() {
       }
     >
       <div className="max-w-6xl">
+        {actionError && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3">
+            <span>{actionError}</span>
+            <button
+              onClick={() => setActionError(null)}
+              className="text-xs font-bold hover:text-red-800 shrink-0 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        {listError && !loading && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl mb-4 flex items-center justify-between gap-3">
+            <span>Couldn't load assignments. Check your connection.</span>
+            <button
+              onClick={() => { setListError(false); setLoading(true); loadOrders(); }}
+              className="text-xs font-bold hover:text-red-800 shrink-0 cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
@@ -597,6 +658,33 @@ export default function RiderDashboard() {
                   )}
                 </div>
 
+                {arrivedOrderId === activeOrder.id && activeOrder.status === "on_the_way" && (
+                  <div className="mx-5 mt-4 bg-emerald-50 border border-emerald-200 rounded-[13px] px-4 py-3.5 flex flex-wrap items-center gap-3">
+                    <span className="w-9 h-9 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                      <MapPin size={16} />
+                    </span>
+                    <div className="flex-1 min-w-[180px]">
+                      <p className="text-[13px] font-bold text-emerald-800">Looks like you've arrived</p>
+                      <p className="text-[12px] text-emerald-700">At the drop-off for order #{activeOrder.id}?</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setArrivedOrderId(null); markNearCustomer(activeOrder); }}
+                        disabled={actionBusyId === activeOrder.id}
+                        className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
+                      >
+                        Mark Near Customer
+                      </button>
+                      <button
+                        onClick={() => setArrivedOrderId(null)}
+                        className="text-xs font-bold text-emerald-700 hover:text-emerald-900 px-2 py-2.5 cursor-pointer font-outfit"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5">
                   <div className="bg-surface rounded-[13px] p-4 border border-border">
                     <div className="flex items-center gap-2.5 mb-2">
@@ -609,8 +697,16 @@ export default function RiderDashboard() {
                       </div>
                     </div>
                     <p className="text-xs text-text-muted mb-3">{activeOrder.restaurant?.address || "—"}</p>
+                    {activeOrder.restaurant?.phone && (
+                      <a
+                        href={`tel:${activeOrder.restaurant.phone}`}
+                        className="inline-flex items-center gap-1.5 mb-1 text-xs font-bold text-orange-primary hover:text-orange-deep transition-colors no-underline"
+                      >
+                        <Phone size={13} /> Call restaurant · {activeOrder.restaurant.phone}
+                      </a>
+                    )}
 
-                    {activeOrder.status !== "ready" && activeOrder.status !== "picked_up" && activeOrder.status !== "on_the_way" && activeOrder.status !== "assigned" && activeOrder.status !== "near_customer" ? (
+                    {activeOrder.status !== "ready" && activeOrder.status !== "picked_up" && activeOrder.status !== "on_the_way" && activeOrder.status !== "assigned" && activeOrder.status !== "near_customer" && activeOrder.status !== "served" ? (
                       <>
                         <button
                           disabled
@@ -651,6 +747,14 @@ export default function RiderDashboard() {
                       </div>
                     </div>
                     <p className="text-xs text-text-muted mb-3">{activeOrder.delivery_address || "—"}</p>
+                    {activeOrder.customer_phone && (
+                      <a
+                        href={`tel:${activeOrder.customer_phone}`}
+                        className="inline-flex items-center gap-1.5 mb-1 text-xs font-bold text-sky-700 hover:text-sky-900 transition-colors no-underline"
+                      >
+                        <Phone size={13} /> Call {activeOrder.customer_name || "customer"} · {activeOrder.customer_phone}
+                      </a>
+                    )}
 
                     {activeOrder.status === "picked_up" ? (
                       <button
@@ -669,13 +773,22 @@ export default function RiderDashboard() {
                         {actionBusyId === activeOrder.id ? "Updating..." : "Near Customer"}
                       </button>
                     ) : activeOrder.status === "near_customer" ? (
-                      <button
-                        onClick={() => markServed(activeOrder)}
-                        disabled={actionBusyId === activeOrder.id}
-                        className="w-full min-h-[48px] bg-amber-500 hover:bg-amber-600 disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-sm font-bold py-3 rounded-lg transition-colors cursor-pointer font-outfit"
-                      >
-                        {actionBusyId === activeOrder.id ? "Updating..." : "Mark as Served"}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => markServed(activeOrder)}
+                          disabled={actionBusyId === activeOrder.id}
+                          className="w-full min-h-[48px] bg-amber-500 hover:bg-amber-600 disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-sm font-bold py-3 rounded-lg transition-colors cursor-pointer font-outfit"
+                        >
+                          {actionBusyId === activeOrder.id ? "Updating..." : "Mark as Served"}
+                        </button>
+                        <button
+                          onClick={() => setReportFailOpen(true)}
+                          disabled={actionBusyId === activeOrder.id}
+                          className="w-full min-h-[44px] mt-2 border border-red-200 hover:border-red-400 disabled:opacity-50 text-red-600 hover:text-red-700 text-xs font-bold py-2.5 rounded-lg transition-colors cursor-pointer font-outfit"
+                        >
+                          Report Customer Unavailable
+                        </button>
+                      </>
                     ) : activeOrder.status === "served" ? (
                       <button
                         onClick={() => completeDelivery(activeOrder)}
@@ -755,6 +868,15 @@ export default function RiderDashboard() {
                     Navigate
                   </a>
                 </div>
+                <ConfirmDialog
+                  open={reportFailOpen}
+                  title="Report customer unavailable?"
+                  message="Confirm you reached the drop-off and tried contacting the customer (call button above). This marks the order as a failed delivery — it cannot be undone, and a COD no-show strike will be recorded for the customer."
+                  confirmLabel="Report unavailable"
+                  danger
+                  onClose={() => setReportFailOpen(false)}
+                  onConfirm={() => { setReportFailOpen(false); reportUnavailable(activeOrder); }}
+                />
               </section>
             ) : (
               <section>

@@ -16,6 +16,13 @@ const LINK_SECTIONS = {
   customer_activated: "customers",
   category_request_approved: "categories",
   category_request_rejected: "categories",
+  order: "orders",
+  review: "reviews",
+  delivery_failed: "orders",
+  complaint_filed: "complaints",
+  complaint_investigating: "complaints",
+  complaint_resolved: "complaints",
+  complaint_rejected: "complaints",
 };
 
 export default function NotificationsDropdown({ onNavigate }) {

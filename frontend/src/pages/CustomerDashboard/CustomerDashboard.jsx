@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Bell, Bike, CalendarClock, Camera, Check, CheckCircle2, Clock, CreditCard, Heart, KeyRound, MapPin,
@@ -33,6 +33,7 @@ const STATUS_COLOR = {
   delivered: "#16A34A",
   served: "#16A34A",
   cancelled: "#DC2626",
+  failed_delivery: "#DC2626",
 };
 
 const STATUS_LABEL = {
@@ -47,9 +48,29 @@ const STATUS_LABEL = {
   delivered: "Delivered",
   served: "Served",
   cancelled: "Cancelled",
+  failed_delivery: "Delivery failed",
 };
 
 const ACTIVE_STATUSES = ["pending", "confirmed", "preparing", "ready", "assigned", "picked_up", "on_the_way", "near_customer"];
+
+const COMPLAINT_TYPES = [
+  { key: "rider_no_show", label: "Rider did not arrive" },
+  { key: "wrong_food", label: "Wrong food" },
+  { key: "missing_items", label: "Missing items" },
+  { key: "bad_quality", label: "Bad food quality" },
+  { key: "rotten_food", label: "Rotten/spoiled food" },
+  { key: "late_delivery", label: "Late delivery" },
+  { key: "other", label: "Other" },
+];
+
+const COMPLAINT_STATUS_LABEL = {
+  open: "Open",
+  investigating: "Under review",
+  resolved: "Resolved",
+  rejected: "Rejected",
+};
+
+const complaintTypeLabel = (type) => COMPLAINT_TYPES.find((t) => t.key === type)?.label || type;
 
 const STEPS = [
   { label: "Placed", status: "pending" },
@@ -210,6 +231,209 @@ function ReviewModal({ order, onClose, onSubmit }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Complaint modal + reports view                                       */
+/* ------------------------------------------------------------------ */
+
+function ComplaintModal({ order, onClose, onSubmit }) {
+  const [issue, setIssue] = useState(null);
+  const [note, setNote] = useState("");
+  const [photos, setPhotos] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const previews = useMemo(() => photos.map((f) => URL.createObjectURL(f)), [photos]);
+  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+
+  const addPhotos = (files) => {
+    setError(null);
+    const incoming = Array.from(files || []);
+    const merged = [...photos];
+    for (const f of incoming) {
+      if (merged.length >= 3) {
+        setError("Maximum 3 photos per report.");
+        break;
+      }
+      if (f.size > 5 * 1024 * 1024) {
+        setError(`"${f.name}" is over 5 MB and was skipped.`);
+        continue;
+      }
+      merged.push(f);
+    }
+    setPhotos(merged);
+  };
+
+  const submit = async () => {
+    if (!issue) {
+      setError("Please choose an issue type.");
+      return;
+    }
+    if (note.trim().length < 10) {
+      setError("Please describe the issue (at least 10 characters).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("order_id", order.id);
+      form.append("type", issue);
+      form.append("description", note.trim());
+      photos.forEach((f) => form.append("photos[]", f));
+      await onSubmit(form);
+      onClose();
+    } catch (err) {
+      const errors = err.response?.data?.errors;
+      setError(errors ? Object.values(errors)[0]?.[0] : err.response?.data?.message || "Failed to submit report");
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-card rounded-[16px] border border-border p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-[16px] font-bold text-text-primary">Report a problem</h3>
+          <button onClick={onClose} className="text-text-light hover:text-text-primary cursor-pointer border-none bg-none">
+            <X size={18} />
+          </button>
+        </div>
+        <p className="text-[13px] text-text-muted mb-4">
+          {order.restaurant?.restaurant_name || "Restaurant"} · Order #{order.id}
+        </p>
+
+        <p className="text-[13px] font-semibold text-text-primary mb-2">What's the issue?</p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {COMPLAINT_TYPES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setIssue(t.key)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors cursor-pointer font-outfit ${
+                issue === t.key
+                  ? "bg-orange-primary text-white border-orange-primary"
+                  : "text-text-muted border-border hover:border-zinc-400 hover:text-text-primary"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="Describe what went wrong (min. 10 characters)"
+          className="w-full px-3.5 py-2.5 rounded-[10px] text-sm bg-[#FAFAFA] border border-border focus:bg-white focus:outline-none focus:ring-2 focus:ring-orange-200 placeholder:text-text-light font-outfit box-border resize-none mb-3"
+        />
+
+        <div className="mb-1">
+          <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-muted hover:text-text-primary border border-border hover:border-zinc-400 rounded-lg px-3 py-2 cursor-pointer font-outfit transition-colors">
+            <Camera size={14} /> Add photos ({photos.length}/3, max 5 MB each)
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/jpg,image/webp"
+              multiple
+              className="hidden"
+              onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }}
+            />
+          </label>
+        </div>
+        {photos.length > 0 && (
+          <div className="flex gap-2 mb-3 mt-2">
+            {previews.map((url, i) => (
+              <div key={`${i}-${url}`} className="relative w-16 h-16 rounded-lg overflow-hidden border border-border shrink-0">
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label="Remove photo"
+                  className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center cursor-pointer"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {error && (
+          <p className="text-xs text-danger bg-red-50 border border-red-100 px-3 py-2 rounded-lg mb-3">{error}</p>
+        )}
+
+        <div className="flex gap-2.5">
+          <button
+            onClick={onClose}
+            className="flex-1 text-text-muted hover:text-text-primary text-sm font-semibold px-4 py-2.5 rounded-lg border border-border hover:border-zinc-300 cursor-pointer font-outfit"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="flex-1 bg-orange-primary hover:bg-orange-deep disabled:opacity-50 text-white text-sm font-bold px-4 py-2.5 rounded-lg cursor-pointer font-outfit"
+          >
+            {busy ? "Submitting..." : "Submit Report"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportsView({ complaints, onViewOrder }) {
+  const openCount = complaints.filter((c) => c.status === "open" || c.status === "investigating").length;
+  return (
+    <div>
+      <Card className="overflow-hidden">
+        <SectionTitle
+          title="My Reports"
+          subtitle={openCount > 0 ? `${openCount} report${openCount > 1 ? "s" : ""} awaiting review` : "Issue history across your orders"}
+        />
+        {complaints.length === 0 ? (
+          <EmptyState message="No reports yet — use Report a Problem on any delivered order" />
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            {complaints.map((c) => (
+              <div key={c.id} className="bg-card rounded-[12px] px-4 py-3.5 border border-border">
+                <div className="flex items-center gap-2 flex-wrap mb-1">
+                  <span className="text-[14px] font-bold text-text-primary">{complaintTypeLabel(c.type)}</span>
+                  <span
+                    className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      c.status === "resolved"
+                        ? "text-emerald-700 bg-emerald-50"
+                        : c.status === "rejected"
+                          ? "text-zinc-500 bg-zinc-100"
+                          : "text-amber-700 bg-amber-50"
+                    }`}
+                  >
+                    {COMPLAINT_STATUS_LABEL[c.status] || c.status}
+                  </span>
+                  <button
+                    onClick={() => onViewOrder?.(c.order_id)}
+                    className="ml-auto text-[12px] text-orange-primary font-semibold bg-none border-none cursor-pointer font-outfit hover:text-orange-deep"
+                  >
+                    Order #{c.order_id}
+                  </button>
+                </div>
+                <p className="text-[13px] text-text-muted leading-relaxed">{c.description}</p>
+                {c.resolution && (
+                  <p className="text-[13px] text-text-primary mt-2 bg-[#FAFAFA] border border-border rounded-lg px-3 py-2">
+                    <b>Resolution:</b> {c.resolution}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
@@ -506,7 +730,7 @@ function OrderDetailsModal({ order, onClose, onTrack, onReorder, onReview }) {
 /* ------------------------------------------------------------------ */
 
 const IN_TRANSIT_STATUSES = ["picked_up", "on_the_way", "near_customer"];
-const TERMINAL_STATUSES = ["delivered", "cancelled"];
+const TERMINAL_STATUSES = ["delivered", "cancelled", "failed_delivery"];
 const STALE_AFTER_MS = 45000;
 const ROUTE_REFRESH_MS = 60000;
 const ROUTE_MIN_MOVE_M = 150;
@@ -537,6 +761,8 @@ const trackingTimeAgo = (iso, now) => {
 
 function LiveTrackingMap({ order }) {
   const [route, setRoute] = useState(null);
+  const [trackDown, setTrackDown] = useState(false);
+  const failStreak = useRef(0);
   const [pollData, setPollData] = useState(null);
   const [now, setNow] = useState(() => Date.now());
   const timerRef = useRef(null);
@@ -546,13 +772,23 @@ function LiveTrackingMap({ order }) {
   useEffect(() => {
     if (!order.tracking_code || !IN_TRANSIT_STATUSES.includes(order.status)) return;
 
+    const noteSuccess = () => {
+      failStreak.current = 0;
+      setTrackDown(false);
+    };
+    const noteFailure = () => {
+      failStreak.current += 1;
+      if (failStreak.current >= 3) setTrackDown(true);
+    };
+
     const fetchRoute = (rider) => {
       trackingApi.getRoute(order.tracking_code)
         .then((res) => {
           setRoute(res.data);
           routeMetaRef.current = { at: Date.now(), lat: rider?.lat ?? null, lng: rider?.lng ?? null };
+          noteSuccess();
         })
-        .catch(() => {});
+        .catch(() => { noteFailure(); });
     };
 
     fetchRoute(null);
@@ -563,6 +799,7 @@ function LiveTrackingMap({ order }) {
           const data = res.data;
           setPollData(data);
           setNow(Date.now());
+          noteSuccess();
           if (TERMINAL_STATUSES.includes(data?.status)) {
             if (timerRef.current) clearInterval(timerRef.current);
             timerRef.current = null;
@@ -576,7 +813,7 @@ function LiveTrackingMap({ order }) {
           if (rider && meta.lat != null) moved = haversineM(meta.lat, meta.lng, rider.lat, rider.lng);
           if (elapsed > ROUTE_REFRESH_MS || moved > ROUTE_MIN_MOVE_M) fetchRoute(rider);
         })
-        .catch(() => {});
+        .catch(() => { noteFailure(); });
     };
 
     poll();
@@ -614,7 +851,11 @@ function LiveTrackingMap({ order }) {
         polyline={route?.polyline}
       />
       <div className="flex items-center justify-between px-1">
-        {riderLocation && !riderStale ? (
+        {trackDown ? (
+          <span className="text-[11px] font-semibold text-danger">
+            Live updates paused — connection issue. Reopen tracking to retry.
+          </span>
+        ) : riderLocation && !riderStale ? (
           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             Live{updatedLabel ? ` · Updated ${updatedLabel}` : ""}
@@ -720,12 +961,13 @@ function TrackLiveModal({ order, onClose, onSupport }) {
 /*  Orders view                                                        */
 /* ------------------------------------------------------------------ */
 
-function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onReview, onSupport }) {
+function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onReview, onSupport, onReport, complaintsByOrder }) {
   const [reviewOrder, setReviewOrder] = useState(null);
   const [supportOrder, setSupportOrder] = useState(null);
   const [cancelOrder, setCancelOrder] = useState(null);
   const [detailsOrder, setDetailsOrder] = useState(null);
   const [trackOrder, setTrackOrder] = useState(null);
+  const [reportOrder, setReportOrder] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
 
   const activeOrders = orders.filter((o) => ACTIVE_STATUSES.includes(o.status));
@@ -734,7 +976,7 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
   const currentIdx = selected ? stepIndex(selected.status) : -1;
 
   const totalSpent = orders
-    .filter((o) => o.status !== "cancelled")
+    .filter((o) => o.status !== "cancelled" && o.status !== "failed_delivery" && o.payment_status !== "refunded")
     .reduce((sum, o) => sum + Number(o.total || 0), 0);
   const deliveredCount = orders.filter((o) => o.status === "delivered" || o.status === "served").length;
 
@@ -966,6 +1208,18 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
                           >
                             Review
                           </button>
+                          {complaintsByOrder?.[o.id] ? (
+                            <span className="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md">
+                              Report {COMPLAINT_STATUS_LABEL[complaintsByOrder[o.id]] || complaintsByOrder[o.id]}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setReportOrder(o); }}
+                              className="text-[12px] text-text-muted font-semibold bg-none border border-border rounded-md px-2.5 py-1 cursor-pointer font-outfit hover:border-zinc-300 hover:text-text-primary transition-colors"
+                            >
+                              Report a Problem
+                            </button>
+                          )}
                         </>
                       )}
                     </>
@@ -1004,6 +1258,9 @@ function OrdersView({ orders, overview, tab, setTab, onReorder, onCancel, onRevi
 
       {reviewOrder && (
         <ReviewModal order={reviewOrder} onClose={() => setReviewOrder(null)} onSubmit={onReview} />
+      )}
+      {reportOrder && (
+        <ComplaintModal order={reportOrder} onClose={() => setReportOrder(null)} onSubmit={onReport} />
       )}
       {supportOrder && (
         <SupportModal order={supportOrder} onClose={() => setSupportOrder(null)} onSubmit={onSupport} />
@@ -1049,7 +1306,7 @@ function FavoritesView({ favorites, wishlist, onRemoveFavorite, onRemoveWishlist
           }
         />
         {favorites.length === 0 ? (
-          <EmptyState message="No favorite restaurants yet" />
+          <EmptyState message="No favorite restaurants yet — tap the heart on any restaurant to save it" />
         ) : (
           <div className="flex gap-3 overflow-x-auto pb-1">
             {favorites.map((fav) => {
@@ -1136,7 +1393,7 @@ function FavoritesView({ favorites, wishlist, onRemoveFavorite, onRemoveWishlist
 /*  Addresses view                                                     */
 /* ------------------------------------------------------------------ */
 
-function AddressesView({ addresses, onSaved }) {
+function AddressesView({ addresses, onSaved, notify }) {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -1200,6 +1457,7 @@ function AddressesView({ addresses, onSaved }) {
     setListError("");
     try {
       await customerApi.setDefaultAddress(id);
+      notify?.("Default address updated");
       onSaved();
     } catch {
       setListError("Failed to set default address. Please try again.");
@@ -1331,7 +1589,11 @@ function AddressesView({ addresses, onSaved }) {
               >
                 <Pencil size={12} /> Edit
               </button>
-              {!addr.is_default && (
+              {addr.is_default ? (
+                <span className="text-[11px] text-text-light self-center ml-auto">
+                  Set another address as default before deleting this one.
+                </span>
+              ) : (
                 <>
                   <button
                     onClick={() => handleSetDefault(addr.id)}
@@ -2053,6 +2315,7 @@ const NOTIF_ICON = {
   delivered: CheckCircle2,
   served: CheckCircle2,
   cancelled: XCircle,
+  failed_delivery: XCircle,
   rejected: XCircle,
   no_show: Clock,
   completed: CheckCircle2,
@@ -2209,7 +2472,11 @@ const PAYMENT_METHOD_LABEL = {
 };
 
 function PaymentsView({ orders }) {
-  const methods = orders.reduce((acc, o) => {
+  // Method totals reflect completed orders only — cancelled and failed
+  // deliveries never moved money, and refunded money went back.
+  const methods = orders
+    .filter((o) => (o.status === "delivered" || o.status === "served") && o.payment_status !== "refunded")
+    .reduce((acc, o) => {
     const m = o.payment_method || "cod";
     acc[m] = acc[m] || { method: m, count: 0, total: 0, paid: 0 };
     acc[m].count += 1;
@@ -2423,7 +2690,7 @@ export default function CustomerDashboard() {
   const [searchParams] = useSearchParams();
   const [active, setActive] = useState(() => {
     const tab = searchParams.get("tab");
-    return ["orders", "favorites", "addresses", "profile", "password", "reservations", "payments", "notifications", "settings"].includes(tab) ? tab : "orders";
+    return ["orders", "favorites", "addresses", "profile", "password", "reservations", "payments", "notifications", "reports", "settings"].includes(tab) ? tab : "orders";
   });
   const [tab, setTab] = useState("active");
   const [cartOpen, setCartOpen] = useState(false);
@@ -2433,6 +2700,7 @@ export default function CustomerDashboard() {
   const [wishlist, setWishlist] = useState([]);
   const [addresses, setAddresses] = useState([]);
   const [reservations, setReservations] = useState([]);
+  const [complaints, setComplaints] = useState([]);
   const [toast, setToast] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
 
@@ -2446,7 +2714,7 @@ export default function CustomerDashboard() {
       const res = await customerApi.getOrders();
       setOrders(res.data.orders || []);
     } catch {
-      /* keep previous */
+      showToast("Couldn't load orders. Please retry.", "error");
     }
   }, []);
 
@@ -2459,7 +2727,7 @@ export default function CustomerDashboard() {
       setFavorites(favRes.data.favorites || []);
       setWishlist(wishRes.data.wishlist_items || []);
     } catch {
-      /* keep previous */
+      showToast("Couldn't load favorites. Please retry.", "error");
     }
   }, []);
 
@@ -2468,7 +2736,7 @@ export default function CustomerDashboard() {
       const res = await customerApi.getAddresses();
       setAddresses(res.data.addresses || []);
     } catch {
-      /* keep previous */
+      showToast("Couldn't load addresses. Please retry.", "error");
     }
   }, []);
 
@@ -2477,20 +2745,48 @@ export default function CustomerDashboard() {
       const res = await reservationApi.getMine();
       setReservations(res.data.reservations || []);
     } catch {
-      /* keep previous */
+      showToast("Couldn't load reservations. Please retry.", "error");
     }
   }, []);
 
+  const loadComplaints = useCallback(async () => {
+    try {
+      const res = await customerApi.getComplaints();
+      setComplaints(res.data.complaints || []);
+    } catch {
+      /* reports tab covers empty state; order flow unaffected */
+    }
+  }, []);
+
+  const complaintsByOrder = useMemo(() => {
+    const map = {};
+    complaints.forEach((c) => {
+      if (c.status === "open" || c.status === "investigating") map[c.order_id] = c.status;
+    });
+    return map;
+  }, [complaints]);
+
+  const handleReport = async (formData) => {
+    await customerApi.fileComplaint(formData);
+    showToast("Report submitted. Our team will review it shortly.");
+    loadComplaints();
+  };
+
+  const openComplaintCount = complaints.filter(
+    (c) => c.status === "open" || c.status === "investigating"
+  ).length;
+
   useEffect(() => {
     const t = window.setTimeout(() => {
-      customerApi.getOverview().then((r) => setOverview(r.data)).catch(() => {});
+      customerApi.getOverview().then((r) => setOverview(r.data)).catch(() => showToast("Couldn't load dashboard summary.", "error"));
       loadOrders();
       loadFavorites();
       loadAddresses();
       loadReservations();
+      loadComplaints();
     }, 0);
     return () => window.clearTimeout(t);
-  }, [loadOrders, loadFavorites, loadAddresses, loadReservations]);
+  }, [loadOrders, loadFavorites, loadAddresses, loadReservations, loadComplaints]);
 
   const handleLogout = async () => {
     await logout();
@@ -2564,6 +2860,7 @@ export default function CustomerDashboard() {
       onConfirm: async () => {
         try {
           await customerApi.removeFavorite(restaurantId);
+          showToast("Removed from favorites");
           loadFavorites();
         } catch {
           showToast("Failed to remove", "error");
@@ -2581,6 +2878,7 @@ export default function CustomerDashboard() {
       onConfirm: async () => {
         try {
           await customerApi.removeWishlistItem(menuItemId);
+          showToast("Removed from wishlist");
           loadFavorites();
         } catch {
           showToast("Failed to remove", "error");
@@ -2676,6 +2974,7 @@ export default function CustomerDashboard() {
     { key: "password", label: "Change Password", icon: KeyRound },
     { key: "payments", label: "Payments", icon: CreditCard },
     { key: "notifications", label: "Notifications", icon: Bell, badge: visibleUnreadCount > 9 ? "9+" : visibleUnreadCount || undefined },
+    { key: "reports", label: "My Reports", icon: MessageCircle, badge: openComplaintCount || undefined },
     { key: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -2688,6 +2987,7 @@ export default function CustomerDashboard() {
     password: { title: "Change Password", subtitle: "Keep your account secure." },
     payments: { title: "Payments", subtitle: "Payment methods and history." },
     notifications: { title: "Notifications", subtitle: "Order and reservation updates." },
+    reports: { title: "My Reports", subtitle: "Issue reports across your orders." },
     settings: { title: "Settings", subtitle: "Preferences saved on this device." },
   };
 
@@ -2747,6 +3047,8 @@ export default function CustomerDashboard() {
             onCancel={handleCancel}
             onReview={handleReview}
             onSupport={handleSupport}
+            onReport={handleReport}
+            complaintsByOrder={complaintsByOrder}
           />
         )}
         {active === "favorites" && (
@@ -2757,7 +3059,7 @@ export default function CustomerDashboard() {
             onRemoveWishlist={handleRemoveWishlist}
           />
         )}
-        {active === "addresses" && <AddressesView addresses={addresses} onSaved={loadAddresses} />}
+        {active === "addresses" && <AddressesView addresses={addresses} onSaved={loadAddresses} notify={showToast} />}
         {active === "profile" && <ProfileView user={user} refreshUser={refreshUser} />}
         {active === "password" && <PasswordView />}
         {active === "reservations" && (
@@ -2773,6 +3075,9 @@ export default function CustomerDashboard() {
             paused={!notifsEnabled}
             onGoSettings={() => setActive("settings")}
           />
+        )}
+        {active === "reports" && (
+          <ReportsView complaints={complaints} onViewOrder={() => setActive("orders")} />
         )}
         {active === "settings" && <SettingsView />}
       </DashboardLayout>

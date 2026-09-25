@@ -77,6 +77,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/reservations', [ReservationController::class, 'customerIndex']);
         Route::post('/reservations/{id}/cancel', [ReservationController::class, 'cancel']);
         Route::post('/reviews', [CustomerController::class, 'storeReview']);
+        Route::get('/complaints', [App\Http\Controllers\ComplaintController::class, 'mine']);
+        Route::post('/complaints', [App\Http\Controllers\ComplaintController::class, 'store']);
         Route::get('/favorites', [CustomerController::class, 'favorites']);
         Route::post('/favorites', [CustomerController::class, 'addFavorite']);
         Route::delete('/favorites/{restaurantId}', [CustomerController::class, 'removeFavorite']);
@@ -154,12 +156,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/riders/pending', [App\Http\Controllers\AdminController::class, 'pendingRiders']);
         Route::post('/riders/{id}/approve', [App\Http\Controllers\AdminController::class, 'approveRider']);
         Route::post('/riders/{id}/reject', [App\Http\Controllers\AdminController::class, 'rejectRider']);
+        Route::post('/riders/{id}/requeue', [App\Http\Controllers\AdminController::class, 'requeueRider']);
         Route::get('/riders/{id}', [App\Http\Controllers\AdminController::class, 'riderDetail']);
         Route::post('/riders/{id}/suspend', [App\Http\Controllers\AdminController::class, 'suspendRider']);
         Route::post('/riders/{id}/activate', [App\Http\Controllers\AdminController::class, 'activateRider']);
         Route::get('/orders', [App\Http\Controllers\AdminController::class, 'orders']);
         Route::get('/orders/{id}', [App\Http\Controllers\AdminController::class, 'orderDetail']);
         Route::post('/orders/{id}/assign-rider', [App\Http\Controllers\AdminController::class, 'assignRider']);
+        Route::post('/orders/{id}/mark-refunded', [App\Http\Controllers\AdminController::class, 'markRefunded']);
         Route::get('/customers', [App\Http\Controllers\AdminController::class, 'customers']);
         Route::get('/customers/{id}', [App\Http\Controllers\AdminController::class, 'customerDetail']);
         Route::post('/customers/{id}/suspend', [App\Http\Controllers\AdminController::class, 'suspendCustomer']);
@@ -186,6 +190,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/reviews/{id}/reject', [App\Http\Controllers\AdminController::class, 'rejectReview']);
         Route::post('/reviews/{id}/feature', [App\Http\Controllers\AdminController::class, 'setReviewFeatured']);
         Route::delete('/reviews/{id}', [App\Http\Controllers\AdminController::class, 'deleteReview']);
+        Route::get('/complaints', [App\Http\Controllers\ComplaintController::class, 'index']);
+        Route::get('/complaints/{id}', [App\Http\Controllers\ComplaintController::class, 'show']);
+        Route::put('/complaints/{id}/resolve', [App\Http\Controllers\ComplaintController::class, 'resolve']);
 
     });
 });

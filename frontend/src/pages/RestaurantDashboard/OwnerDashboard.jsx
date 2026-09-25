@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { TrendingUp, ClipboardList, CheckCircle2, CalendarClock, Plus, ArrowRight, Bike, AlertTriangle, X, Wallet, PiggyBank } from "lucide-react";
+import { TrendingUp, ClipboardList, CheckCircle2, CalendarClock, Plus, ArrowRight, Bike, AlertTriangle, X, Wallet, PiggyBank, RefreshCw } from "lucide-react";
 import { restaurantApi, reservationApi } from "../../features/api/apiSlice";
 import { formatPrice } from "../../utils/foodImages";
 
 const COMPLETED_STATUSES = ["delivered", "served"];
-const TERMINAL_STATUSES = ["delivered", "cancelled"];
+const TERMINAL_STATUSES = ["delivered", "cancelled", "failed_delivery"];
 const ACTIVE_RESERVATION_STATUSES = ["pending", "confirmed"];
 
 const STATUS_META = {
@@ -20,6 +20,7 @@ const STATUS_META = {
   served: { label: "Served", color: "bg-emerald-50 text-emerald-600" },
   delivered: { label: "Delivered", color: "bg-emerald-50 text-emerald-600" },
   cancelled: { label: "Cancelled", color: "bg-red-50 text-red-500" },
+  failed_delivery: { label: "Delivery failed", color: "bg-red-50 text-red-500" },
 };
 
 const RESTAURANT_ACTIONABLE = new Set(["pending", "confirmed", "preparing", "ready"]);
@@ -81,18 +82,25 @@ export default function OwnerDashboard() {
   const [expenses, setExpenses] = useState([]);
   const [actingId, setActingId] = useState(null);
   const [cancelModal, setCancelModal] = useState(null);
+  const [loadError, setLoadError] = useState(null);
 
-  useEffect(() => {
+  const loadDashboard = useCallback(() => {
+    setLoadError(null);
     restaurantApi.getOrders()
       .then((r) => setOrders(r.data.orders || []))
-      .catch(() => {});
+      .catch(() => setLoadError("Failed to load dashboard data"));
     reservationApi.getForRestaurant()
       .then((r) => setReservations(r.data.reservations || []))
-      .catch(() => {});
+      .catch(() => setLoadError("Failed to load dashboard data"));
     restaurantApi.getExpenses()
       .then((r) => setExpenses(r.data.expenses || []))
-      .catch(() => {});
+      .catch(() => setLoadError("Failed to load dashboard data"));
   }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial dashboard fetch (+ Retry reuses loadDashboard)
+    loadDashboard();
+  }, [loadDashboard]);
 
   const now = new Date();
 
@@ -103,7 +111,10 @@ export default function OwnerDashboard() {
   const completedToday = orders.filter(
     (o) => COMPLETED_STATUSES.includes(o.status) && sameDay(new Date(o.created_at), now)
   );
-  const todayRevenue = completedToday.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+  // Money kept only: refunded orders were completed work but the revenue
+  // went back to the customer.
+  const revenueToday = completedToday.filter((o) => o.payment_status !== "refunded");
+  const todayRevenue = revenueToday.reduce((s, o) => s + parseFloat(o.total || 0), 0);
   const todayExpenses = expenses.reduce((s, e) => {
     if (!e.created_at || !sameDay(new Date(e.created_at), now)) return s;
     return s + (Number(e.amount) || 0);
@@ -129,7 +140,7 @@ export default function OwnerDashboard() {
       const r = await restaurantApi.getOrders();
       setOrders(r.data.orders || []);
     } catch {
-      // ignore; list refreshes next visit
+      setLoadError("Failed to update order status");
     }
     setActingId(null);
   };
@@ -151,6 +162,12 @@ export default function OwnerDashboard() {
 
   return (
     <div className="space-y-5">
+      {loadError && (
+        <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl text-sm flex items-center justify-between">
+          <span>{loadError}</span>
+          <button onClick={() => loadDashboard()} className="inline-flex items-center gap-1.5 font-semibold hover:text-red-700 cursor-pointer"><RefreshCw size={14} /> Retry</button>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {stats.map((s) => {
           const Icon = s.icon;

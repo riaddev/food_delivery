@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, Bike, CreditCard, LayoutGrid, Package, Settings as SettingsIcon, Star, Store, Users, UtensilsCrossed } from "lucide-react";
+import { BarChart3, Bike, CreditCard, LayoutGrid, MessageCircle, Package, Settings as SettingsIcon, Star, Store, Users, UtensilsCrossed } from "lucide-react";
 import { useAuth } from "../../features/auth/AuthContext";
 import { adminApi } from "../../features/api/apiSlice";
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
@@ -15,6 +15,7 @@ import Reviews from "./sections/Reviews";
 import Payments from "./sections/Payments";
 import Analytics from "./sections/Analytics";
 import Settings from "./sections/Settings";
+import Complaints from "./sections/Complaints";
 
 const NAV_ITEMS = [
   { key: "overview", label: "Overview", icon: LayoutGrid },
@@ -24,6 +25,7 @@ const NAV_ITEMS = [
   { key: "customers", label: "Customers", icon: Users },
   { key: "categories", label: "Categories", icon: UtensilsCrossed },
   { key: "reviews", label: "Reviews", icon: Star },
+  { key: "complaints", label: "Disputes", icon: MessageCircle },
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "analytics", label: "Analytics", icon: BarChart3 },
   { key: "settings", label: "Settings", icon: SettingsIcon },
@@ -37,6 +39,7 @@ const SECTIONS = {
   customers: { title: "Customers", subtitle: "Manage customer accounts and access" },
   categories: { title: "Categories", subtitle: "Curate how dishes are organised" },
   reviews: { title: "Reviews", subtitle: "Approve reviews and feature the best on the homepage" },
+  complaints: { title: "Disputes", subtitle: "Customer reports, failed deliveries and resolutions" },
   payments: { title: "Payments", subtitle: "Transaction history across all orders" },
   analytics: { title: "Analytics", subtitle: "Orders, revenue and performance trends" },
   settings: { title: "Settings", subtitle: "Platform configuration and account" },
@@ -169,6 +172,7 @@ export default function AdminDashboard() {
         {active === "customers" && <Customers showToast={showToast} />}
         {active === "categories" && <Categories showToast={showToast} />}
         {active === "reviews" && <Reviews showToast={showToast} />}
+        {active === "complaints" && <Complaints showToast={showToast} />}
         {active === "payments" && <Payments onViewOrder={handleViewOrder} showToast={showToast} />}
         {active === "analytics" && <Analytics />}
         {active === "settings" && <Settings showToast={showToast} />}

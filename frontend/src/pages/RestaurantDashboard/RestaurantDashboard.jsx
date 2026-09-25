@@ -84,9 +84,9 @@ export default function RestaurantDashboard() {
     );
 
   const sidebarBottom = (collapsed) =>
-    collapsed ? null : (
+    collapsed || !restaurant.id ? null : (
       <Link
-        to={`/restaurants/${restaurant.id || ""}`}
+        to={`/restaurants/${restaurant.id}`}
         className="flex items-center gap-2.5 px-[11px] py-2.5 rounded-lg no-underline text-[14px] text-[#4B5563] hover:text-[#D1D5DB] hover:bg-[#1A1D27] transition-colors duration-150"
       >
         <ExternalLink size={16} strokeWidth={1.8} />

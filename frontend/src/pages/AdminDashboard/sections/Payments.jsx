@@ -3,13 +3,14 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { adminApi } from "../../../features/api/apiSlice";
 import { Card, PillBadge } from "../../../components/dashboard/Card";
 import DetailDrawer from "../components/DetailDrawer";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { ErrorBanner, LoadingRows } from "../components/States";
 import { formatBDT, formatDateTime, ORDER_STATUS_TONE, orderStatusLabel, paymentMethodLabel, PAYMENT_STATUS_TONE } from "./utils";
 
-const STATUSES = ["paid", "pending", "failed", "cancelled"];
+const STATUSES = ["paid", "pending", "failed", "cancelled", "refund_pending", "refunded"];
 const METHODS = ["cash", "bkash", "nagad", "card"];
 
-export default function Payments({ onViewOrder }) {
+export default function Payments({ onViewOrder, showToast }) {
   const [payments, setPayments] = useState([]);
   const [meta, setMeta] = useState(null);
   const [status, setStatus] = useState("");
@@ -19,6 +20,8 @@ export default function Payments({ onViewOrder }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [confirmRefund, setConfirmRefund] = useState(false);
+  const [marking, setMarking] = useState(false);
 
   const fetchPayments = useCallback(async () => {
     setLoading(true);
@@ -85,7 +88,7 @@ export default function Payments({ onViewOrder }) {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#FAFAFA] border-b border-border">
-                  {["Order", "Customer", "Transaction", "Method", "Amount", "Payment", "Order", "Date"].map((h) => (
+                  {["Order #", "Customer", "Transaction", "Method", "Amount", "Payment", "Status", "Date"].map((h) => (
                     <th key={h} className="px-4 py-2.5 text-left text-text-light font-semibold text-[12.5px] uppercase tracking-[0.04em] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -216,9 +219,41 @@ export default function Payments({ onViewOrder }) {
                 View order #{selected.order_id}
               </button>
             )}
+            {selected.status === "refund_pending" && selected.order_id && (
+              <button
+                onClick={() => setConfirmRefund(true)}
+                disabled={marking}
+                className="w-full px-4 py-2.5 rounded-[9px] border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-[13.5px] font-semibold transition-colors cursor-pointer font-outfit disabled:opacity-50"
+              >
+                Mark refunded (money returned via gateway)
+              </button>
+            )}
           </div>
         )}
       </DetailDrawer>
+
+      <ConfirmDialog
+        open={confirmRefund}
+        title="Mark refund as completed?"
+        message={selected?.order_id ? `Confirm the ${formatBDT(selected.amount)} refund for order #${selected.order_id} was completed in the gateway dashboard. This closes the refund loop.` : "Confirm the refund was completed in the gateway dashboard."}
+        confirmLabel={marking ? "Saving..." : "Mark refunded"}
+        onClose={() => { if (!marking) setConfirmRefund(false); }}
+        onConfirm={async () => {
+          if (!selected?.order_id || marking) return;
+          setMarking(true);
+          try {
+            await adminApi.markRefunded(selected.order_id);
+            showToast?.("Refund marked as completed.");
+            setConfirmRefund(false);
+            setSelected((prev) => (prev ? { ...prev, status: "refunded" } : prev));
+            fetchPayments();
+          } catch (err) {
+            showToast?.(err.response?.data?.message || "Failed to mark refunded.", "error");
+          } finally {
+            setMarking(false);
+          }
+        }}
+      />
     </div>
   );
 }

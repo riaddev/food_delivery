@@ -1,14 +1,11 @@
 import { useEffect, useState } from "react";
-import {
-  Bike, Store, UserPlus,
-} from "lucide-react";
 import { Card, DotStatus, EmptyState, HeroCard, KpiCard, SectionTitle, Skeleton } from "../../../components/dashboard/Card";
 import { DonutChart, Legend, LineChart } from "../../../components/dashboard/Charts";
 import { ErrorBanner } from "../components/States";
 import { adminApi } from "../../../features/api/apiSlice";
 import { formatBDT, ORDER_STATUS_COLOR, orderStatusLabel, restaurantImage, timeAgo } from "./utils";
 
-export default function Overview({ stats, activity, loading, error, onRetry, onNavigate, showToast }) {
+export default function Overview({ stats, activity, loading, error, onRetry, onNavigate }) {
   const [topRestaurants, setTopRestaurants] = useState([]);
 
   useEffect(() => {
@@ -53,12 +50,6 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
     : delta === null || delta === undefined
       ? "First completed order today"
       : `${delta > 0 ? "+" : ""}${delta}% vs yesterday`;
-
-  const quickActions = [
-    { label: "Add Restaurant", icon: Store, onClick: () => onNavigate("restaurants") },
-    { label: "Add Agent", icon: UserPlus, onClick: () => onNavigate("agents") },
-    { label: "Broadcast", icon: Bike, onClick: () => showToast("Broadcast feature is coming soon") },
-  ];
 
   const riders = [
     { label: "Active", value: stats?.riders_active ?? 0, color: "#16A34A" },
@@ -131,7 +122,7 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
           <div className="flex items-start justify-between mb-6">
             <div>
               <div className="text-[15px] font-bold text-text-primary">Weekly Revenue</div>
-              <div className="text-[13px] text-text-muted mt-1">Last 7 days \u00B7 completed orders only</div>
+              <div className="text-[13px] text-text-muted mt-1">Last 7 days · completed orders only</div>
             </div>
             <div className="text-right">
               <div className="text-[20px] font-bold text-orange-primary font-mono">
@@ -268,8 +259,8 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
         </div>
       </div>
 
-      {/* Delivery agents + Quick actions */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 mb-5">
+      {/* Delivery agents */}
+      <div className="mb-5">
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div className="text-[15px] font-bold text-text-primary">Delivery Agents</div>
@@ -289,25 +280,6 @@ export default function Overview({ stats, activity, loading, error, onRetry, onN
                 <div className="text-[13px] text-text-muted mt-1.5 font-medium">{a.label}</div>
               </div>
             ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="text-[15px] font-bold text-text-primary mb-4">Quick Actions</div>
-          <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2.5">
-            {quickActions.map((q) => {
-              const Icon = q.icon;
-              return (
-                <button
-                  key={q.label}
-                  onClick={q.onClick}
-                  className="px-3.5 py-3 border border-border rounded-[9px] bg-[#FAFAFA] cursor-pointer text-[14.5px] font-semibold text-text-primary font-outfit text-left transition-colors duration-150 hover:bg-orange-primary hover:text-white hover:border-orange-primary inline-flex items-center gap-2"
-                >
-                  <Icon size={15} strokeWidth={2} />
-                  {q.label}
-                </button>
-              );
-            })}
           </div>
         </Card>
       </div>
